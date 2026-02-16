@@ -161,6 +161,26 @@ const TEXT_ANIMATIONS = [
 
 const DEVICE_TYPES = ['iphone', 'android', 'both']
 
+function findNonOverlappingSlot(existing, desiredStart, duration, maxTime) {
+  const sorted = existing
+    .map((e) => ({ s: e.startTime, e: e.endTime }))
+    .sort((a, b) => a.s - b.s)
+  const tryFit = (s) => {
+    const e = s + duration
+    if (e > maxTime) return null
+    const overlaps = sorted.some((o) => s < o.e && e > o.s)
+    if (!overlaps) return { start: s, end: e }
+    return null
+  }
+  const fit = tryFit(desiredStart)
+  if (fit) return fit
+  for (const block of sorted) {
+    const fit2 = tryFit(block.e)
+    if (fit2) return fit2
+  }
+  return tryFit(0)
+}
+
 function recalcStartTimes(clips) {
   let time = 0
   return clips.map((clip) => {
@@ -249,6 +269,14 @@ function App() {
     if (!activeClip) return currentTime
     return currentTime - activeClip.startTime
   }, [activeClip, currentTime])
+
+  const activeTextAnim = useMemo(() => {
+    if (!textOverlays || textOverlays.length === 0) return 'none'
+    const active = textOverlays.find(
+      (t) => t.startTime != null && t.endTime != null && currentTime >= t.startTime && currentTime <= t.endTime
+    )
+    return active ? (active.animation || 'none') : 'none'
+  }, [textOverlays, currentTime])
 
   // ── Unified play/pause toggle ───────────────────
   const togglePlayback = useCallback(() => {
@@ -424,22 +452,37 @@ function App() {
     })
   }, [])
 
-  const handleAddZoomEffect = useCallback(() => {
-    setZoomEffects((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        startTime: Math.max(0, currentTime),
-        endTime: Math.min(totalDuration, currentTime + 1),
-        zoomLevel: 2,
-      },
-    ])
+  const handleAddZoomEffect = useCallback((atTime) => {
+    const t = atTime != null ? atTime : currentTime
+    setZoomEffects((prev) => {
+      const maxT = totalDuration || 6
+      const desired = { start: Math.max(0, t), end: Math.min(maxT, t + 1) }
+      const placed = findNonOverlappingSlot(prev, desired.start, desired.end - desired.start, maxT)
+      if (!placed) return prev
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          startTime: placed.start,
+          endTime: placed.end,
+          zoomLevel: 2,
+        },
+      ]
+    })
   }, [currentTime, totalDuration])
 
   const handleUpdateZoomEffect = useCallback((effectId, updates) => {
-    setZoomEffects((prev) =>
-      prev.map((e) => (e.id === effectId ? { ...e, ...updates } : e))
-    )
+    setZoomEffects((prev) => {
+      return prev.map((e) => {
+        if (e.id !== effectId) return e
+        const updated = { ...e, ...updates }
+        const others = prev.filter((o) => o.id !== effectId)
+        const hasOverlap = others.some(
+          (o) => updated.startTime < o.endTime && updated.endTime > o.startTime
+        )
+        return hasOverlap ? e : updated
+      })
+    })
   }, [])
 
   const handleRemoveZoomEffect = useCallback((effectId) => {
@@ -447,24 +490,49 @@ function App() {
   }, [])
 
   // ── Text overlay operations ─────────────────────
-  const handleAddText = useCallback(() => {
-    const newText = {
-      id: crypto.randomUUID(),
-      text: 'Your text here',
-      fontFamily: 'Inter',
-      
-      fontSize: 48,
-      color: '#ffffff',
-      animation: 'none',
-      posY: 0,
-    }
-    setTextOverlays((prev) => [...prev, newText])
-    setSelectedTextId(newText.id)
-  }, [])
+  const handleAddText = useCallback((atTime) => {
+    const t = atTime != null ? atTime : currentTime
+    setTextOverlays((prev) => {
+      const dur = 2
+      const maxT = totalDuration || 6
+      const desired = { start: Math.max(0, t), end: Math.min(maxT, t + dur) }
+      const placed = findNonOverlappingSlot(
+        prev.map((t) => ({ startTime: t.startTime, endTime: t.endTime })),
+        desired.start,
+        desired.end - desired.start,
+        maxT
+      )
+      if (!placed) return prev
+      const newText = {
+        id: crypto.randomUUID(),
+        text: 'Your text here',
+        fontFamily: 'Inter',
+        fontSize: 48,
+        color: '#ffffff',
+        animation: 'none',
+        posY: 0,
+        startTime: placed.start,
+        endTime: placed.end,
+      }
+      setSelectedTextId(newText.id)
+      return [...prev, newText]
+    })
+  }, [currentTime, totalDuration])
 
   const handleUpdateText = useCallback((textId, updates) => {
     setTextOverlays((prev) =>
-      prev.map((t) => (t.id === textId ? { ...t, ...updates } : t))
+      prev.map((t) => {
+        if (t.id !== textId) return t
+        const updated = { ...t, ...updates }
+        if (updates.startTime != null || updates.endTime != null) {
+          const others = prev.filter((o) => o.id !== textId)
+          const hasOverlap = others.some(
+            (o) => updated.startTime < o.endTime && updated.endTime > o.startTime
+          )
+          if (hasOverlap) return t
+        }
+        return updated
+      })
     )
   }, [])
 
@@ -625,8 +693,10 @@ function App() {
                     </svg>
                   )},
                   { id: 'animations', icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="5,3 19,12 5,21" />
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <ellipse cx="12" cy="7" rx="9" ry="3.5" opacity="0.4" />
+                      <ellipse cx="12" cy="12" rx="9" ry="3.5" opacity="0.7" />
+                      <ellipse cx="12" cy="17" rx="9" ry="3.5" />
                     </svg>
                   )},
                   { id: 'text', icon: (
@@ -960,9 +1030,11 @@ function App() {
                                 const clip = selClip || activeClip
                                 if (clip) {
                                   handleUpdateClip(clip.id, { animation: preset.id })
+                                  setCurrentTime(clip.startTime)
                                 }
                                 setAnimation(preset.id)
                                 setIsPlaying(true)
+                                setIsTimelinePlaying(true)
                               }}
                             >
                               <div className="animation-tile-icon">
@@ -1047,6 +1119,7 @@ function App() {
                 textOverlays={textOverlays}
                 currentTime={currentTime}
                 clipAnimationTime={clipAnimationTime}
+                activeTextAnim={activeTextAnim}
               />
               {timelineClips.length > 0 && (
                 <Timeline

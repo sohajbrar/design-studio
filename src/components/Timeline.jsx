@@ -8,6 +8,8 @@ const TRIM_HANDLE_WIDTH = 8
 const MIN_CLIP_DURATION = 0.5
 const ZOOM_HANDLE_WIDTH = 6
 const MIN_ZOOM_DURATION = 0.2
+const TEXT_HANDLE_WIDTH = 6
+const MIN_TEXT_DURATION = 0.3
 
 function formatTime(seconds) {
   const mins = Math.floor(seconds / 60)
@@ -157,6 +159,38 @@ export default function Timeline({
           endTime: newStart + dur,
         })
       }
+
+      if (dragState.type === 'text-resize-left') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const newStart = Math.max(
+          0,
+          Math.min(dragState.endTime - MIN_TEXT_DURATION, dragState.startValue + dTime)
+        )
+        onUpdateText(dragState.textId, { startTime: newStart })
+      }
+
+      if (dragState.type === 'text-resize-right') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const newEnd = Math.min(
+          totalDuration,
+          Math.max(dragState.startTimeVal + MIN_TEXT_DURATION, dragState.startValue + dTime)
+        )
+        onUpdateText(dragState.textId, { endTime: newEnd })
+      }
+
+      if (dragState.type === 'text-move') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const dur = dragState.origEnd - dragState.origStart
+        let newStart = dragState.origStart + dTime
+        newStart = Math.max(0, Math.min(totalDuration - dur, newStart))
+        onUpdateText(dragState.textId, {
+          startTime: newStart,
+          endTime: newStart + dur,
+        })
+      }
     }
 
     const handlePointerUp = () => {
@@ -178,6 +212,7 @@ export default function Timeline({
     onUpdateClip,
     onReorderClips,
     onUpdateZoomEffect,
+    onUpdateText,
   ])
 
   useEffect(() => {
@@ -294,9 +329,9 @@ export default function Timeline({
     setSelectedTextId(null)
 
     if (trackType === 'zoom') {
-      onAddZoomEffect()
+      onAddZoomEffect(time)
     } else if (trackType === 'text' && onAddText) {
-      onAddText()
+      onAddText(time)
       if (setSidebarTab) setSidebarTab('text')
     }
     setHoverGhost(null)
@@ -590,13 +625,15 @@ export default function Timeline({
             )}
             {textOverlays && textOverlays.map((overlay) => {
               const isSelected = overlay.id === selectedTextId
+              const blockX = (overlay.startTime || 0) * pps
+              const blockW = ((overlay.endTime || 0) - (overlay.startTime || 0)) * pps
               return (
                 <div
                   key={overlay.id}
                   className={`text-block ${isSelected ? 'selected' : ''}`}
                   style={{
-                    left: 0,
-                    width: Math.max(trackWidth, 60),
+                    left: blockX,
+                    width: Math.max(blockW, 20),
                   }}
                   onMouseDown={(e) => {
                     e.stopPropagation()
@@ -604,29 +641,46 @@ export default function Timeline({
                     setSelectedClipId(null)
                     setSelectedZoomId(null)
                     if (setSidebarTab) setSidebarTab('text')
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const localX = e.clientX - rect.left
+
+                    if (localX <= TEXT_HANDLE_WIDTH) {
+                      setDragState({
+                        type: 'text-resize-left',
+                        textId: overlay.id,
+                        startX: e.clientX,
+                        startValue: overlay.startTime,
+                        endTime: overlay.endTime,
+                      })
+                    } else if (localX >= rect.width - TEXT_HANDLE_WIDTH) {
+                      setDragState({
+                        type: 'text-resize-right',
+                        textId: overlay.id,
+                        startX: e.clientX,
+                        startValue: overlay.endTime,
+                        startTimeVal: overlay.startTime,
+                      })
+                    } else {
+                      setDragState({
+                        type: 'text-move',
+                        textId: overlay.id,
+                        startX: e.clientX,
+                        origStart: overlay.startTime,
+                        origEnd: overlay.endTime,
+                      })
+                    }
                   }}
                 >
+                  <div className="text-handle left" />
+                  <div className="text-handle right" />
                   <div className="text-block-content">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="4 7 4 4 20 4 20 7" />
                       <line x1="12" y1="4" x2="12" y2="20" />
                     </svg>
                     <span className="text-block-label">{overlay.text || 'Text'}</span>
-                    {overlay.animation !== 'none' && (
-                      <span className="text-block-anim">{overlay.animation.replace('slideFrom', '← ')}</span>
-                    )}
+                    <span className="text-block-time">{((overlay.endTime || 0) - (overlay.startTime || 0)).toFixed(1)}s</span>
                   </div>
-                  <button
-                    className="text-block-remove"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRemoveText(overlay.id)
-                    }}
-                    title="Remove text"
-                  >
-                    ×
-                  </button>
                 </div>
               )
             })}

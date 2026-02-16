@@ -368,13 +368,14 @@
   border-radius: 5px;
   border: 1.5px solid rgba(147, 130, 255, 0.35);
   background: rgba(147, 130, 255, 0.10);
-  cursor: pointer;
+  cursor: grab;
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 6px;
+  min-width: 20px;
+}
+
+.text-block:active {
+  cursor: grabbing;
 }
 
 .text-block:hover {
@@ -388,13 +389,47 @@
   background: rgba(147, 130, 255, 0.18);
 }
 
+/* ── Text handles ────────────────────────────── */
+.text-handle {
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+  transition: background 0.15s;
+}
+
+.text-handle.left {
+  left: 0;
+  border-radius: 5px 0 0 5px;
+}
+
+.text-handle.right {
+  right: 0;
+  border-radius: 0 5px 5px 0;
+}
+
+.text-block.selected .text-handle:hover,
+.text-block:hover .text-handle:hover {
+  background: rgba(147, 130, 255, 0.25);
+}
+
 .text-block-content {
   display: flex;
   align-items: center;
   gap: 5px;
+  padding: 0 8px;
   color: rgba(147, 130, 255, 0.8);
   min-width: 0;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.text-block-time {
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .text-block-label {

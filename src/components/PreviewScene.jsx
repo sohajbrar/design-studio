@@ -93,7 +93,7 @@ function CameraAnimator({ animation, isPlaying }) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, isPlaying, currentTime, clipAnimationTime }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, isPlaying, currentTime, clipAnimationTime, activeTextAnim }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -101,6 +101,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   const macbookRef = useRef()
   const currentZoomRef = useRef(1)
   const lidAngleRef = useRef(Math.PI / 2)
+  const textOffsetRef = useRef({ x: 0, y: 0 })
   const ctRef = useRef(clipAnimationTime || 0)
   ctRef.current = clipAnimationTime || 0
 
@@ -358,6 +359,22 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       group.scale.y * zs,
       group.scale.z * zs
     )
+
+    // Offset device based on active text animation direction
+    // Text gets 30% of screen, device shifts into the remaining 70%
+    let targetOffX = 0
+    let targetOffY = 0
+    const shift = 0.7
+    switch (activeTextAnim) {
+      case 'slideFromTop': targetOffY = shift; break
+      case 'slideFromBottom': targetOffY = -shift; break
+      case 'slideFromLeft': targetOffX = -shift; break
+      case 'slideFromRight': targetOffX = shift; break
+    }
+    textOffsetRef.current.x += (targetOffX - textOffsetRef.current.x) * 0.06
+    textOffsetRef.current.y += (targetOffY - textOffsetRef.current.y) * 0.06
+    group.position.x += textOffsetRef.current.x
+    group.position.y += textOffsetRef.current.y
   })
 
   return (
@@ -400,7 +417,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         </group>
       )}
       {showMacbook && (
-        <group ref={macbookRef} position={[0, -0.2, 0]}>
+        <group ref={macbookRef} position={[0, -0.35, 0]}>
           <DeviceFrame
             type="macbook"
             screenUrl={firstScreen?.url || null}
@@ -408,7 +425,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             isVideo={firstScreen?.isVideo || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
-            scale={0.28}
+            scale={0.42}
             lidAngleRef={lidAngleRef}
           />
         </group>
@@ -500,8 +517,8 @@ function CanvasTextOverlay({ overlay, currentTime }) {
     switch (overlay.animation) {
       case 'slideFromRight': offX = -(progress * 2); break
       case 'slideFromLeft': offX = progress * 2; break
-      case 'slideFromBottom': offY = progress * 1.5; break
-      case 'slideFromTop': offY = -(progress * 1.5); break
+      case 'slideFromBottom': offY = progress * 1; break
+      case 'slideFromTop': offY = -(progress * 1); break
     }
 
     meshRef.current.position.set(offX, baseY + offY, -1.2)
@@ -524,9 +541,17 @@ function TextOverlays({ textOverlays, currentTime }) {
 
   return (
     <group>
-      {textOverlays.map((overlay) => (
-        <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={currentTime} />
-      ))}
+      {textOverlays
+        .filter((overlay) => {
+          if (overlay.startTime == null || overlay.endTime == null) return true
+          return currentTime >= overlay.startTime && currentTime <= overlay.endTime
+        })
+        .map((overlay) => {
+          const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
+          return (
+            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} />
+          )
+        })}
     </group>
   )
 }
@@ -534,7 +559,7 @@ function TextOverlays({ textOverlays, currentTime }) {
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, bgColor, bgGradient, showBase, isPlaying, canvasRef,
-  textOverlays, currentTime, clipAnimationTime,
+  textOverlays, currentTime, clipAnimationTime, activeTextAnim,
 }) {
   return (
     <div className="preview-scene">
@@ -583,6 +608,7 @@ export default function PreviewScene({
             isPlaying={isPlaying}
             currentTime={currentTime}
             clipAnimationTime={clipAnimationTime}
+            activeTextAnim={activeTextAnim}
           />
           <Particles />
           {showBase && (
