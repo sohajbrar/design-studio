@@ -25,7 +25,6 @@ export default function Header({ children }) {
         </div>
       </div>
       <div className="header-center">
-        <span className="header-tagline">Transform Figma designs into stunning 3D demo videos</span>
       </div>
       <div className="header-right">
         {children}

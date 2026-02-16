@@ -22,13 +22,15 @@ function SceneBackground({ bgColor, bgGradient }) {
       canvas.width = 512
       canvas.height = 512
       const ctx = canvas.getContext('2d')
-      const gradient = ctx.createRadialGradient(256, 200, 0, 256, 256, 420)
-      const baseColor = new THREE.Color(bgColor)
-      const lighterColor = baseColor.clone().lerp(new THREE.Color('#21C063'), 0.06)
-      gradient.addColorStop(0, lighterColor.getStyle())
-      gradient.addColorStop(0.4, bgColor)
-      gradient.addColorStop(1, new THREE.Color(bgColor).lerp(new THREE.Color('#000000'), 0.4).getStyle())
-      ctx.fillStyle = gradient
+      // Fill base color first
+      ctx.fillStyle = bgColor
+      ctx.fillRect(0, 0, 512, 512)
+      // Radial green glow matching home screen: rgba(33,192,99,0.08) at center → transparent at 70%
+      const glow = ctx.createRadialGradient(256, 256, 0, 256, 256, 358)
+      glow.addColorStop(0, 'rgba(33, 192, 99, 0.08)')
+      glow.addColorStop(0.7, 'rgba(33, 192, 99, 0)')
+      glow.addColorStop(1, 'rgba(33, 192, 99, 0)')
+      ctx.fillStyle = glow
       ctx.fillRect(0, 0, 512, 512)
       scene.background = new THREE.CanvasTexture(canvas)
     } else {
@@ -91,29 +93,29 @@ function CameraAnimator({ animation, isPlaying }) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, isPlaying }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, isPlaying, currentTime, clipAnimationTime }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
-  const timeRef = useRef(0)
+  const ipadRef = useRef()
+  const macbookRef = useRef()
   const currentZoomRef = useRef(1)
+  const lidAngleRef = useRef(Math.PI / 2)
+  const ctRef = useRef(clipAnimationTime || 0)
+  ctRef.current = clipAnimationTime || 0
 
   const firstScreen = activeScreen || screens[0] || null
   const secondScreen = screens[1] || screens[0] || null
 
   const showIphone = deviceType === 'iphone' || deviceType === 'both'
   const showAndroid = deviceType === 'android' || deviceType === 'both'
+  const showIpad = deviceType === 'ipad'
+  const showMacbook = deviceType === 'macbook'
   const isBoth = deviceType === 'both'
 
-  // Reset time when animation changes so intro animations replay
-  useEffect(() => {
-    timeRef.current = 0
-  }, [animation])
-
-  useFrame((state, delta) => {
+  useFrame(() => {
     if (!groupRef.current) return
-    if (isPlaying) timeRef.current += delta
-    const t = timeRef.current
+    const t = ctRef.current
     const group = groupRef.current
     const iph = iphoneRef.current
     const and = androidRef.current
@@ -315,10 +317,36 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         break
       }
 
+      // ── LAPTOP OPEN: lid opens from closed to upright ─
+      case 'laptopOpen': {
+        const introT = Math.min(1, t / 2.0)
+        const eased = easeOutCubic(introT)
+        lidAngleRef.current = eased * (Math.PI / 2)
+        group.rotation.y = smoothSin(t, 0.2, 0.15)
+        group.position.y = smoothSin(t, 0.3, 0.05)
+        break
+      }
+
+      // ── LAPTOP CLOSE: lid closes from upright to flat ─
+      case 'laptopClose': {
+        const introT = Math.min(1, t / 2.0)
+        const eased = easeOutCubic(introT)
+        lidAngleRef.current = (1 - eased) * (Math.PI / 2)
+        group.rotation.y = smoothSin(t, 0.2, 0.15)
+        group.position.y = smoothSin(t, 0.3, 0.05)
+        break
+      }
+
       default: {
+        lidAngleRef.current = Math.PI / 2
         group.rotation.y = smoothSin(t, 0.3, 0.3)
         group.position.y = smoothSin(t, 0.4, 0.08)
       }
+    }
+
+    // Reset lid to open for non-laptop animations
+    if (animation !== 'laptopOpen' && animation !== 'laptopClose') {
+      lidAngleRef.current = Math.PI / 2
     }
 
     // Apply timeline zoom effect — scales the entire phone group smoothly
@@ -355,6 +383,33 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             screenFile={secondScreen?.file || null}
             isVideo={secondScreen?.isVideo || false}
             scale={0.35}
+          />
+        </group>
+      )}
+      {showIpad && (
+        <group ref={ipadRef} position={[0, 0, 0]}>
+          <DeviceFrame
+            type="ipad"
+            screenUrl={firstScreen?.url || null}
+            screenFile={firstScreen?.file || null}
+            isVideo={firstScreen?.isVideo || false}
+            videoSeekTime={videoSeekTime}
+            timelinePlaying={timelinePlaying}
+            scale={0.35}
+          />
+        </group>
+      )}
+      {showMacbook && (
+        <group ref={macbookRef} position={[0, -0.2, 0]}>
+          <DeviceFrame
+            type="macbook"
+            screenUrl={firstScreen?.url || null}
+            screenFile={firstScreen?.file || null}
+            isVideo={firstScreen?.isVideo || false}
+            videoSeekTime={videoSeekTime}
+            timelinePlaying={timelinePlaying}
+            scale={0.28}
+            lidAngleRef={lidAngleRef}
           />
         </group>
       )}
@@ -402,9 +457,84 @@ function GroundPlane() {
   )
 }
 
+// ── Canvas-texture text overlay ───────────────────────────────
+function CanvasTextOverlay({ overlay, currentTime }) {
+  const meshRef = useRef()
+  const ctRef = useRef(currentTime)
+  ctRef.current = currentTime
+
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 1024
+    canvas.height = 256
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.minFilter = THREE.LinearFilter
+    tex.magFilter = THREE.LinearFilter
+    return tex
+  }, [])
+
+  useEffect(() => {
+    const canvas = texture.image
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    const pxSize = Math.max(24, Math.min(200, overlay.fontSize * 1.8))
+    ctx.font = `600 ${pxSize}px "${overlay.fontFamily}", Inter, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = overlay.color
+    ctx.fillText(overlay.text || '', canvas.width / 2, canvas.height / 2)
+
+    texture.needsUpdate = true
+  }, [overlay.text, overlay.fontFamily, overlay.fontSize, overlay.color, texture])
+
+  useFrame(() => {
+    if (!meshRef.current) return
+    const t = ctRef.current
+    const animDuration = 1.2
+    const progress = easeOutCubic(Math.min(1, t / animDuration))
+    const baseY = overlay.posY
+    let offX = 0
+    let offY = 0
+
+    switch (overlay.animation) {
+      case 'slideFromRight': offX = -(progress * 2); break
+      case 'slideFromLeft': offX = progress * 2; break
+      case 'slideFromBottom': offY = progress * 1.5; break
+      case 'slideFromTop': offY = -(progress * 1.5); break
+    }
+
+    meshRef.current.position.set(offX, baseY + offY, -1.2)
+  })
+
+  const aspect = 1024 / 256
+  const height = overlay.fontSize * 0.012
+  const width = height * aspect
+
+  return (
+    <mesh ref={meshRef} position={[0, overlay.posY, -1.2]}>
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial map={texture} transparent depthWrite={false} />
+    </mesh>
+  )
+}
+
+function TextOverlays({ textOverlays, currentTime }) {
+  if (!textOverlays || textOverlays.length === 0) return null
+
+  return (
+    <group>
+      {textOverlays.map((overlay) => (
+        <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={currentTime} />
+      ))}
+    </group>
+  )
+}
+
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, bgColor, bgGradient, showBase, isPlaying, canvasRef,
+  textOverlays, currentTime, clipAnimationTime,
 }) {
   return (
     <div className="preview-scene">
@@ -451,12 +581,11 @@ export default function PreviewScene({
             deviceType={deviceType}
             animation={animation}
             isPlaying={isPlaying}
-            
+            currentTime={currentTime}
+            clipAnimationTime={clipAnimationTime}
           />
           <Particles />
           {showBase && (
-            <>
-              <GroundPlane />
               <ContactShadows
                 position={[0, -2.5, 0]}
                 opacity={0.3}
@@ -465,9 +594,9 @@ export default function PreviewScene({
                 far={4.5}
                 resolution={512}
               />
-            </>
           )}
         </Suspense>
+        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} />
 
         <OrbitControls
           enablePan={false}

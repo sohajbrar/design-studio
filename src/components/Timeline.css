@@ -224,10 +224,19 @@
   padding: 6px 0;
 }
 
+.text-track {
+  height: 34px;
+  padding: 3px 0;
+  background: rgba(147, 130, 255, 0.02);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
 .zoom-track {
   height: 40px;
   padding: 4px 0;
   background: rgba(33, 192, 99, 0.02);
+  cursor: pointer;
 }
 
 /* ── Track labels ───────────────────────────── */
@@ -269,23 +278,23 @@
 }
 
 .timeline-clip.selected {
-  border-color: #21C063;
-  box-shadow: 0 0 0 1px rgba(33, 192, 99, 0.15);
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .timeline-clip.image {
   background: linear-gradient(
     180deg,
-    rgba(33, 192, 99, 0.06) 0%,
-    rgba(33, 192, 99, 0.02) 100%
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 100%
   );
 }
 
 .timeline-clip.video {
   background: linear-gradient(
     180deg,
-    rgba(46, 216, 116, 0.08) 0%,
-    rgba(33, 192, 99, 0.03) 100%
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 100%
   );
 }
 
@@ -312,7 +321,7 @@
 
 .timeline-clip.selected .trim-handle:hover,
 .timeline-clip:hover .trim-handle:hover {
-  background: rgba(33, 192, 99, 0.25);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 /* ── Clip content ────────────────────────────── */
@@ -349,6 +358,132 @@
   font-size: 0.6rem;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+/* ── Text blocks (text track) ──────────────── */
+.text-block {
+  position: absolute;
+  top: 3px;
+  height: calc(100% - 6px);
+  border-radius: 5px;
+  border: 1.5px solid rgba(147, 130, 255, 0.35);
+  background: rgba(147, 130, 255, 0.10);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px;
+}
+
+.text-block:hover {
+  border-color: rgba(147, 130, 255, 0.6);
+  background: rgba(147, 130, 255, 0.15);
+}
+
+.text-block.selected {
+  border-color: rgba(147, 130, 255, 0.8);
+  box-shadow: 0 0 0 1px rgba(147, 130, 255, 0.15);
+  background: rgba(147, 130, 255, 0.18);
+}
+
+.text-block-content {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(147, 130, 255, 0.8);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.text-block-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text-block.selected .text-block-label {
+  color: rgba(167, 150, 255, 1);
+}
+
+.text-block-anim {
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.text-block-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.text-block:hover .text-block-remove {
+  opacity: 0.7;
+}
+
+.text-block-remove:hover {
+  color: var(--danger);
+  opacity: 1;
+}
+
+/* ── Hover ghost preview for click-to-add ───── */
+.track-ghost {
+  position: absolute;
+  top: 4px;
+  height: calc(100% - 8px);
+  border-radius: 5px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  animation: ghost-fade-in 0.15s ease;
+}
+
+@keyframes ghost-fade-in {
+  from { opacity: 0; transform: scaleX(0.8); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+
+.track-ghost-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.text-track .track-ghost {
+  border-color: rgba(147, 130, 255, 0.4);
+  background: rgba(147, 130, 255, 0.06);
+}
+
+.text-track .track-ghost-label {
+  color: rgba(147, 130, 255, 0.5);
+}
+
+.zoom-track .track-ghost {
+  border-color: rgba(33, 192, 99, 0.4);
+  background: rgba(33, 192, 99, 0.06);
+}
+
+.zoom-track .track-ghost-label {
+  color: rgba(33, 192, 99, 0.5);
 }
 
 /* ── Zoom blocks (parallel track) ───────────── */

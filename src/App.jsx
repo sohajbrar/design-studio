@@ -23,6 +23,8 @@ const ANIMATION_PRESETS = [
   { id: 'slideUp', name: 'Slide Up' },
   { id: 'slideRightRotate', name: 'Right + Rotate' },
   { id: 'slideLeftRotate', name: 'Left + Rotate' },
+  { id: 'laptopOpen', name: 'Laptop Open', macbookOnly: true },
+  { id: 'laptopClose', name: 'Laptop Close', macbookOnly: true },
 ]
 
 const ANIM_ICONS = {
@@ -120,7 +122,42 @@ const ANIM_ICONS = {
       <path d="M14 30l2-3h-4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.4"/>
     </svg>
   ),
+  laptopOpen: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="8" y="30" width="32" height="3" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.5"/>
+      <rect x="10" y="8" width="28" height="20" rx="2" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 2" opacity="0.25" transform="rotate(-70 24 28)"/>
+      <rect x="10" y="8" width="28" height="20" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M20 18l4-3v6l-4-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
+      <path d="M30 12a6 6 0 0 1 0 10" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.3"/>
+    </svg>
+  ),
+  laptopClose: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="8" y="30" width="32" height="3" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.5"/>
+      <rect x="10" y="8" width="28" height="20" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="10" y="8" width="28" height="20" rx="2" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 2" opacity="0.25" transform="rotate(-70 24 28)"/>
+      <path d="M28 18l-4 3v-6l4 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
+      <path d="M14 12a6 6 0 0 0 0 10" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.3"/>
+    </svg>
+  ),
 }
+
+const FONT_OPTIONS = [
+  { name: 'Inter' },
+  { name: 'Roboto' },
+  { name: 'Poppins' },
+  { name: 'Montserrat' },
+  { name: 'Playfair Display' },
+  { name: 'Space Grotesk' },
+]
+
+const TEXT_ANIMATIONS = [
+  { id: 'none', name: 'None' },
+  { id: 'slideFromRight', name: 'From Right' },
+  { id: 'slideFromLeft', name: 'From Left' },
+  { id: 'slideFromBottom', name: 'From Bottom' },
+  { id: 'slideFromTop', name: 'From Top' },
+]
 
 const DEVICE_TYPES = ['iphone', 'android', 'both']
 
@@ -152,11 +189,11 @@ function App() {
   const [bgColor, setBgColor] = useState('#161717')
   const [bgGradient, setBgGradient] = useState(false)
   const [showBase, setShowBase] = useState(false)
-  const [isPlaying, setIsPlaying] = useState(true)
+  const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [quality, setQuality] = useState('1080p')
-  const [sidebarTab, setSidebarTab] = useState('media')
+  const [sidebarTab, setSidebarTab] = useState('animations')
   const canvasRef = useRef(null)
   const recorderRef = useRef(null)
 
@@ -166,6 +203,8 @@ function App() {
   const [selectedClipId, setSelectedClipId] = useState(null)
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false)
   const [zoomEffects, setZoomEffects] = useState([])
+  const [textOverlays, setTextOverlays] = useState([])
+  const [selectedTextId, setSelectedTextId] = useState(null)
 
   // ── Derived values ───────────────────────────────
   const totalDuration = useMemo(
@@ -206,22 +245,36 @@ function App() {
     return currentTime - activeClip.startTime + activeClip.trimStart
   }, [activeClip, activeScreen, currentTime])
 
+  const clipAnimationTime = useMemo(() => {
+    if (!activeClip) return currentTime
+    return currentTime - activeClip.startTime
+  }, [activeClip, currentTime])
+
+  // ── Unified play/pause toggle ───────────────────
+  const togglePlayback = useCallback(() => {
+    setIsTimelinePlaying((prev) => {
+      if (!prev && currentTime >= totalDuration) {
+        setCurrentTime(0)
+      }
+      const next = !prev
+      setIsPlaying(next)
+      return next
+    })
+  }, [currentTime, totalDuration])
+
   // ── Space key handler for play/pause ─────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const tag = e.target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return
       if (e.code === 'Space' && screens.length > 0) {
         e.preventDefault()
-        setIsTimelinePlaying((prev) => {
-          if (!prev && currentTime >= totalDuration) {
-            setCurrentTime(0)
-          }
-          return !prev
-        })
+        togglePlayback()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [screens.length, currentTime, totalDuration])
+  }, [screens.length, togglePlayback])
 
   // ── Timeline playback loop ───────────────────────
   const rafRef = useRef(null)
@@ -241,6 +294,7 @@ function App() {
           const next = prev + delta
           if (next >= totalDuration) {
             setIsTimelinePlaying(false)
+            setIsPlaying(false)
             return totalDuration
           }
           return next
@@ -392,6 +446,33 @@ function App() {
     setZoomEffects((prev) => prev.filter((e) => e.id !== effectId))
   }, [])
 
+  // ── Text overlay operations ─────────────────────
+  const handleAddText = useCallback(() => {
+    const newText = {
+      id: crypto.randomUUID(),
+      text: 'Your text here',
+      fontFamily: 'Inter',
+      
+      fontSize: 48,
+      color: '#ffffff',
+      animation: 'none',
+      posY: 0,
+    }
+    setTextOverlays((prev) => [...prev, newText])
+    setSelectedTextId(newText.id)
+  }, [])
+
+  const handleUpdateText = useCallback((textId, updates) => {
+    setTextOverlays((prev) =>
+      prev.map((t) => (t.id === textId ? { ...t, ...updates } : t))
+    )
+  }, [])
+
+  const handleRemoveText = useCallback((textId) => {
+    setTextOverlays((prev) => prev.filter((t) => t.id !== textId))
+    setSelectedTextId((prev) => (prev === textId ? null : prev))
+  }, [])
+
   const handleRemoveClip = useCallback((clipId) => {
     setTimelineClips((prev) => recalcStartTimes(prev.filter((c) => c.id !== clipId)))
     setSelectedClipId((prev) => (prev === clipId ? null : prev))
@@ -509,9 +590,9 @@ function App() {
           <>
             <button
               className="btn btn-header btn-secondary"
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={togglePlayback}
             >
-              {isPlaying ? '⏸ Pause' : '▶ Preview'}
+              {isTimelinePlaying ? '⏸ Pause' : '▶ Preview'}
             </button>
             <button
               className={`btn btn-header btn-primary ${isRecording ? 'recording' : ''}`}
@@ -543,15 +624,22 @@ function App() {
                       <polyline points="21 15 16 10 5 21" />
                     </svg>
                   )},
+                  { id: 'animations', icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                  )},
+                  { id: 'text', icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="4 7 4 4 20 4 20 7" />
+                      <line x1="9.5" y1="20" x2="14.5" y2="20" />
+                      <line x1="12" y1="4" x2="12" y2="20" />
+                    </svg>
+                  )},
                   { id: 'device', icon: (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="5" y="2" width="14" height="20" rx="2" />
                       <line x1="12" y1="18" x2="12" y2="18" />
-                    </svg>
-                  )},
-                  { id: 'animations', icon: (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="5,3 19,12 5,21" />
                     </svg>
                   )},
                   { id: 'background', icon: (
@@ -611,22 +699,221 @@ function App() {
                   </>
                 )}
 
+                {sidebarTab === 'text' && (() => {
+                  const selectedText = textOverlays.find((t) => t.id === selectedTextId)
+                  return (
+                    <div className="controls-panel">
+                      <div className="control-group">
+                        <h3 className="section-title">Text Overlays</h3>
+                        <div className="text-add-wrap">
+                          <button className="btn-add-text" onClick={handleAddText}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                            Add Text
+                          </button>
+                        </div>
+                        {textOverlays.length === 0 && (
+                          <p className="anim-hint">Add text overlays to your video</p>
+                        )}
+                        <div className="text-list">
+                          {textOverlays.map((overlay) => (
+                            <div
+                              key={overlay.id}
+                              className={`text-item ${selectedTextId === overlay.id ? 'active' : ''}`}
+                              onClick={() => setSelectedTextId(overlay.id)}
+                            >
+                              <span className="text-item-preview">{overlay.text || 'Empty'}</span>
+                              <button
+                                className="text-item-remove"
+                                onClick={(e) => { e.stopPropagation(); handleRemoveText(overlay.id) }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {selectedText && (
+                        <div className="control-group">
+                          <h3 className="section-title">Edit</h3>
+                          <div className="text-editor">
+                            <div className="te-row">
+                              <input
+                                type="text"
+                                className="te-input"
+                                value={selectedText.text}
+                                onChange={(e) => handleUpdateText(selectedText.id, { text: e.target.value })}
+                                placeholder="Enter text..."
+                              />
+                            </div>
+                            <div className="te-row">
+                              <label className="control-label">Font</label>
+                              <select
+                                className="te-select"
+                                value={selectedText.fontFamily}
+                                onChange={(e) => {
+                                  const font = FONT_OPTIONS.find((f) => f.name === e.target.value)
+                                  handleUpdateText(selectedText.id, { fontFamily: font.name })
+                                }}
+                              >
+                                {FONT_OPTIONS.map((f) => (
+                                  <option key={f.name} value={f.name}>{f.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="te-row">
+                              <label className="control-label">Size</label>
+                              <div className="te-size-wrap">
+                                <input
+                                  type="range"
+                                  min="16"
+                                  max="120"
+                                  step="1"
+                                  value={selectedText.fontSize}
+                                  onChange={(e) => handleUpdateText(selectedText.id, { fontSize: parseInt(e.target.value) })}
+                                  className="te-slider"
+                                />
+                                <span className="te-size-val">{selectedText.fontSize}px</span>
+                              </div>
+                            </div>
+                            <div className="te-row">
+                              <label className="control-label">Color</label>
+                              <div className="color-picker-wrap">
+                                <input
+                                  type="color"
+                                  value={selectedText.color}
+                                  onChange={(e) => handleUpdateText(selectedText.id, { color: e.target.value })}
+                                  className="color-input"
+                                />
+                                <input
+                                  type="text"
+                                  className="color-value color-value-edit"
+                                  value={selectedText.color}
+                                  onChange={(e) => {
+                                    let v = e.target.value
+                                    if (!v.startsWith('#')) v = '#' + v
+                                    if (/^#[0-9a-fA-F]{0,6}$/.test(v)) handleUpdateText(selectedText.id, { color: v })
+                                  }}
+                                  onBlur={(e) => {
+                                    let v = e.target.value
+                                    if (/^#[0-9a-fA-F]{6}$/.test(v)) handleUpdateText(selectedText.id, { color: v })
+                                  }}
+                                  spellCheck={false}
+                                />
+                              </div>
+                            </div>
+                            <div className="te-row">
+                              <label className="control-label">Position</label>
+                              <div className="control-chips">
+                                {[
+                                  { val: 0.45, label: 'Top' },
+                                  { val: 0, label: 'Center' },
+                                  { val: -0.45, label: 'Bottom' },
+                                ].map((pos) => (
+                                  <button
+                                    key={pos.val}
+                                    className={`chip small ${selectedText.posY === pos.val ? 'active' : ''}`}
+                                    onClick={() => handleUpdateText(selectedText.id, { posY: pos.val })}
+                                  >
+                                    {pos.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="te-row-col">
+                              <label className="control-label">Animation</label>
+                              <div className="text-anim-options">
+                                {TEXT_ANIMATIONS.map((anim) => (
+                                  <button
+                                    key={anim.id}
+                                    className={`text-anim-btn ${selectedText.animation === anim.id ? 'active' : ''}`}
+                                    onClick={() => handleUpdateText(selectedText.id, { animation: anim.id })}
+                                  >
+                                    {anim.id === 'none' && (
+                                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                        <circle cx="12" cy="12" r="8" opacity="0.4" />
+                                      </svg>
+                                    )}
+                                    {anim.id === 'slideFromRight' && (
+                                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 5 5 12 12 19" />
+                                      </svg>
+                                    )}
+                                    {anim.id === 'slideFromLeft' && (
+                                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                                      </svg>
+                                    )}
+                                    {anim.id === 'slideFromBottom' && (
+                                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
+                                      </svg>
+                                    )}
+                                    {anim.id === 'slideFromTop' && (
+                                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="12" y1="5" x2="12" y2="19" /><polyline points="5 12 12 19 19 12" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 {sidebarTab === 'device' && (
                   <div className="controls-panel">
                     <div className="control-group">
                       <h3 className="section-title">Device Type</h3>
-                      <div className="control-chips">
+                      <div className="animation-grid">
                         {[
-                          { id: 'iphone', label: 'iPhone' },
-                          { id: 'android', label: 'Android' },
-                          { id: 'both', label: 'Both' },
+                          { id: 'iphone', label: 'iPhone', icon: (
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="14" y="6" width="20" height="36" rx="3" />
+                              <line x1="21" y1="10" x2="27" y2="10" opacity="0.5" />
+                              <circle cx="24" cy="37" r="1" fill="currentColor" opacity="0.3" />
+                            </svg>
+                          )},
+                          { id: 'android', label: 'Android', icon: (
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="14" y="6" width="20" height="36" rx="2.5" />
+                              <circle cx="24" cy="10" r="1" fill="currentColor" opacity="0.4" />
+                            </svg>
+                          )},
+                          { id: 'ipad', label: 'iPad', icon: (
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="10" y="8" width="28" height="32" rx="3" />
+                              <circle cx="24" cy="11" r="0.8" fill="currentColor" opacity="0.3" />
+                            </svg>
+                          )},
+                          { id: 'macbook', label: 'MacBook', icon: (
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="10" y="10" width="28" height="20" rx="2" />
+                              <path d="M6 30 L42 30 L40 34 L8 34 Z" />
+                            </svg>
+                          )},
+                          { id: 'both', label: 'Both', icon: (
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="8" y="8" width="16" height="28" rx="2.5" />
+                              <line x1="14" y1="11" x2="18" y2="11" opacity="0.5" />
+                              <rect x="28" y="8" width="16" height="28" rx="2" />
+                              <circle cx="36" cy="11" r="0.8" fill="currentColor" opacity="0.4" />
+                            </svg>
+                          )},
                         ].map((d) => (
                           <button
                             key={d.id}
-                            className={`chip ${deviceType === d.id ? 'active' : ''}`}
+                            className={`animation-tile ${deviceType === d.id ? 'active' : ''}`}
                             onClick={() => setDeviceType(d.id)}
                           >
-                            {d.label}
+                            <div className="animation-tile-icon">{d.icon}</div>
+                            <span className="animation-tile-name">{d.label}</span>
                           </button>
                         ))}
                       </div>
@@ -653,27 +940,29 @@ function App() {
 
                 {sidebarTab === 'animations' && (() => {
                   const selClip = timelineClips.find((c) => c.id === selectedClipId)
-                  const currentAnim = selClip ? selClip.animation : animation
+                  const targetClip = selClip || activeClip
+                  const currentAnim = targetClip ? targetClip.animation : animation
                   return (
                     <div className="controls-panel">
                       <div className="control-group">
                         <h3 className="section-title">
-                          {selClip ? `Animation — ${screens.find((s) => s.id === selClip.screenId)?.name || 'Clip'}` : 'Default Animation'}
+                          {selClip ? `Animation — ${screens.find((s) => s.id === selClip.screenId)?.name || 'Clip'}` : 'Animation'}
                         </h3>
-                        {!selClip && timelineClips.length > 0 && (
-                          <p className="anim-hint">Select a clip in the timeline to set its animation</p>
+                        {!selClip && timelineClips.length > 1 && (
+                          <p className="anim-hint">Select a clip in the timeline to set a different animation per clip</p>
                         )}
                         <div className="animation-grid">
-                          {ANIMATION_PRESETS.map((preset) => (
+                          {ANIMATION_PRESETS.filter((preset) => preset.macbookOnly ? deviceType === 'macbook' : !preset.macbookOnly).map((preset) => (
                             <button
                               key={preset.id}
                               className={`animation-tile ${currentAnim === preset.id ? 'active' : ''}`}
                               onClick={() => {
-                                if (selClip) {
-                                  handleUpdateClip(selClip.id, { animation: preset.id })
-                                } else {
-                                  setAnimation(preset.id)
+                                const clip = selClip || activeClip
+                                if (clip) {
+                                  handleUpdateClip(clip.id, { animation: preset.id })
                                 }
+                                setAnimation(preset.id)
+                                setIsPlaying(true)
                               }}
                             >
                               <div className="animation-tile-icon">
@@ -701,7 +990,21 @@ function App() {
                             onChange={(e) => setBgColor(e.target.value)}
                             className="color-input"
                           />
-                          <span className="color-value">{bgColor}</span>
+                          <input
+                            type="text"
+                            className="color-value color-value-edit"
+                            value={bgColor}
+                            onChange={(e) => {
+                              let v = e.target.value
+                              if (!v.startsWith('#')) v = '#' + v
+                              if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setBgColor(v)
+                            }}
+                            onBlur={(e) => {
+                              let v = e.target.value
+                              if (/^#[0-9a-fA-F]{6}$/.test(v)) setBgColor(v)
+                            }}
+                            spellCheck={false}
+                          />
                         </div>
                       </div>
                       <div className="control-row">
@@ -741,6 +1044,9 @@ function App() {
                 showBase={showBase}
                 isPlaying={isPlaying}
                 canvasRef={canvasRef}
+                textOverlays={textOverlays}
+                currentTime={currentTime}
+                clipAnimationTime={clipAnimationTime}
               />
               {timelineClips.length > 0 && (
                 <Timeline
@@ -762,6 +1068,13 @@ function App() {
                   onUpdateZoomEffect={handleUpdateZoomEffect}
                   onRemoveZoomEffect={handleRemoveZoomEffect}
                   onUpload={handleUpload}
+                  textOverlays={textOverlays}
+                  onAddText={handleAddText}
+                  onUpdateText={handleUpdateText}
+                  onRemoveText={handleRemoveText}
+                  selectedTextId={selectedTextId}
+                  setSelectedTextId={setSelectedTextId}
+                  setSidebarTab={setSidebarTab}
                 />
               )}
             </section>

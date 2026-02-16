@@ -35,6 +35,13 @@ export default function Timeline({
   onUpdateZoomEffect,
   onRemoveZoomEffect,
   onUpload,
+  textOverlays,
+  onAddText,
+  onUpdateText,
+  onRemoveText,
+  selectedTextId,
+  setSelectedTextId,
+  setSidebarTab,
 }) {
   const tracksRef = useRef(null)
   const scrollRef = useRef(null)
@@ -43,6 +50,7 @@ export default function Timeline({
   const [fileDragOver, setFileDragOver] = useState(false)
   const [selectedZoomId, setSelectedZoomId] = useState(null)
   const [pps, setPps] = useState(BASE_PPS)
+  const [hoverGhost, setHoverGhost] = useState(null)
 
   const trackWidth = Math.max(totalDuration * pps, 400)
 
@@ -177,7 +185,11 @@ export default function Timeline({
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const tag = e.target.tagName
         if (tag === 'INPUT' || tag === 'TEXTAREA') return
-        if (selectedZoomId) {
+        if (selectedTextId) {
+          e.preventDefault()
+          onRemoveText(selectedTextId)
+          setSelectedTextId(null)
+        } else if (selectedZoomId) {
           e.preventDefault()
           onRemoveZoomEffect(selectedZoomId)
           setSelectedZoomId(null)
@@ -189,7 +201,7 @@ export default function Timeline({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedClipId, selectedZoomId, onRemoveClip, onRemoveZoomEffect])
+  }, [selectedClipId, selectedZoomId, selectedTextId, onRemoveClip, onRemoveZoomEffect, onRemoveText, setSelectedTextId])
 
   const handleSplit = useCallback(() => {
     if (!selectedClipId) return
@@ -255,6 +267,40 @@ export default function Timeline({
     const available = scrollRef.current.clientWidth - 40
     setPps(Math.min(MAX_PPS, Math.max(MIN_PPS, available / totalDuration)))
   }, [totalDuration])
+
+  const DEFAULT_ADD_DURATION = 1
+
+  const handleTrackHover = useCallback((e, trackType) => {
+    const scrollLeft = scrollRef.current?.scrollLeft || 0
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left + scrollLeft
+    const time = Math.max(0, xToTime(x))
+    setHoverGhost({ trackType, time, duration: DEFAULT_ADD_DURATION })
+  }, [xToTime])
+
+  const handleTrackLeave = useCallback(() => {
+    setHoverGhost(null)
+  }, [])
+
+  const handleTrackClick = useCallback((e, trackType) => {
+    if (e.target !== e.currentTarget) return
+    const scrollLeft = scrollRef.current?.scrollLeft || 0
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left + scrollLeft
+    const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
+    setCurrentTime(time)
+    setSelectedClipId(null)
+    setSelectedZoomId(null)
+    setSelectedTextId(null)
+
+    if (trackType === 'zoom') {
+      onAddZoomEffect()
+    } else if (trackType === 'text' && onAddText) {
+      onAddText()
+      if (setSidebarTab) setSidebarTab('text')
+    }
+    setHoverGhost(null)
+  }, [totalDuration, xToTime, setCurrentTime, setSelectedClipId, setSelectedZoomId, setSelectedTextId, onAddZoomEffect, onAddText, setSidebarTab])
 
   const rulerMarks = useMemo(() => {
     const step = pps >= 80 ? 1 : pps >= 40 ? 2 : 5
@@ -465,6 +511,7 @@ export default function Timeline({
                     e.stopPropagation()
                     setSelectedClipId(clip.id)
                     setSelectedZoomId(null)
+                    if (setSidebarTab) setSidebarTab('animations')
                     const rect = e.currentTarget.getBoundingClientRect()
                     const localX = e.clientX - rect.left
 
@@ -520,22 +567,92 @@ export default function Timeline({
             })}
           </div>
 
+          {/* ── Text track ── */}
+          <div
+            className="timeline-track text-track"
+            onMouseDown={(e) => handleTrackClick(e, 'text')}
+            onMouseMove={(e) => {
+              if (e.target === e.currentTarget) handleTrackHover(e, 'text')
+            }}
+            onMouseLeave={handleTrackLeave}
+          >
+            <span className="track-label">Text</span>
+            {hoverGhost && hoverGhost.trackType === 'text' && (
+              <div
+                className="track-ghost"
+                style={{
+                  left: timeToX(hoverGhost.time),
+                  width: Math.max(hoverGhost.duration * pps, 40),
+                }}
+              >
+                <span className="track-ghost-label">+ Text</span>
+              </div>
+            )}
+            {textOverlays && textOverlays.map((overlay) => {
+              const isSelected = overlay.id === selectedTextId
+              return (
+                <div
+                  key={overlay.id}
+                  className={`text-block ${isSelected ? 'selected' : ''}`}
+                  style={{
+                    left: 0,
+                    width: Math.max(trackWidth, 60),
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    setSelectedTextId(overlay.id)
+                    setSelectedClipId(null)
+                    setSelectedZoomId(null)
+                    if (setSidebarTab) setSidebarTab('text')
+                  }}
+                >
+                  <div className="text-block-content">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="4 7 4 4 20 4 20 7" />
+                      <line x1="12" y1="4" x2="12" y2="20" />
+                    </svg>
+                    <span className="text-block-label">{overlay.text || 'Text'}</span>
+                    {overlay.animation !== 'none' && (
+                      <span className="text-block-anim">{overlay.animation.replace('slideFrom', '← ')}</span>
+                    )}
+                  </div>
+                  <button
+                    className="text-block-remove"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRemoveText(overlay.id)
+                    }}
+                    title="Remove text"
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
           {/* ── Zoom effects track ── */}
           <div
             className="timeline-track zoom-track"
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) {
-                const scrollLeft = scrollRef.current?.scrollLeft || 0
-                const rect = e.currentTarget.getBoundingClientRect()
-                const x = e.clientX - rect.left + scrollLeft
-                const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
-                setCurrentTime(time)
-                setSelectedZoomId(null)
-                setSelectedClipId(null)
-              }
+            onMouseDown={(e) => handleTrackClick(e, 'zoom')}
+            onMouseMove={(e) => {
+              if (e.target === e.currentTarget) handleTrackHover(e, 'zoom')
             }}
+            onMouseLeave={handleTrackLeave}
           >
             <span className="track-label">Zoom</span>
+            {hoverGhost && hoverGhost.trackType === 'zoom' && (
+              <div
+                className="track-ghost"
+                style={{
+                  left: timeToX(hoverGhost.time),
+                  width: Math.max(hoverGhost.duration * pps, 40),
+                }}
+              >
+                <span className="track-ghost-label">+ Zoom</span>
+              </div>
+            )}
             {zoomEffects.map((effect) => {
               const effectX = effect.startTime * pps
               const effectWidth = (effect.endTime - effect.startTime) * pps

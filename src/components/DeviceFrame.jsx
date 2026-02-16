@@ -4,6 +4,8 @@ import * as THREE from 'three'
 
 const IPHONE_ASPECT = 19.5 / 9
 const ANDROID_ASPECT = 19.5 / 9
+const IPAD_ASPECT = 4.3 / 3
+const MACBOOK_ASPECT = 10 / 16
 
 const DEVICE_CONFIGS = {
   iphone: {
@@ -28,6 +30,26 @@ const DEVICE_CONFIGS = {
     sideColor: '#444444',
     punchHole: true,
   },
+  ipad: {
+    width: 3.6,
+    height: 3.6 * IPAD_ASPECT,
+    depth: 0.14,
+    cornerRadius: 0.36,
+    screenInset: 0.06,
+    bezelColor: '#0a0a0a',
+    frameColor: '#8a8078',
+    sideColor: '#9a9088',
+  },
+  macbook: {
+    width: 5.6,
+    height: 5.6 * MACBOOK_ASPECT,
+    depth: 0.06,
+    cornerRadius: 0.18,
+    screenInset: 0.12,
+    bezelColor: '#0a0a0a',
+    frameColor: '#a0a0a0',
+    sideColor: '#b0b0b0',
+  },
 }
 
 function createRoundedRectShape(w, h, r) {
@@ -50,17 +72,56 @@ function createRoundedRectShape(w, h, r) {
  * Loads texture from a File object using createImageBitmap (bypasses all URL/CORS issues).
  * For videos, uses blob URL with HTMLVideoElement.
  * Returns refs that are updated imperatively — no React state involved.
+ *
+ * Uses a double-buffer strategy: the old texture stays visible until the new
+ * one is fully loaded, eliminating any black-frame flash between clips.
  */
 function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
   const textureRef = useRef(null)
   const loadedRef = useRef(false)
   const videoRef = useRef(null)
+  const prevTextureRef = useRef(null)
+  const prevVideoRef = useRef(null)
 
   useEffect(() => {
-    loadedRef.current = false
-    textureRef.current = null
+    let cancelled = false
 
-    if (!screenFile && !screenUrl) return
+    // Keep the old texture/video alive until the new one is ready
+    prevTextureRef.current = textureRef.current
+    prevVideoRef.current = videoRef.current
+    videoRef.current = null
+
+    if (!screenFile && !screenUrl) {
+      // No new screen — dispose old and clear
+      disposeOld()
+      textureRef.current = null
+      loadedRef.current = false
+      return
+    }
+
+    function disposeOld() {
+      if (prevVideoRef.current) {
+        prevVideoRef.current.pause()
+        prevVideoRef.current.src = ''
+        prevVideoRef.current = null
+      }
+      if (prevTextureRef.current && prevTextureRef.current !== textureRef.current) {
+        prevTextureRef.current.dispose()
+        prevTextureRef.current = null
+      }
+    }
+
+    function commitTexture(tex, video) {
+      if (cancelled) {
+        tex.dispose()
+        if (video) { video.pause(); video.src = '' }
+        return
+      }
+      disposeOld()
+      textureRef.current = tex
+      if (video) videoRef.current = video
+      loadedRef.current = true
+    }
 
     if (isVideo && screenUrl) {
       const video = document.createElement('video')
@@ -70,7 +131,6 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
       video.playsInline = true
       video.autoplay = false
       video.preload = 'auto'
-      videoRef.current = video
 
       video.addEventListener('loadeddata', () => {
         const tex = new THREE.VideoTexture(video)
@@ -78,15 +138,12 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
         tex.minFilter = THREE.LinearFilter
         tex.magFilter = THREE.LinearFilter
         tex.generateMipmaps = false
-        textureRef.current = tex
-        loadedRef.current = true
+        commitTexture(tex, video)
       })
       video.load()
     } else if (screenFile) {
-      // File → createImageBitmap → "cover" fit onto screen-sized canvas → CanvasTexture
       createImageBitmap(screenFile)
         .then((bitmap) => {
-          // Target canvas matches screen aspect ratio
           const targetW = 1080
           const targetH = Math.round(targetW / screenAspect)
           const canvas = document.createElement('canvas')
@@ -94,18 +151,15 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
           canvas.height = targetH
           const ctx = canvas.getContext('2d')
 
-          // "Cover" fit: scale image to fill canvas, crop the excess
           const imgAspect = bitmap.width / bitmap.height
           const canvasAspect = targetW / targetH
           let sx, sy, sw, sh
           if (imgAspect > canvasAspect) {
-            // Image is wider than screen — crop sides
             sh = bitmap.height
             sw = bitmap.height * canvasAspect
             sx = (bitmap.width - sw) / 2
             sy = 0
           } else {
-            // Image is taller than screen — crop top/bottom
             sw = bitmap.width
             sh = bitmap.width / canvasAspect
             sx = 0
@@ -120,8 +174,7 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
           tex.magFilter = THREE.LinearFilter
           tex.generateMipmaps = false
           tex.needsUpdate = true
-          textureRef.current = tex
-          loadedRef.current = true
+          commitTexture(tex, null)
         })
         .catch((err) => {
           console.error('[DeviceFrame] createImageBitmap failed:', err)
@@ -129,6 +182,7 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
     }
 
     return () => {
+      cancelled = true
       if (videoRef.current) {
         videoRef.current.pause()
         videoRef.current.src = ''
@@ -155,6 +209,7 @@ export default function DeviceFrame({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   scale = 1,
+  lidAngleRef,
 }) {
   const config = DEVICE_CONFIGS[type]
   const screenW = config.width - config.screenInset * 2
@@ -163,6 +218,7 @@ export default function DeviceFrame({
   // Refs for imperative texture application
   const screenMeshRef = useRef()
   const lastSeekRef = useRef(-1)
+  const lidPivotRef = useRef()
   const screenAspect = screenW / screenH
   const { textureRef, loadedRef, videoRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect)
 
@@ -244,70 +300,172 @@ export default function DeviceFrame({
         }
       }
     }
+
+    // Animate MacBook lid angle from AnimatedDevices
+    if (lidPivotRef.current && lidAngleRef) {
+      const angle = lidAngleRef.current != null ? lidAngleRef.current : Math.PI / 2
+      lidPivotRef.current.rotation.x = angle - Math.PI / 2
+    }
   })
 
   // Body front face is at z = depth/2 in group space
   // Tiny offset prevents z-fighting with the body
   const frontZ = config.depth / 2 + 0.023
 
+  // MacBook needs a base/keyboard section
+  const macbookBaseGeo = useMemo(() => {
+    if (type !== 'macbook') return null
+    const baseW = config.width + 0.2
+    const baseD = config.height * 0.75
+    const shape = createRoundedRectShape(baseW, baseD, 0.14)
+    return new THREE.ExtrudeGeometry(shape, {
+      depth: 0.04,
+      bevelEnabled: true,
+      bevelThickness: 0.01,
+      bevelSize: 0.01,
+      bevelSegments: 2,
+    })
+  }, [type, config])
+
+  const macbookHingeGeo = useMemo(() => {
+    if (type !== 'macbook') return null
+    return new THREE.CylinderGeometry(0.03, 0.03, config.width + 0.1, 16)
+  }, [type, config])
+
   return (
     <group position={position} rotation={rotation} scale={scale}>
-      {/* Rounded phone body */}
-      <mesh geometry={bodyGeo} position={[0, 0, -config.depth / 2]}>
-        <meshPhysicalMaterial
-          color={config.frameColor}
-          metalness={0.85}
-          roughness={0.15}
-          clearcoat={0.8}
-          clearcoatRoughness={0.2}
-        />
-      </mesh>
+      {/* ── MacBook Pro: base + hinge + upright lid ── */}
+      {type === 'macbook' ? (
+        <group>
+          {/* Keyboard base - flat, extending forward from the hinge */}
+          <group position={[0, -config.height / 2, config.height * 0.75 / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+            <mesh geometry={macbookBaseGeo} position={[0, 0, -0.02]}>
+              <meshPhysicalMaterial color={config.frameColor} metalness={0.88} roughness={0.12} clearcoat={0.6} clearcoatRoughness={0.3} />
+            </mesh>
+            {/* Trackpad */}
+            <mesh position={[0, -config.height * 0.75 * 0.15, 0.025]}>
+              <shapeGeometry args={[createRoundedRectShape(1.4, 0.9, 0.08)]} />
+              <meshStandardMaterial color="#888888" metalness={0.5} roughness={0.4} />
+            </mesh>
+            {/* Keyboard area */}
+            <mesh position={[0, config.height * 0.75 * 0.15, 0.025]}>
+              <shapeGeometry args={[createRoundedRectShape(config.width - 0.4, 0.7, 0.04)]} />
+              <meshStandardMaterial color="#333333" roughness={0.9} metalness={0.1} />
+            </mesh>
+          </group>
 
-      {/* Screen bezel (thin dark border behind screen) */}
-      <mesh position={[0, 0, frontZ - 0.002]}>
-        <shapeGeometry args={[createRoundedRectShape(screenW + 0.02, screenH + 0.02, Math.max(0.08, config.cornerRadius - config.screenInset + 0.005))]} />
-        <meshStandardMaterial color={config.bezelColor} roughness={0.9} metalness={0.1} />
-      </mesh>
+          {/* Hinge cylinder at the junction */}
+          <mesh geometry={macbookHingeGeo} position={[0, -config.height / 2, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <meshPhysicalMaterial color={config.sideColor} metalness={0.9} roughness={0.1} />
+          </mesh>
 
-      {/* Screen - texture applied imperatively via useFrame */}
-      <mesh ref={screenMeshRef} geometry={screenGeo} position={[0, 0, frontZ]}>
-        <meshBasicMaterial color="#111122" toneMapped={false} />
-      </mesh>
-
-      {/* Dynamic Island (iPhone) - positioned near the top of the screen */}
-      {type === 'iphone' && config.dynamicIsland && (
-        <mesh position={[0, screenH / 2 - 0.18, frontZ + 0.001]}>
-          <shapeGeometry args={[createRoundedRectShape(0.5, 0.14, 0.07)]} />
-          <meshBasicMaterial color="#000000" />
-        </mesh>
-      )}
-
-      {/* Punch hole camera (Android) */}
-      {type === 'android' && config.punchHole && (
-        <mesh position={[0, screenH / 2 - 0.15, frontZ + 0.001]}>
-          <circleGeometry args={[0.05, 32]} />
-          <meshBasicMaterial color="#000000" />
-        </mesh>
-      )}
-
-      {/* Side buttons (iPhone) */}
-      {type === 'iphone' && (
+          {/* Screen lid - pivots at hinge for open/close animations */}
+          <group ref={lidPivotRef} position={[0, -config.height / 2, 0]}>
+            <group position={[0, config.height / 2, 0]}>
+              <mesh geometry={bodyGeo} position={[0, 0, -config.depth / 2]}>
+                <meshPhysicalMaterial color={config.frameColor} metalness={0.88} roughness={0.12} clearcoat={0.6} clearcoatRoughness={0.3} />
+              </mesh>
+              <mesh position={[0, 0, frontZ - 0.002]}>
+                <shapeGeometry args={[createRoundedRectShape(screenW + 0.02, screenH + 0.02, Math.max(0.08, config.cornerRadius - config.screenInset + 0.005))]} />
+                <meshStandardMaterial color={config.bezelColor} roughness={0.9} metalness={0.1} />
+              </mesh>
+              <mesh ref={screenMeshRef} geometry={screenGeo} position={[0, 0, frontZ]}>
+                <meshBasicMaterial color="#111122" toneMapped={false} />
+              </mesh>
+              {/* Webcam notch */}
+              <mesh position={[0, screenH / 2 + 0.02, frontZ + 0.001]}>
+                <circleGeometry args={[0.03, 24]} />
+                <meshBasicMaterial color="#1a1a1a" />
+              </mesh>
+            </group>
+          </group>
+        </group>
+      ) : (
         <>
-          {/* Power button - right side */}
-          <mesh position={[config.width / 2 + 0.03, 0.8, 0]}>
-            <boxGeometry args={[0.04, 0.45, 0.06]} />
-            <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+          {/* ── Standard devices: phone / tablet body ── */}
+          <mesh geometry={bodyGeo} position={[0, 0, -config.depth / 2]}>
+            <meshPhysicalMaterial
+              color={config.frameColor}
+              metalness={0.85}
+              roughness={0.15}
+              clearcoat={0.8}
+              clearcoatRoughness={0.2}
+            />
           </mesh>
-          {/* Volume up - left side */}
-          <mesh position={[-config.width / 2 - 0.03, 1.0, 0]}>
-            <boxGeometry args={[0.04, 0.3, 0.06]} />
-            <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+
+          {/* Screen bezel */}
+          <mesh position={[0, 0, frontZ - 0.002]}>
+            <shapeGeometry args={[createRoundedRectShape(screenW + 0.02, screenH + 0.02, Math.max(0.08, config.cornerRadius - config.screenInset + 0.005))]} />
+            <meshStandardMaterial color={config.bezelColor} roughness={0.9} metalness={0.1} />
           </mesh>
-          {/* Volume down - left side */}
-          <mesh position={[-config.width / 2 - 0.03, 0.45, 0]}>
-            <boxGeometry args={[0.04, 0.3, 0.06]} />
-            <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+
+          {/* Screen */}
+          <mesh ref={screenMeshRef} geometry={screenGeo} position={[0, 0, frontZ]}>
+            <meshBasicMaterial color="#111122" toneMapped={false} />
           </mesh>
+
+          {/* Dynamic Island (iPhone) */}
+          {type === 'iphone' && config.dynamicIsland && (
+            <mesh position={[0, screenH / 2 - 0.18, frontZ + 0.001]}>
+              <shapeGeometry args={[createRoundedRectShape(0.5, 0.14, 0.07)]} />
+              <meshBasicMaterial color="#000000" />
+            </mesh>
+          )}
+
+          {/* Punch hole camera (Android) */}
+          {type === 'android' && config.punchHole && (
+            <mesh position={[0, screenH / 2 - 0.15, frontZ + 0.001]}>
+              <circleGeometry args={[0.05, 32]} />
+              <meshBasicMaterial color="#000000" />
+            </mesh>
+          )}
+
+          {/* Front camera (iPad) */}
+          {type === 'ipad' && (
+            <mesh position={[0, screenH / 2 + 0.02, frontZ + 0.001]}>
+              <circleGeometry args={[0.04, 24]} />
+              <meshBasicMaterial color="#1a1a1a" />
+            </mesh>
+          )}
+
+          {/* Side buttons (iPhone) */}
+          {type === 'iphone' && (
+            <>
+              <mesh position={[config.width / 2 + 0.03, 0.8, 0]}>
+                <boxGeometry args={[0.04, 0.45, 0.06]} />
+                <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+              </mesh>
+              <mesh position={[-config.width / 2 - 0.03, 1.0, 0]}>
+                <boxGeometry args={[0.04, 0.3, 0.06]} />
+                <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+              </mesh>
+              <mesh position={[-config.width / 2 - 0.03, 0.45, 0]}>
+                <boxGeometry args={[0.04, 0.3, 0.06]} />
+                <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+              </mesh>
+            </>
+          )}
+
+          {/* Side buttons (iPad) */}
+          {type === 'ipad' && (
+            <>
+              {/* Power button - top */}
+              <mesh position={[config.width / 2 + 0.02, config.height / 2 - 0.3, 0]}>
+                <boxGeometry args={[0.03, 0.35, 0.05]} />
+                <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+              </mesh>
+              {/* Volume up */}
+              <mesh position={[0.5, config.height / 2 + 0.02, 0]}>
+                <boxGeometry args={[0.25, 0.03, 0.05]} />
+                <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+              </mesh>
+              {/* Volume down */}
+              <mesh position={[0.9, config.height / 2 + 0.02, 0]}>
+                <boxGeometry args={[0.25, 0.03, 0.05]} />
+                <meshPhysicalMaterial color={config.sideColor} metalness={0.92} roughness={0.1} />
+              </mesh>
+            </>
+          )}
         </>
       )}
     </group>
