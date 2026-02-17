@@ -10,6 +10,8 @@ const ZOOM_HANDLE_WIDTH = 6
 const MIN_ZOOM_DURATION = 0.2
 const TEXT_HANDLE_WIDTH = 6
 const MIN_TEXT_DURATION = 0.3
+const AUDIO_HANDLE_WIDTH = 6
+const MIN_AUDIO_DURATION = 0.3
 
 function formatTime(seconds) {
   const mins = Math.floor(seconds / 60)
@@ -44,6 +46,14 @@ export default function Timeline({
   selectedTextId,
   setSelectedTextId,
   setSidebarTab,
+  musicTrack,
+  voiceoverTrack,
+  onUpdateMusic,
+  onUpdateVoiceover,
+  onRemoveMusic,
+  onRemoveVoiceover,
+  selectedAudioTrack,
+  setSelectedAudioTrack,
 }) {
   const tracksRef = useRef(null)
   const scrollRef = useRef(null)
@@ -53,6 +63,8 @@ export default function Timeline({
   const [selectedZoomId, setSelectedZoomId] = useState(null)
   const [pps, setPps] = useState(BASE_PPS)
   const [hoverGhost, setHoverGhost] = useState(null)
+  const [timelineHeight, setTimelineHeight] = useState(260)
+  const resizeRef = useRef(null)
 
   const trackWidth = Math.max(totalDuration * pps, 400)
 
@@ -191,6 +203,38 @@ export default function Timeline({
           endTime: newStart + dur,
         })
       }
+
+      if (dragState.type === 'audio-resize-left') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const newStart = Math.max(
+          0,
+          Math.min(dragState.endTime - MIN_AUDIO_DURATION, dragState.startValue + dTime)
+        )
+        const updateFn = dragState.trackType === 'music' ? onUpdateMusic : onUpdateVoiceover
+        if (updateFn) updateFn({ startTime: newStart })
+      }
+
+      if (dragState.type === 'audio-resize-right') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const newEnd = Math.min(
+          totalDuration,
+          Math.max(dragState.startTimeVal + MIN_AUDIO_DURATION, dragState.startValue + dTime)
+        )
+        const updateFn = dragState.trackType === 'music' ? onUpdateMusic : onUpdateVoiceover
+        if (updateFn) updateFn({ endTime: newEnd })
+      }
+
+      if (dragState.type === 'audio-move') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const dur = dragState.origEnd - dragState.origStart
+        let newStart = dragState.origStart + dTime
+        newStart = Math.max(0, Math.min(totalDuration - dur, newStart))
+        const updateFn = dragState.trackType === 'music' ? onUpdateMusic : onUpdateVoiceover
+        if (updateFn) updateFn({ startTime: newStart, endTime: newStart + dur })
+      }
     }
 
     const handlePointerUp = () => {
@@ -213,6 +257,8 @@ export default function Timeline({
     onReorderClips,
     onUpdateZoomEffect,
     onUpdateText,
+    onUpdateMusic,
+    onUpdateVoiceover,
   ])
 
   useEffect(() => {
@@ -220,7 +266,15 @@ export default function Timeline({
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const tag = e.target.tagName
         if (tag === 'INPUT' || tag === 'TEXTAREA') return
-        if (selectedTextId) {
+        if (selectedAudioTrack === 'music' && onRemoveMusic) {
+          e.preventDefault()
+          onRemoveMusic()
+          setSelectedAudioTrack(null)
+        } else if (selectedAudioTrack === 'voiceover' && onRemoveVoiceover) {
+          e.preventDefault()
+          onRemoveVoiceover()
+          setSelectedAudioTrack(null)
+        } else if (selectedTextId) {
           e.preventDefault()
           onRemoveText(selectedTextId)
           setSelectedTextId(null)
@@ -236,7 +290,7 @@ export default function Timeline({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedClipId, selectedZoomId, selectedTextId, onRemoveClip, onRemoveZoomEffect, onRemoveText, setSelectedTextId])
+  }, [selectedClipId, selectedZoomId, selectedTextId, selectedAudioTrack, onRemoveClip, onRemoveZoomEffect, onRemoveText, onRemoveMusic, onRemoveVoiceover, setSelectedTextId, setSelectedAudioTrack])
 
   const handleSplit = useCallback(() => {
     if (!selectedClipId) return
@@ -288,6 +342,23 @@ export default function Timeline({
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
   }, [])
+
+  const handleResizeStart = useCallback((e) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const startHeight = timelineHeight
+
+    const onMove = (ev) => {
+      const delta = startY - ev.clientY
+      setTimelineHeight(Math.max(140, Math.min(600, startHeight + delta)))
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }, [timelineHeight])
 
   const zoomIn = useCallback(() => {
     setPps((prev) => Math.min(MAX_PPS, prev + 20))
@@ -361,6 +432,7 @@ export default function Timeline({
   return (
     <div
       className={`timeline ${fileDragOver ? 'file-drag-over' : ''}`}
+      style={{ height: timelineHeight }}
       onDrop={handleFileDrop}
       onDragOver={handleFileDragOver}
       onDragLeave={handleFileDragLeave}
@@ -370,6 +442,12 @@ export default function Timeline({
           <span>Drop media here to add to timeline</span>
         </div>
       )}
+      {/* Resize handle */}
+      <div
+        className="timeline-resize-handle"
+        ref={resizeRef}
+        onPointerDown={handleResizeStart}
+      />
       {/* Transport bar */}
       <div className="timeline-transport">
         <div className="transport-left">
@@ -796,7 +874,162 @@ export default function Timeline({
             })}
           </div>
 
-          {/* Playhead — spans both tracks */}
+          {/* ── Music track ── */}
+          <div
+            className="timeline-track music-track"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) {
+                const scrollLeft = scrollRef.current?.scrollLeft || 0
+                const rect = e.currentTarget.getBoundingClientRect()
+                const x = e.clientX - rect.left + scrollLeft
+                const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
+                setCurrentTime(time)
+                setSelectedClipId(null)
+                setSelectedZoomId(null)
+                setSelectedTextId(null)
+                setSelectedAudioTrack(null)
+              }
+            }}
+          >
+            <span className="track-label">Music</span>
+            {musicTrack && (() => {
+              const blockX = musicTrack.startTime * pps
+              const blockW = (musicTrack.endTime - musicTrack.startTime) * pps
+              const isSelected = selectedAudioTrack === 'music'
+              return (
+                <div
+                  className={`audio-block music-block ${isSelected ? 'selected' : ''}`}
+                  style={{ left: blockX, width: Math.max(blockW, 20) }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    setSelectedAudioTrack('music')
+                    setSelectedClipId(null)
+                    setSelectedZoomId(null)
+                    setSelectedTextId(null)
+                    if (setSidebarTab) setSidebarTab('audio')
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const localX = e.clientX - rect.left
+                    if (localX <= AUDIO_HANDLE_WIDTH) {
+                      setDragState({
+                        type: 'audio-resize-left',
+                        trackType: 'music',
+                        startX: e.clientX,
+                        startValue: musicTrack.startTime,
+                        endTime: musicTrack.endTime,
+                      })
+                    } else if (localX >= rect.width - AUDIO_HANDLE_WIDTH) {
+                      setDragState({
+                        type: 'audio-resize-right',
+                        trackType: 'music',
+                        startX: e.clientX,
+                        startValue: musicTrack.endTime,
+                        startTimeVal: musicTrack.startTime,
+                      })
+                    } else {
+                      setDragState({
+                        type: 'audio-move',
+                        trackType: 'music',
+                        startX: e.clientX,
+                        origStart: musicTrack.startTime,
+                        origEnd: musicTrack.endTime,
+                      })
+                    }
+                  }}
+                >
+                  <div className="audio-handle left" />
+                  <div className="audio-handle right" />
+                  <div className="audio-block-content">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 18V5l12-2v13" />
+                      <circle cx="6" cy="18" r="3" />
+                      <circle cx="18" cy="16" r="3" />
+                    </svg>
+                    <span className="audio-block-label">{musicTrack.name}</span>
+                    <span className="audio-block-time">{(musicTrack.endTime - musicTrack.startTime).toFixed(1)}s</span>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* ── Voiceover track ── */}
+          <div
+            className="timeline-track voiceover-track"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) {
+                const scrollLeft = scrollRef.current?.scrollLeft || 0
+                const rect = e.currentTarget.getBoundingClientRect()
+                const x = e.clientX - rect.left + scrollLeft
+                const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
+                setCurrentTime(time)
+                setSelectedClipId(null)
+                setSelectedZoomId(null)
+                setSelectedTextId(null)
+                setSelectedAudioTrack(null)
+              }
+            }}
+          >
+            <span className="track-label">Voice</span>
+            {voiceoverTrack && (() => {
+              const blockX = voiceoverTrack.startTime * pps
+              const blockW = (voiceoverTrack.endTime - voiceoverTrack.startTime) * pps
+              const isSelected = selectedAudioTrack === 'voiceover'
+              return (
+                <div
+                  className={`audio-block voiceover-block ${isSelected ? 'selected' : ''}`}
+                  style={{ left: blockX, width: Math.max(blockW, 20) }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    setSelectedAudioTrack('voiceover')
+                    setSelectedClipId(null)
+                    setSelectedZoomId(null)
+                    setSelectedTextId(null)
+                    if (setSidebarTab) setSidebarTab('audio')
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const localX = e.clientX - rect.left
+                    if (localX <= AUDIO_HANDLE_WIDTH) {
+                      setDragState({
+                        type: 'audio-resize-left',
+                        trackType: 'voiceover',
+                        startX: e.clientX,
+                        startValue: voiceoverTrack.startTime,
+                        endTime: voiceoverTrack.endTime,
+                      })
+                    } else if (localX >= rect.width - AUDIO_HANDLE_WIDTH) {
+                      setDragState({
+                        type: 'audio-resize-right',
+                        trackType: 'voiceover',
+                        startX: e.clientX,
+                        startValue: voiceoverTrack.endTime,
+                        startTimeVal: voiceoverTrack.startTime,
+                      })
+                    } else {
+                      setDragState({
+                        type: 'audio-move',
+                        trackType: 'voiceover',
+                        startX: e.clientX,
+                        origStart: voiceoverTrack.startTime,
+                        origEnd: voiceoverTrack.endTime,
+                      })
+                    }
+                  }}
+                >
+                  <div className="audio-handle left" />
+                  <div className="audio-handle right" />
+                  <div className="audio-block-content">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    </svg>
+                    <span className="audio-block-label">{voiceoverTrack.name}</span>
+                    <span className="audio-block-time">{(voiceoverTrack.endTime - voiceoverTrack.startTime).toFixed(1)}s</span>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* Playhead — spans all tracks */}
           <div
             className="timeline-playhead"
             style={{ left: timeToX(currentTime) }}

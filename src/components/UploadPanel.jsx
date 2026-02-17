@@ -74,7 +74,7 @@ export default function UploadPanel({ onUpload, fullPage = false, compact = fals
           </div>
           <h1 className="upload-title">Create Stunning Demo Videos</h1>
           <p className="upload-subtitle">
-            Upload your Figma mobile designs and generate beautiful 3D showcase videos
+            Upload your designs and generate beautiful 3D showcase videos
             with iPhone and Android device frames
           </p>
           <div

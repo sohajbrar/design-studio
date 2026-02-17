@@ -4,9 +4,36 @@
   display: flex;
   flex-direction: column;
   user-select: none;
-  height: 220px;
   flex-shrink: 0;
   position: relative;
+}
+
+/* ── Resize handle at top of timeline ─────── */
+.timeline-resize-handle {
+  height: 6px;
+  cursor: ns-resize;
+  background: transparent;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-resize-handle::after {
+  content: '';
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--text-muted);
+  opacity: 0.25;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.timeline-resize-handle:hover::after {
+  opacity: 0.6;
+  background: #21C063;
 }
 
 .timeline.file-drag-over {
@@ -160,9 +187,31 @@
 /* ── Scrollable area ────────────────────────── */
 .timeline-scroll {
   flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: auto;
   position: relative;
+  min-height: 0;
+}
+
+.timeline-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.timeline-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.timeline-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+.timeline-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.timeline-scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ── Ruler ───────────────────────────────────── */
@@ -208,7 +257,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  height: calc(100% - 22px);
+  min-height: calc(100% - 22px);
 }
 
 /* ── Track (shared) ─────────────────────────── */
@@ -218,8 +267,8 @@
 }
 
 .media-track {
-  flex: 1;
-  min-height: 70px;
+  height: 64px;
+  min-height: 64px;
   border-bottom: 1px solid var(--border-color);
   padding: 6px 0;
 }
@@ -236,6 +285,7 @@
   height: 40px;
   padding: 4px 0;
   background: rgba(33, 192, 99, 0.02);
+  border-bottom: 1px solid var(--border-color);
   cursor: pointer;
 }
 
@@ -787,4 +837,125 @@
 .zoom-preset-btn.active {
   background: #21C063;
   color: #161717;
+}
+
+/* ── Audio tracks ───────────────────────────────── */
+.music-track {
+  height: 34px;
+  padding: 3px 0;
+  background: rgba(59, 130, 246, 0.02);
+  border-bottom: 1px solid var(--border-color);
+  cursor: default;
+}
+
+.voiceover-track {
+  height: 34px;
+  padding: 3px 0;
+  background: rgba(249, 115, 22, 0.02);
+  border-bottom: 1px solid var(--border-color);
+  cursor: default;
+}
+
+.audio-block {
+  position: absolute;
+  top: 4px;
+  height: calc(100% - 8px);
+  border-radius: 5px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  user-select: none;
+  transition: box-shadow 0.15s;
+}
+
+.audio-block:active {
+  cursor: grabbing;
+}
+
+.music-block {
+  background: rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.music-block.selected {
+  background: rgba(59, 130, 246, 0.4);
+  border-color: rgba(59, 130, 246, 0.7);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+}
+
+.voiceover-block {
+  background: rgba(249, 115, 22, 0.25);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+}
+
+.voiceover-block.selected {
+  background: rgba(249, 115, 22, 0.4);
+  border-color: rgba(249, 115, 22, 0.7);
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.5);
+}
+
+.audio-handle {
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.audio-handle.left {
+  left: 0;
+  border-radius: 5px 0 0 5px;
+}
+
+.audio-handle.right {
+  right: 0;
+  border-radius: 0 5px 5px 0;
+}
+
+.music-block .audio-handle:hover {
+  background: rgba(59, 130, 246, 0.4);
+}
+
+.voiceover-block .audio-handle:hover {
+  background: rgba(249, 115, 22, 0.4);
+}
+
+.audio-block-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.audio-block-content svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.music-block .audio-block-content svg {
+  color: rgba(96, 165, 250, 0.9);
+}
+
+.voiceover-block .audio-block-content svg {
+  color: rgba(251, 146, 60, 0.9);
+}
+
+.audio-block-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audio-block-time {
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+  flex-shrink: 0;
 }

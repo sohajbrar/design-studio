@@ -9,6 +9,8 @@ import PreviewScene from './components/PreviewScene'
 import Header from './components/Header'
 import ExportModal from './components/ExportModal'
 import Timeline from './components/Timeline'
+import AudioEngine from './utils/audioEngine'
+import { MUSIC_LIBRARY, generateTrack } from './utils/musicLibrary'
 
 const ANIMATION_PRESETS = [
   { id: 'showcase', name: 'Showcase' },
@@ -226,6 +228,22 @@ function App() {
   const [textOverlays, setTextOverlays] = useState([])
   const [selectedTextId, setSelectedTextId] = useState(null)
 
+  // ── Audio state ─────────────────────────────────
+  const [musicTrack, setMusicTrack] = useState(null)
+  const [voiceoverTrack, setVoiceoverTrack] = useState(null)
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState(null)
+  const [previewingTrackId, setPreviewingTrackId] = useState(null)
+  const audioEngineRef = useRef(null)
+  const previewAudioRef = useRef(null)
+
+  // Initialize audio engine once
+  useEffect(() => {
+    audioEngineRef.current = new AudioEngine()
+    return () => {
+      if (audioEngineRef.current) audioEngineRef.current.dispose()
+    }
+  }, [])
+
   // ── Derived values ───────────────────────────────
   const totalDuration = useMemo(
     () => timelineClips.reduce((sum, c) => sum + c.duration, 0),
@@ -278,6 +296,35 @@ function App() {
     return active ? (active.animation || 'none') : 'none'
   }, [textOverlays, currentTime])
 
+  // ── Sync audio engine when tracks change ─────────
+  useEffect(() => {
+    const ae = audioEngineRef.current
+    if (!ae) return
+    if (musicTrack) {
+      ae.setMusic(musicTrack.url, musicTrack.volume, musicTrack.startTime, musicTrack.endTime)
+    } else {
+      ae.setMusic(null, 1, 0, 0)
+    }
+  }, [musicTrack])
+
+  useEffect(() => {
+    const ae = audioEngineRef.current
+    if (!ae) return
+    if (voiceoverTrack) {
+      ae.setVoiceover(voiceoverTrack.url, voiceoverTrack.volume, voiceoverTrack.startTime, voiceoverTrack.endTime)
+    } else {
+      ae.setVoiceover(null, 1, 0, 0)
+    }
+  }, [voiceoverTrack])
+
+  // ── Sync audio when scrubbing while paused ───────
+  useEffect(() => {
+    const ae = audioEngineRef.current
+    if (ae && !isTimelinePlaying) {
+      ae.sync(currentTime)
+    }
+  }, [currentTime, isTimelinePlaying])
+
   // ── Unified play/pause toggle ───────────────────
   const togglePlayback = useCallback(() => {
     setIsTimelinePlaying((prev) => {
@@ -286,6 +333,11 @@ function App() {
       }
       const next = !prev
       setIsPlaying(next)
+      const ae = audioEngineRef.current
+      if (ae) {
+        if (next) { ae.play(); ae.sync(currentTime) }
+        else ae.pause()
+      }
       return next
     })
   }, [currentTime, totalDuration])
@@ -312,8 +364,13 @@ function App() {
     if (!isTimelinePlaying || totalDuration === 0) {
       lastFrameRef.current = null
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      const ae = audioEngineRef.current
+      if (ae) ae.pause()
       return
     }
+
+    const ae = audioEngineRef.current
+    if (ae) { ae.play(); ae.sync(currentTime) }
 
     const animate = (timestamp) => {
       if (lastFrameRef.current !== null) {
@@ -323,8 +380,10 @@ function App() {
           if (next >= totalDuration) {
             setIsTimelinePlaying(false)
             setIsPlaying(false)
+            if (ae) ae.pause()
             return totalDuration
           }
+          if (ae) ae.sync(next)
           return next
         })
       }
@@ -546,6 +605,117 @@ function App() {
     setSelectedClipId((prev) => (prev === clipId ? null : prev))
   }, [])
 
+  // ── Audio track operations ─────────────────────
+  const getAudioDuration = useCallback((source) => {
+    return new Promise((resolve) => {
+      const audio = new Audio()
+      const timeout = setTimeout(() => resolve(30), 10000)
+      audio.addEventListener('loadedmetadata', () => {
+        clearTimeout(timeout)
+        resolve(audio.duration)
+      })
+      audio.addEventListener('error', () => {
+        clearTimeout(timeout)
+        resolve(30)
+      })
+      if (typeof source === 'string') {
+        audio.src = source
+      } else {
+        audio.src = URL.createObjectURL(source)
+      }
+    })
+  }, [])
+
+  const [loadingTrackId, setLoadingTrackId] = useState(null)
+
+  const handleSetMusic = useCallback(async (source) => {
+    if (previewAudioRef.current) { previewAudioRef.current.pause(); previewAudioRef.current = null }
+    setPreviewingTrackId(null)
+    let url, name, file = null, isLibrary = false, audioDuration = 30
+    if (source.file) {
+      file = source.file
+      url = URL.createObjectURL(file)
+      name = file.name
+      audioDuration = await getAudioDuration(file)
+    } else {
+      setLoadingTrackId(source.libraryId)
+      url = generateTrack(source.libraryId)
+      name = source.name
+      isLibrary = true
+      audioDuration = await getAudioDuration(url)
+      setLoadingTrackId(null)
+    }
+    const maxT = totalDuration || audioDuration
+    const endTime = Math.min(audioDuration, maxT)
+    setMusicTrack({
+      id: crypto.randomUUID(),
+      name,
+      url,
+      file,
+      startTime: 0,
+      endTime,
+      volume: 0.5,
+      isLibrary,
+    })
+  }, [totalDuration, getAudioDuration])
+
+  const handleSetVoiceover = useCallback(async (file) => {
+    const url = URL.createObjectURL(file)
+    const audioDuration = await getAudioDuration(file)
+    const maxT = totalDuration || 30
+    const endTime = Math.min(audioDuration, maxT)
+    setVoiceoverTrack({
+      id: crypto.randomUUID(),
+      name: file.name,
+      url,
+      file,
+      startTime: 0,
+      endTime,
+      volume: 0.8,
+      isLibrary: false,
+    })
+  }, [totalDuration, getAudioDuration])
+
+  const handleRemoveMusic = useCallback(() => {
+    if (musicTrack?.url && !musicTrack.isLibrary) URL.revokeObjectURL(musicTrack.url)
+    setMusicTrack(null)
+    setSelectedAudioTrack((prev) => prev === 'music' ? null : prev)
+  }, [musicTrack])
+
+  const handleRemoveVoiceover = useCallback(() => {
+    if (voiceoverTrack?.url) URL.revokeObjectURL(voiceoverTrack.url)
+    setVoiceoverTrack(null)
+    setSelectedAudioTrack((prev) => prev === 'voiceover' ? null : prev)
+  }, [voiceoverTrack])
+
+  const handleUpdateMusic = useCallback((updates) => {
+    setMusicTrack((prev) => prev ? { ...prev, ...updates } : null)
+  }, [])
+
+  const handleUpdateVoiceover = useCallback((updates) => {
+    setVoiceoverTrack((prev) => prev ? { ...prev, ...updates } : null)
+  }, [])
+
+  const handlePreviewLibraryTrack = useCallback((trackId) => {
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause()
+      previewAudioRef.current = null
+    }
+    if (previewingTrackId === trackId) {
+      setPreviewingTrackId(null)
+      return
+    }
+    setPreviewingTrackId(trackId)
+    const url = generateTrack(trackId)
+    const audio = new Audio(url)
+    audio.volume = 0.5
+    audio.play().catch(() => {
+      setPreviewingTrackId(null)
+    })
+    audio.addEventListener('ended', () => setPreviewingTrackId(null))
+    previewAudioRef.current = audio
+  }, [previewingTrackId])
+
   // ── Export / recording ───────────────────────────
   const handleExport = useCallback(async () => {
     if (!canvasRef.current) return
@@ -605,7 +775,23 @@ function App() {
       setIsTimelinePlaying(true)
     }
 
-    const stream = canvas.captureStream(60)
+    const videoStream = canvas.captureStream(60)
+    let stream = videoStream
+
+    const ae = audioEngineRef.current
+    const hasAudio = ae && (musicTrack || voiceoverTrack)
+    if (hasAudio) {
+      try {
+        const audioStream = ae.getAudioStream()
+        stream = new MediaStream([
+          ...videoStream.getTracks(),
+          ...audioStream.getTracks(),
+        ])
+      } catch (err) {
+        console.warn('Could not attach audio to recording:', err)
+      }
+    }
+
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: 'video/webm;codecs=vp9',
       videoBitsPerSecond: quality === '4k' ? 20000000 : quality === '1080p' ? 8000000 : 4000000,
@@ -704,6 +890,13 @@ function App() {
                       <polyline points="4 7 4 4 20 4 20 7" />
                       <line x1="9.5" y1="20" x2="14.5" y2="20" />
                       <line x1="12" y1="4" x2="12" y2="20" />
+                    </svg>
+                  )},
+                  { id: 'audio', icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 18V5l12-2v13" />
+                      <circle cx="6" cy="18" r="3" />
+                      <circle cx="18" cy="16" r="3" />
                     </svg>
                   )},
                   { id: 'device', icon: (
@@ -1049,6 +1242,155 @@ function App() {
                   )
                 })()}
 
+                {sidebarTab === 'audio' && (
+                  <div className="controls-panel">
+                    <div className="control-group">
+                      <h3 className="section-title">Background Music</h3>
+                      {musicTrack ? (
+                        <div className="audio-active-track">
+                          <div className="audio-track-info">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M9 18V5l12-2v13" />
+                              <circle cx="6" cy="18" r="3" />
+                              <circle cx="18" cy="16" r="3" />
+                            </svg>
+                            <span className="audio-track-name">{musicTrack.name}</span>
+                            <button className="audio-track-remove" onClick={handleRemoveMusic} title="Remove">×</button>
+                          </div>
+                          <div className="audio-volume-row">
+                            <label className="control-label-sm">Volume</label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={musicTrack.volume}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value)
+                                handleUpdateMusic({ volume: v })
+                                if (audioEngineRef.current) audioEngineRef.current.setMusicVolume(v)
+                              }}
+                              className="volume-slider"
+                            />
+                            <span className="volume-val">{Math.round(musicTrack.volume * 100)}%</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="music-library-grid">
+                            {MUSIC_LIBRARY.map((track) => {
+                              const isLoading = loadingTrackId === track.id
+                              const isPreviewing = previewingTrackId === track.id
+                              return (
+                                <div
+                                  key={track.id}
+                                  className={`music-card ${isLoading ? 'loading' : ''}`}
+                                >
+                                  <div className="music-card-info">
+                                    <span className="music-card-name">{track.name}</span>
+                                  </div>
+                                  <div className="music-card-actions">
+                                    <button
+                                      className={`music-card-preview ${isPreviewing ? 'playing' : ''}`}
+                                      onClick={() => handlePreviewLibraryTrack(track.id)}
+                                      disabled={isLoading && !isPreviewing}
+                                      title={isPreviewing ? 'Stop' : 'Preview'}
+                                    >
+                                      {isLoading && !isPreviewing ? (
+                                        <span className="music-card-spinner" />
+                                      ) : isPreviewing ? '⏹' : '▶'}
+                                    </button>
+                                    <button
+                                      className="music-card-select"
+                                      onClick={() => handleSetMusic({ libraryId: track.id, name: track.name })}
+                                      disabled={isLoading}
+                                    >
+                                      {isLoading ? '...' : 'Use'}
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="audio-upload-section">
+                            <span className="audio-or-label">or upload your own</span>
+                            <label className="btn-audio-upload">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                              </svg>
+                              Upload Music
+                              <input
+                                type="file"
+                                accept="audio/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  if (e.target.files[0]) handleSetMusic({ file: e.target.files[0] })
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="control-group">
+                      <h3 className="section-title">Voiceover</h3>
+                      {voiceoverTrack ? (
+                        <div className="audio-active-track">
+                          <div className="audio-track-info">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                              <line x1="12" y1="19" x2="12" y2="23" />
+                              <line x1="8" y1="23" x2="16" y2="23" />
+                            </svg>
+                            <span className="audio-track-name">{voiceoverTrack.name}</span>
+                            <button className="audio-track-remove" onClick={handleRemoveVoiceover} title="Remove">×</button>
+                          </div>
+                          <div className="audio-volume-row">
+                            <label className="control-label-sm">Volume</label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={voiceoverTrack.volume}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value)
+                                handleUpdateVoiceover({ volume: v })
+                                if (audioEngineRef.current) audioEngineRef.current.setVoiceoverVolume(v)
+                              }}
+                              className="volume-slider"
+                            />
+                            <span className="volume-val">{Math.round(voiceoverTrack.volume * 100)}%</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="btn-audio-upload">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                          </svg>
+                          Upload Voiceover
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            style={{ display: 'none' }}
+                            onChange={(e) => {
+                              if (e.target.files[0]) handleSetVoiceover(e.target.files[0])
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {sidebarTab === 'background' && (
                   <div className="controls-panel">
                     <div className="control-group">
@@ -1148,6 +1490,14 @@ function App() {
                   selectedTextId={selectedTextId}
                   setSelectedTextId={setSelectedTextId}
                   setSidebarTab={setSidebarTab}
+                  musicTrack={musicTrack}
+                  voiceoverTrack={voiceoverTrack}
+                  onUpdateMusic={handleUpdateMusic}
+                  onUpdateVoiceover={handleUpdateVoiceover}
+                  onRemoveMusic={handleRemoveMusic}
+                  onRemoveVoiceover={handleRemoveVoiceover}
+                  selectedAudioTrack={selectedAudioTrack}
+                  setSelectedAudioTrack={setSelectedAudioTrack}
                 />
               )}
             </section>
