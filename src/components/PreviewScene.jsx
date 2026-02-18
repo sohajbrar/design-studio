@@ -1074,7 +1074,7 @@ function OutroLogo({ logoId, currentTime, totalDuration }) {
 
     const elapsed = t - logoStart
     const fadeProgress = Math.min(1, elapsed / FADE_IN)
-    const opacity = easeOutCubic(fadeProgress) * 0.35
+    const opacity = easeOutCubic(fadeProgress)
 
     const dist = Math.max(0.1, camera.position.z - LOGO_Z)
     const vFov = (camera.fov * Math.PI) / 180
@@ -1083,7 +1083,7 @@ function OutroLogo({ logoId, currentTime, totalDuration }) {
     const s = (0.7 + 0.3 * easeOutCubic(fadeProgress)) * baseSize
 
     grp.scale.set(s, s, 1)
-    grp.position.set(0, -0.3, LOGO_Z)
+    grp.position.set(0, 0, LOGO_Z)
     mat.opacity = opacity
   })
 
