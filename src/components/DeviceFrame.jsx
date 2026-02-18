@@ -312,12 +312,10 @@ export default function DeviceFrame({
   // Tiny offset prevents z-fighting with the body
   const frontZ = config.depth / 2 + 0.023
 
-  // MacBook needs a base/keyboard section
+  // MacBook needs a base/keyboard section — same size as lid so they align when closed
   const macbookBaseGeo = useMemo(() => {
     if (type !== 'macbook') return null
-    const baseW = config.width + 0.2
-    const baseD = config.height * 0.75
-    const shape = createRoundedRectShape(baseW, baseD, 0.14)
+    const shape = createRoundedRectShape(config.width, config.height, config.cornerRadius)
     return new THREE.ExtrudeGeometry(shape, {
       depth: 0.04,
       bevelEnabled: true,
@@ -337,18 +335,18 @@ export default function DeviceFrame({
       {/* ── MacBook Pro: base + hinge + upright lid ── */}
       {type === 'macbook' ? (
         <group>
-          {/* Keyboard base - flat, extending forward from the hinge */}
-          <group position={[0, -config.height / 2, config.height * 0.75 / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+          {/* Keyboard base - flat, same size as lid, extending forward from the hinge */}
+          <group position={[0, -config.height / 2, config.height / 2]} rotation={[-Math.PI / 2, 0, 0]}>
             <mesh geometry={macbookBaseGeo} position={[0, 0, -0.02]}>
               <meshPhysicalMaterial color={config.frameColor} metalness={0.88} roughness={0.12} clearcoat={0.6} clearcoatRoughness={0.3} />
             </mesh>
             {/* Trackpad */}
-            <mesh position={[0, -config.height * 0.75 * 0.15, 0.025]}>
+            <mesh position={[0, -config.height * 0.12, 0.025]}>
               <shapeGeometry args={[createRoundedRectShape(1.4, 0.9, 0.08)]} />
               <meshStandardMaterial color="#888888" metalness={0.5} roughness={0.4} />
             </mesh>
             {/* Keyboard area */}
-            <mesh position={[0, config.height * 0.75 * 0.15, 0.025]}>
+            <mesh position={[0, config.height * 0.15, 0.025]}>
               <shapeGeometry args={[createRoundedRectShape(config.width - 0.4, 0.7, 0.04)]} />
               <meshStandardMaterial color="#333333" roughness={0.9} metalness={0.1} />
             </mesh>
