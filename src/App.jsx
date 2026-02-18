@@ -310,6 +310,7 @@ function App() {
   const [isRecording, setIsRecording] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [quality, setQuality] = useState(() => loadSaved('quality', '1080p'))
+  const [exportFormat, setExportFormat] = useState(() => loadSaved('exportFormat', 'mp4'))
   const [aspectRatio, setAspectRatio] = useState(() => loadSaved('aspectRatio', 'none'))
   const [sidebarTab, setSidebarTab] = useState('templates')
   const [activeTemplateId, setActiveTemplateId] = useState(null)
@@ -371,8 +372,9 @@ function App() {
     localStorage.setItem('ds_showBase', JSON.stringify(showBase))
     localStorage.setItem('ds_deviceType', JSON.stringify(deviceType))
     localStorage.setItem('ds_quality', JSON.stringify(quality))
+    localStorage.setItem('ds_exportFormat', JSON.stringify(exportFormat))
     localStorage.setItem('ds_aspectRatio', JSON.stringify(aspectRatio))
-  }, [bgColor, bgGradient, showBase, deviceType, quality, aspectRatio])
+  }, [bgColor, bgGradient, showBase, deviceType, quality, exportFormat, aspectRatio])
 
   // ── Derived values ───────────────────────────────
   const totalDuration = useMemo(
@@ -958,10 +960,10 @@ function App() {
     setShowExport(true)
   }, [])
 
-  const [convertingToMp4, setConvertingToMp4] = useState(false)
+  const [convertingFormat, setConvertingFormat] = useState(null)
 
-  const convertWebmToMp4 = useCallback(async (webmBlob) => {
-    setConvertingToMp4(true)
+  const convertWebmTo = useCallback(async (webmBlob, targetFormat) => {
+    setConvertingFormat(targetFormat.toUpperCase())
     try {
       const ffmpeg = new FFmpeg()
       await ffmpeg.load({
@@ -971,22 +973,35 @@ function App() {
 
       const webmData = await fetchFile(webmBlob)
       await ffmpeg.writeFile('input.webm', webmData)
-      await ffmpeg.exec([
-        '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'fast',
-        '-crf', '22', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', 'output.mp4',
-      ])
-      const mp4Data = await ffmpeg.readFile('output.mp4')
-      const mp4Blob = new Blob([mp4Data.buffer], { type: 'video/mp4' })
 
-      const url = URL.createObjectURL(mp4Blob)
+      const outputFile = `output.${targetFormat}`
+      if (targetFormat === 'mov') {
+        await ffmpeg.exec([
+          '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'fast',
+          '-crf', '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
+          '-movflags', '+faststart', '-f', 'mov', outputFile,
+        ])
+      } else {
+        await ffmpeg.exec([
+          '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'fast',
+          '-crf', '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
+          '-movflags', '+faststart', outputFile,
+        ])
+      }
+
+      const outData = await ffmpeg.readFile(outputFile)
+      const mimeType = targetFormat === 'mov' ? 'video/quicktime' : 'video/mp4'
+      const outBlob = new Blob([outData.buffer], { type: mimeType })
+
+      const url = URL.createObjectURL(outBlob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `mockup-demo-${Date.now()}.mp4`
+      a.download = `mockup-demo-${Date.now()}.${targetFormat}`
       a.click()
       URL.revokeObjectURL(url)
       ffmpeg.terminate()
     } catch (err) {
-      console.error('MP4 conversion failed, falling back to WebM:', err)
+      console.error(`${targetFormat.toUpperCase()} conversion failed, falling back to WebM:`, err)
       const url = URL.createObjectURL(webmBlob)
       const a = document.createElement('a')
       a.href = url
@@ -994,7 +1009,7 @@ function App() {
       a.click()
       URL.revokeObjectURL(url)
     } finally {
-      setConvertingToMp4(false)
+      setConvertingFormat(null)
     }
   }, [])
 
@@ -1038,19 +1053,24 @@ function App() {
       if (e.data.size > 0) chunks.push(e.data)
     }
 
+    const chosenFormat = exportFormat
+
     mediaRecorder.onstop = async () => {
       const webmBlob = new Blob(chunks, { type: 'video/webm' })
       setIsRecording(false)
-
-      const webmUrl = URL.createObjectURL(webmBlob)
-      const a = document.createElement('a')
-      a.href = webmUrl
-      a.download = `mockup-demo-${Date.now()}.webm`
-      a.click()
-      URL.revokeObjectURL(webmUrl)
-
       setIsPlaying(false)
       setIsTimelinePlaying(false)
+
+      if (chosenFormat === 'webm') {
+        const url = URL.createObjectURL(webmBlob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `mockup-demo-${Date.now()}.webm`
+        a.click()
+        URL.revokeObjectURL(url)
+      } else {
+        await convertWebmTo(webmBlob, chosenFormat)
+      }
     }
 
     recorderRef.current = mediaRecorder
@@ -1063,7 +1083,7 @@ function App() {
         mediaRecorder.stop()
       }
     }, recordDuration * 1000)
-  }, [quality, convertWebmToMp4, totalDuration])
+  }, [quality, exportFormat, convertWebmTo, totalDuration])
 
   const stopRecording = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state === 'recording') {
@@ -1242,7 +1262,7 @@ function App() {
           </button>
         ) : null}
       >
-        {hasStarted && !convertingToMp4 && (
+        {hasStarted && !convertingFormat && (
           <>
             <button
               className="btn btn-header btn-secondary"
@@ -1252,16 +1272,16 @@ function App() {
             </button>
             <button
               className={`btn btn-header btn-primary ${isRecording ? 'recording' : ''}`}
-              onClick={isRecording ? stopRecording : startRecording}
+              onClick={isRecording ? stopRecording : () => setShowExport(true)}
               disabled={!hasScreens}
             >
               {isRecording ? '⏹ Stop Recording' : '⏺ Record & Export'}
             </button>
           </>
         )}
-        {hasStarted && convertingToMp4 && (
+        {hasStarted && convertingFormat && (
           <div className="btn btn-header btn-converting">
-            Converting to MP4...
+            Converting to {convertingFormat}...
           </div>
         )}
       </Header>
@@ -2181,6 +2201,8 @@ function App() {
           onRecord={startRecording}
           quality={quality}
           setQuality={setQuality}
+          exportFormat={exportFormat}
+          setExportFormat={setExportFormat}
         />
       )}
 
