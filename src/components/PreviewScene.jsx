@@ -10,6 +10,7 @@ function easeOutCubic(t) { return 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 
 function easeOutQuart(t) { return 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 4) }
 function easeInOutCubic(t) { t = Math.min(1, Math.max(0, t)); return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 }
 function easeOutBack(t) { t = Math.min(1, Math.max(0, t)); const c1 = 1.70158; const c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2) }
+function easeInCubic(t) { t = Math.min(1, Math.max(0, t)); return t * t * t }
 function smoothSin(t, freq, amp) { return Math.sin(t * freq) * amp }
 
 // ── Derive tinted light colors from background ───────────────
@@ -128,7 +129,7 @@ function CameraAnimator({ animation, isPlaying }) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, isPlaying, currentTime, clipAnimationTime, activeTextAnim }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -419,6 +420,54 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       lidAngleRef.current = Math.PI / 2
     }
 
+    // ── Outro animation override ─────────────────────────────
+    const outroDur = 1.8
+    if (outroAnimation && outroAnimation !== 'none' && clipDuration > outroDur + 0.5) {
+      const outroStart = clipDuration - outroDur
+      if (t > outroStart) {
+        const p = easeInCubic((t - outroStart) / outroDur)
+
+        group.position.set(0, 0, 0)
+        group.rotation.set(0, 0, 0)
+        group.scale.set(1, 1, 1)
+        if (iph) { iph.rotation.set(0, 0, 0); iph.position.set(iphBaseX, 0, 0); iph.scale.set(1, 1, 1) }
+        if (and) { and.rotation.set(0, 0, 0); and.position.set(andBaseX, 0, 0); and.scale.set(1, 1, 1) }
+
+        switch (outroAnimation) {
+          case 'slideLeft':
+            group.position.x = -4 * p
+            break
+          case 'slideRight':
+            group.position.x = 4 * p
+            break
+          case 'slideDown':
+            group.position.y = -4 * p
+            break
+          case 'slideUp':
+            group.position.y = 4 * p
+            break
+          case 'slideLeftRotate':
+            group.position.x = -4 * p
+            group.rotation.y = (-Math.PI * 0.5) * p
+            break
+          case 'slideRightRotate':
+            group.position.x = 4 * p
+            group.rotation.y = (Math.PI * 0.5) * p
+            break
+          case 'zoomOut': {
+            const s = 1 - p * 0.85
+            group.scale.set(s, s, s)
+            break
+          }
+          case 'flip':
+            group.rotation.y = Math.PI * 1.2 * p
+            group.position.y = 1.2 * p
+            group.rotation.x = 0.3 * p
+            break
+        }
+      }
+    }
+
     // Apply timeline zoom effect — scales the entire phone group smoothly
     const targetZoom = zoomLevel || 1
     currentZoomRef.current += (targetZoom - currentZoomRef.current) * 0.08
@@ -627,7 +676,7 @@ function TextOverlays({ textOverlays, currentTime }) {
 
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
-  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, bgColor, bgGradient, showBase, isPlaying, canvasRef,
+  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, isPlaying, canvasRef,
   textOverlays, currentTime, clipAnimationTime, activeTextAnim,
 }) {
   const tint = useTintedLights(bgColor)
@@ -670,6 +719,8 @@ export default function PreviewScene({
             timelinePlaying={timelinePlaying}
             deviceType={deviceType}
             animation={animation}
+            outroAnimation={outroAnimation}
+            clipDuration={clipDuration}
             isPlaying={isPlaying}
             currentTime={currentTime}
             clipAnimationTime={clipAnimationTime}

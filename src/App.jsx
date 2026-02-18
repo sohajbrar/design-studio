@@ -31,6 +31,18 @@ const ANIMATION_PRESETS = [
   { id: 'laptopClose', name: 'Laptop Close', macbookOnly: true },
 ]
 
+const OUTRO_PRESETS = [
+  { id: 'none', name: 'None' },
+  { id: 'slideLeft', name: 'Slide Left' },
+  { id: 'slideRight', name: 'Slide Right' },
+  { id: 'slideDown', name: 'Slide Down' },
+  { id: 'slideUp', name: 'Slide Up' },
+  { id: 'slideLeftRotate', name: 'Left + Rotate' },
+  { id: 'slideRightRotate', name: 'Right + Rotate' },
+  { id: 'zoomOut', name: 'Zoom Out' },
+  { id: 'flip', name: 'Flip' },
+]
+
 const ANIM_ICONS = {
   showcase: (
     <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
@@ -124,6 +136,19 @@ const ANIM_ICONS = {
       <path d="M40 24h-8M34 20l-4 4 4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
       <path d="M14 14a8 8 0 0 0 0 16" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.35"/>
       <path d="M14 30l2-3h-4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.4"/>
+    </svg>
+  ),
+  none: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <circle cx="24" cy="24" r="10" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
+      <line x1="17" y1="17" x2="31" y2="31" stroke="currentColor" strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+    </svg>
+  ),
+  zoomOut: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="16" y="8" width="16" height="28" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="20" y="14" width="8" height="16" rx="1.5" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.25"/>
+      <path d="M14 8l-4-4M34 8l4-4M14 36l-4 4M34 36l4 4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
     </svg>
   ),
   zoomBottomLeft: (
@@ -300,6 +325,16 @@ function App() {
     return animation
   }, [activeClip, animation])
 
+  const activeOutroAnimation = useMemo(() => {
+    if (activeClip && activeClip.outroAnimation) return activeClip.outroAnimation
+    return 'none'
+  }, [activeClip])
+
+  const activeClipDuration = useMemo(() => {
+    if (activeClip) return activeClip.duration
+    return 0
+  }, [activeClip])
+
   const videoSeekTime = useMemo(() => {
     if (!activeClip || !activeScreen?.isVideo) return 0
     return currentTime - activeClip.startTime + activeClip.trimStart
@@ -445,6 +480,7 @@ function App() {
       trimEnd: 3,
       effects: [],
       animation: 'showcase',
+      outroAnimation: 'none',
     }))
 
     setScreens((prev) => [...prev, ...newScreens])
@@ -1227,11 +1263,12 @@ function App() {
                   const selClip = timelineClips.find((c) => c.id === selectedClipId)
                   const targetClip = selClip || activeClip
                   const currentAnim = targetClip ? targetClip.animation : animation
+                  const currentOutro = targetClip ? (targetClip.outroAnimation || 'none') : 'none'
                   return (
                     <div className="controls-panel">
                       <div className="control-group">
                         <h3 className="section-title">
-                          {selClip ? `Animation — ${screens.find((s) => s.id === selClip.screenId)?.name || 'Clip'}` : 'Animation'}
+                          {selClip ? `Intro — ${screens.find((s) => s.id === selClip.screenId)?.name || 'Clip'}` : 'Intro Animation'}
                         </h3>
                         {!selClip && timelineClips.length > 1 && (
                           <p className="anim-hint">Select a clip in the timeline to set a different animation per clip</p>
@@ -1254,6 +1291,38 @@ function App() {
                             >
                               <div className="animation-tile-icon">
                                 {ANIM_ICONS[preset.id]}
+                              </div>
+                              <span className="animation-tile-name">{preset.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="control-group">
+                        <h3 className="section-title">Exit Animation</h3>
+                        <p className="anim-hint">Plays during the last 1.8s of the clip</p>
+                        <div className="animation-grid">
+                          {OUTRO_PRESETS.map((preset) => (
+                            <button
+                              key={preset.id}
+                              className={`animation-tile ${currentOutro === preset.id ? 'active' : ''}`}
+                              onClick={() => {
+                                const clip = selClip || activeClip
+                                if (clip) {
+                                  handleUpdateClip(clip.id, { outroAnimation: preset.id })
+                                  if (preset.id !== 'none') {
+                                    setCurrentTime(Math.max(0, clip.startTime + clip.duration - 1.8))
+                                  }
+                                }
+                                setIsPlaying(true)
+                                setIsTimelinePlaying(true)
+                              }}
+                            >
+                              <div className="animation-tile-icon">
+                                {ANIM_ICONS[preset.id] || (
+                                  <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+                                    <circle cx="24" cy="24" r="8" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
+                                  </svg>
+                                )}
                               </div>
                               <span className="animation-tile-name">{preset.name}</span>
                             </button>
@@ -1475,6 +1544,8 @@ function App() {
                 timelinePlaying={isTimelinePlaying}
                 deviceType={deviceType}
                 animation={activeAnimation}
+                outroAnimation={activeOutroAnimation}
+                clipDuration={activeClipDuration}
                 bgColor={bgColor}
                 bgGradient={bgGradient}
                 showBase={showBase}
