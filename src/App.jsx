@@ -17,7 +17,7 @@ const ANIMATION_PRESETS = [
   { id: 'orbit', name: 'Orbit' },
   { id: 'flip', name: 'Flip' },
   { id: 'scroll', name: 'Scroll' },
-  { id: 'sideBySide', name: 'Side by Side' },
+  { id: 'sideBySide', name: 'Side by Side', bothOnly: true },
   { id: 'single', name: 'Single' },
   { id: 'slideLeft', name: 'Slide Left' },
   { id: 'slideRight', name: 'Slide Right' },
@@ -1274,7 +1274,11 @@ function App() {
                           <p className="anim-hint">Select a clip in the timeline to set a different animation per clip</p>
                         )}
                         <div className="animation-grid">
-                          {ANIMATION_PRESETS.filter((preset) => preset.macbookOnly ? deviceType === 'macbook' : !preset.macbookOnly).map((preset) => (
+                          {ANIMATION_PRESETS.filter((preset) => {
+                            if (preset.macbookOnly) return deviceType === 'macbook'
+                            if (preset.bothOnly) return deviceType === 'both'
+                            return !preset.macbookOnly
+                          }).map((preset) => (
                             <button
                               key={preset.id}
                               className={`animation-tile ${currentAnim === preset.id ? 'active' : ''}`}
