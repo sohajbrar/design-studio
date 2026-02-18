@@ -7,7 +7,11 @@
 const BASE = import.meta.env.BASE_URL + 'music/'
 
 export const MUSIC_LIBRARY = [
-  { id: 't-1',  name: 'Upbeat Drive',         file: 'track-1.mp3' },
+  { id: 'f-1',  name: 'Check This Out',        file: 'check-this-out.mp4' },
+  { id: 'f-2',  name: 'Friday The 13th',       file: 'friday-the-13th.mp4' },
+  { id: 'f-3',  name: 'Happy Days',            file: 'happy-days.mp4' },
+  { id: 'f-4',  name: 'I Love You More',       file: 'i-love-you-more.mp4' },
+  { id: 't-1',  name: 'Upbeat Drive',          file: 'track-1.mp3' },
   { id: 't-2',  name: 'Chill Electronic',      file: 'track-2.mp3' },
   { id: 't-3',  name: 'Bright Energy',         file: 'track-3.mp3' },
   { id: 't-4',  name: 'Smooth Groove',         file: 'track-4.mp3' },

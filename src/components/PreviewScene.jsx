@@ -128,8 +128,28 @@ function CameraAnimator({ animation, isPlaying }) {
   return null
 }
 
+// ── Calculate visible width/height at a given z-depth ────────
+function useVisibleWidth(zDepth) {
+  const { camera, viewport } = useThree()
+  return useMemo(() => {
+    const dist = camera.position.z - zDepth
+    const vFov = (camera.fov * Math.PI) / 180
+    const visH = 2 * Math.tan(vFov / 2) * dist
+    return visH * viewport.aspect
+  }, [camera.fov, camera.position.z, zDepth, viewport.aspect])
+}
+
+function useVisibleHeight(zDepth) {
+  const { camera } = useThree()
+  return useMemo(() => {
+    const dist = camera.position.z - zDepth
+    const vFov = (camera.fov * Math.PI) / 180
+    return 2 * Math.tan(vFov / 2) * dist
+  }, [camera.fov, camera.position.z, zDepth])
+}
+
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -137,9 +157,11 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   const macbookRef = useRef()
   const currentZoomRef = useRef(1)
   const lidAngleRef = useRef(Math.PI / 2)
-  const textOffsetRef = useRef({ x: 0, y: 0 })
+  const textOffsetRef = useRef({ x: 0 })
+  const prevTextAnim = useRef('none')
   const ctRef = useRef(clipAnimationTime || 0)
   ctRef.current = clipAnimationTime || 0
+  const visibleWidth = useVisibleWidth(0)
 
   const firstScreen = activeScreen || screens[0] || null
   const secondScreen = screens[1] || screens[0] || null
@@ -421,7 +443,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
     }
 
     // ── Outro animation override ─────────────────────────────
-    const outroDur = 1.8
+    const outroDur = 2.8
     if (outroAnimation && outroAnimation !== 'none' && clipDuration > outroDur + 0.5) {
       const outroStart = clipDuration - outroDur
       if (t > outroStart) {
@@ -460,9 +482,9 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             break
           }
           case 'flip':
-            group.rotation.y = Math.PI * 1.2 * p
-            group.position.y = 1.2 * p
-            group.rotation.x = 0.3 * p
+            group.rotation.y = Math.PI * 2 * p
+            group.position.y = 3.5 * p
+            group.rotation.x = 0.4 * p
             break
         }
       }
@@ -478,21 +500,24 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       group.scale.z * zs
     )
 
-    // Offset device based on active text animation direction
-    // Text gets 30% of screen, device shifts into the remaining 70%
+    // Shift device horizontally to make room for text (always left/right split)
     let targetOffX = 0
-    let targetOffY = 0
-    const shift = 0.7
-    switch (activeTextAnim) {
-      case 'slideFromTop': targetOffY = shift; break
-      case 'slideFromBottom': targetOffY = -shift; break
-      case 'slideFromLeft': targetOffX = -shift; break
-      case 'slideFromRight': targetOffX = shift; break
+    if (activeTextAnim && activeTextAnim !== 'none') {
+      const split = textSplit || 0.5
+      const deviceFraction = 1 - split
+      if (textOnLeft) {
+        targetOffX = (visibleWidth / 2) - (visibleWidth * deviceFraction) / 2
+      } else {
+        targetOffX = -(visibleWidth / 2) + (visibleWidth * deviceFraction) / 2
+      }
     }
-    textOffsetRef.current.x += (targetOffX - textOffsetRef.current.x) * 0.06
-    textOffsetRef.current.y += (targetOffY - textOffsetRef.current.y) * 0.06
+
+    const animChanged = prevTextAnim.current !== activeTextAnim
+    prevTextAnim.current = activeTextAnim
+    const snap = animChanged && activeTextAnim !== 'none'
+    const lerpSpeed = snap ? 1 : 0.08
+    textOffsetRef.current.x += (targetOffX - textOffsetRef.current.x) * lerpSpeed
     group.position.x += textOffsetRef.current.x
-    group.position.y += textOffsetRef.current.y
   })
 
   return (
@@ -517,6 +542,8 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             screenUrl={secondScreen?.url || null}
             screenFile={secondScreen?.file || null}
             isVideo={secondScreen?.isVideo || false}
+            videoSeekTime={videoSeekTime}
+            timelinePlaying={timelinePlaying}
             scale={0.35}
           />
         </group>
@@ -552,34 +579,308 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   )
 }
 
-// ── Ambient particles ─────────────────────────────────────────
-function Particles({ color = '#21C063' }) {
-  const pointsRef = useRef()
-  const geometry = useMemo(() => {
-    const geo = new THREE.BufferGeometry()
-    const count = 100
-    const pos = new Float32Array(count * 3)
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 16
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 12
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 12
-    }
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-    return geo
-  }, [])
+// ── Multi-device animations ──────────────────────────────────
+const MULTI_DEVICE_ANIMS = new Set([
+  'sideScroll10', 'angled3ZoomOut', 'circle4Rotate', 'angledZoom4',
+  'carousel6', 'floatingPhoneLaptop', 'phoneInFrontLaptop', 'offsetCircleRotate',
+  'flatScatter7',
+])
 
-  useFrame((state) => {
-    if (pointsRef.current) {
-      pointsRef.current.rotation.y = state.clock.elapsedTime * 0.012
-      pointsRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.008) * 0.06
+function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens }) {
+  const groupRef = useRef()
+  const devRefs = useRef({})
+  const ctRef = useRef(0)
+  ctRef.current = clipAnimationTime || 0
+
+  const s0 = activeScreen || screens[0] || null
+  const s1 = screens[1] || screens[0] || null
+  const setRef = (k) => (el) => { if (el) devRefs.current[k] = el }
+
+  const getSlotScreen = (index) => {
+    if (slotScreens && slotScreens[index]) return slotScreens[index]
+    return s0
+  }
+
+  const phonePropsForSlot = (index) => {
+    const scr = getSlotScreen(index)
+    return {
+      type: 'iphone',
+      screenUrl: scr?.url || null,
+      screenFile: scr?.file || null,
+      isVideo: scr?.isVideo || false,
+      videoSeekTime, timelinePlaying,
+      scale: 0.3,
+    }
+  }
+
+  const phoneProps = phonePropsForSlot(0)
+
+  const lidAngleRef = useRef(Math.PI / 2)
+
+  useFrame(() => {
+    const t = ctRef.current
+    const g = groupRef.current
+    if (!g) return
+    const d = devRefs.current
+
+    g.position.set(0, 0, 0)
+    g.rotation.set(0, 0, 0)
+    g.scale.set(1, 1, 1)
+
+    switch (animation) {
+
+      // ── 1. Side Scroll 10 ──────────────────────────
+      case 'sideScroll10': {
+        const scrollSpeed = 0.35
+        g.position.x = 3.2 - t * scrollSpeed
+        g.rotation.y = 0.06
+        g.rotation.x = 0.02
+        for (let i = 0; i < 10; i++) {
+          const ref = d[`p${i}`]
+          if (ref) {
+            ref.position.y = Math.sin(t * 0.4 + i * 0.7) * 0.06
+            ref.rotation.z = Math.sin(t * 0.3 + i * 0.5) * 0.015
+          }
+        }
+        break
+      }
+
+      // ── 2. Angled 3 Zoom Out ───────────────────────
+      case 'angled3ZoomOut': {
+        const zoomT = easeOutCubic(Math.min(1, t / 2.5))
+        const s = 1.6 - 0.6 * zoomT
+        g.scale.set(s, s, s)
+        g.rotation.y = smoothSin(t, 0.15, 0.08)
+        g.position.y = smoothSin(t, 0.25, 0.05)
+        if (d.p0) {
+          d.p0.rotation.y = -0.35
+          d.p0.position.y = smoothSin(t + 0.3, 0.3, 0.04)
+        }
+        if (d.p1) {
+          d.p1.rotation.y = 0
+          d.p1.position.y = smoothSin(t, 0.35, 0.03)
+        }
+        if (d.p2) {
+          d.p2.rotation.y = 0.35
+          d.p2.position.y = smoothSin(t + 0.6, 0.3, 0.04)
+        }
+        break
+      }
+
+      // ── 3. Circle 4 Rotate ─────────────────────────
+      case 'circle4Rotate': {
+        g.rotation.y = t * 0.25
+        g.position.y = smoothSin(t, 0.3, 0.06)
+        g.rotation.x = smoothSin(t, 0.15, 0.03)
+        for (let i = 0; i < 4; i++) {
+          const ref = d[`p${i}`]
+          if (ref) {
+            const angle = (i / 4) * Math.PI * 2
+            const r = 1.3
+            ref.position.set(Math.sin(angle) * r, smoothSin(t + i, 0.4, 0.05), Math.cos(angle) * r)
+            ref.rotation.y = angle
+          }
+        }
+        break
+      }
+
+      // ── 4. Angled Zoom 4 ──────────────────────────
+      case 'angledZoom4': {
+        const introP = easeOutCubic(Math.min(1, t / 2.0))
+        g.rotation.x = 0.35 * introP + smoothSin(t, 0.12, 0.02)
+        g.rotation.y = -0.15 * introP + smoothSin(t, 0.1, 0.06)
+        g.position.y = -0.2 * introP + smoothSin(t, 0.2, 0.04)
+        const layouts = [
+          { x: -1.6, y: 0.1, z: -0.8, ry: 0.15, rz: 0.04 },
+          { x: -0.55, y: 0.15, z: -0.2, ry: 0.08, rz: 0.02 },
+          { x: 0.55, y: 0.2, z: 0.2, ry: -0.08, rz: -0.02 },
+          { x: 1.6, y: 0.1, z: -0.4, ry: -0.15, rz: -0.04 },
+        ]
+        layouts.forEach((l, i) => {
+          const ref = d[`p${i}`]
+          if (ref) {
+            ref.position.set(l.x, l.y + smoothSin(t + i * 0.5, 0.3, 0.04), l.z)
+            ref.rotation.set(0, l.ry, l.rz)
+          }
+        })
+        break
+      }
+
+      // ── 5. Carousel 6 ─────────────────────────────
+      case 'carousel6': {
+        g.rotation.y = t * 0.2
+        g.position.y = smoothSin(t, 0.25, 0.05)
+        for (let i = 0; i < 6; i++) {
+          const ref = d[`p${i}`]
+          if (ref) {
+            const angle = (i / 6) * Math.PI * 2
+            const r = 1.8
+            const yOff = (i % 2 === 0 ? 0.2 : -0.2) + smoothSin(t + i * 0.8, 0.35, 0.06)
+            ref.position.set(Math.sin(angle) * r, yOff, Math.cos(angle) * r)
+            ref.rotation.y = angle
+          }
+        }
+        break
+      }
+
+      // ── 6. Floating Phone + Laptop ─────────────────
+      case 'floatingPhoneLaptop': {
+        g.rotation.y = smoothSin(t, 0.15, 0.12)
+        g.position.y = smoothSin(t, 0.2, 0.04)
+        if (d.phone) {
+          d.phone.position.set(-1.4 + smoothSin(t, 0.18, 0.08), smoothSin(t + 1, 0.25, 0.12), 0.3)
+          d.phone.rotation.set(smoothSin(t, 0.2, 0.04), 0.2 + smoothSin(t, 0.15, 0.06), smoothSin(t + 0.5, 0.18, 0.03))
+        }
+        if (d.laptop) {
+          d.laptop.position.set(1.1 + smoothSin(t + 0.5, 0.12, 0.06), 0.1 + smoothSin(t, 0.3, 0.08), -0.3)
+          d.laptop.rotation.set(-0.15 + smoothSin(t + 1, 0.15, 0.03), -0.25 + smoothSin(t, 0.12, 0.05), smoothSin(t + 0.3, 0.15, 0.02))
+        }
+        break
+      }
+
+      // ── 7. Phone in Front of Laptop ────────────────
+      case 'phoneInFrontLaptop': {
+        const slideP = easeOutCubic(Math.min(1, t / 2.0))
+        g.rotation.y = smoothSin(t, 0.12, 0.06)
+        g.position.y = smoothSin(t, 0.2, 0.04)
+        if (d.laptop) {
+          d.laptop.position.set(0, 0.15, -0.5)
+          d.laptop.rotation.set(-0.12 + smoothSin(t, 0.1, 0.02), smoothSin(t, 0.08, 0.03), 0)
+        }
+        if (d.phone) {
+          const startX = 3.5
+          const endX = 0.9
+          d.phone.position.set(
+            startX + (endX - startX) * slideP + smoothSin(t, 0.15, 0.03),
+            -0.3 + smoothSin(t + 0.5, 0.2, 0.06),
+            0.8
+          )
+          d.phone.rotation.set(smoothSin(t, 0.12, 0.02), -0.1 + smoothSin(t, 0.1, 0.04), smoothSin(t + 1, 0.15, 0.02))
+        }
+        break
+      }
+
+      // ── 8. Offset Circle Rotate ────────────────────
+      case 'offsetCircleRotate': {
+        g.rotation.y = t * 0.18
+        g.position.y = smoothSin(t, 0.2, 0.04)
+        g.rotation.x = smoothSin(t, 0.1, 0.03)
+        const offsets = [0, 0.25, -0.15, 0.35, -0.3, 0.1]
+        for (let i = 0; i < 6; i++) {
+          const ref = d[`p${i}`]
+          if (ref) {
+            const angle = (i / 6) * Math.PI * 2
+            const r = 1.5
+            ref.position.set(Math.sin(angle) * r, offsets[i] + smoothSin(t + i * 0.6, 0.3, 0.04), Math.cos(angle) * r)
+            ref.rotation.y = angle
+            ref.rotation.z = smoothSin(t + i, 0.2, 0.02)
+          }
+        }
+        break
+      }
+
+      // ── 9. Flat Scatter — phones lying face-up on a surface ──
+      case 'flatScatter7': {
+        g.rotation.x = 0.55
+        g.rotation.y = smoothSin(t, 0.04, 0.05)
+        g.position.y = 0.35 + smoothSin(t, 0.08, 0.03)
+
+        const grid = [
+          { x: -1.25, z: -0.75, rz: -0.18 },
+          { x:  0.0,  z: -0.75, rz:  0.12 },
+          { x:  1.25, z: -0.75, rz: -0.10 },
+          { x: -1.85, z:  0.35, rz:  0.22 },
+          { x: -0.62, z:  0.35, rz: -0.15 },
+          { x:  0.62, z:  0.35, rz:  0.20 },
+          { x:  1.85, z:  0.35, rz: -0.12 },
+        ]
+
+        for (let i = 0; i < 7; i++) {
+          const ref = d[`p${i}`]
+          if (!ref) continue
+          const s = grid[i]
+          ref.position.set(s.x, 0.01 * i, s.z)
+          ref.rotation.set(-Math.PI / 2, 0, s.rz + smoothSin(t + i * 0.7, 0.03, 0.015))
+          ref.scale.set(1, 1, 1)
+        }
+        break
+      }
     }
   })
 
-  return (
-    <points ref={pointsRef} geometry={geometry}>
-      <pointsMaterial size={0.018} color={color} transparent opacity={0.2} sizeAttenuation />
-    </points>
-  )
+  const renderPhones = (count, scale = 0.3) => {
+    if (animation === 'sideScroll10') {
+      return Array.from({ length: count }, (_, i) => (
+        <group key={i} ref={setRef(`p${i}`)} position={[(i - 4.5) * 0.8, Math.sin(i * 0.7) * 0.12, i % 2 === 0 ? 0 : -0.15]}>
+          <DeviceFrame {...phonePropsForSlot(i)} scale={scale} />
+        </group>
+      ))
+    }
+    if (animation === 'angled3ZoomOut') {
+      const positions = [[-1.3, 0, -0.3], [0, 0, 0.15], [1.3, 0, -0.3]]
+      return positions.map((pos, i) => (
+        <group key={i} ref={setRef(`p${i}`)} position={pos}>
+          <DeviceFrame {...phonePropsForSlot(i)} scale={scale} />
+        </group>
+      ))
+    }
+    return Array.from({ length: count }, (_, i) => (
+      <group key={i} ref={setRef(`p${i}`)}>
+        <DeviceFrame {...phonePropsForSlot(i)} scale={scale} />
+      </group>
+    ))
+  }
+
+  switch (animation) {
+    case 'sideScroll10':
+      return <group ref={groupRef}>{renderPhones(10, 0.28)}</group>
+    case 'angled3ZoomOut':
+      return <group ref={groupRef}>{renderPhones(3, 0.33)}</group>
+    case 'circle4Rotate':
+      return <group ref={groupRef}>{renderPhones(4, 0.28)}</group>
+    case 'angledZoom4':
+      return <group ref={groupRef}>{renderPhones(4, 0.32)}</group>
+    case 'carousel6':
+      return <group ref={groupRef}>{renderPhones(6, 0.26)}</group>
+    case 'offsetCircleRotate':
+      return <group ref={groupRef}>{renderPhones(6, 0.27)}</group>
+    case 'flatScatter7':
+      return <group ref={groupRef}>{renderPhones(7, 0.30)}</group>
+    case 'floatingPhoneLaptop':
+    case 'phoneInFrontLaptop': {
+      const phoneSrc = getSlotScreen(0)
+      const laptopSrc = getSlotScreen(1)
+      return (
+        <group ref={groupRef}>
+          <group ref={setRef('phone')}>
+            <DeviceFrame
+              type="iphone"
+              screenUrl={phoneSrc?.url || null}
+              screenFile={phoneSrc?.file || null}
+              isVideo={phoneSrc?.isVideo || false}
+              videoSeekTime={videoSeekTime}
+              timelinePlaying={timelinePlaying}
+              scale={0.32}
+            />
+          </group>
+          <group ref={setRef('laptop')}>
+            <DeviceFrame
+              type="macbook"
+              screenUrl={laptopSrc?.url || null}
+              screenFile={laptopSrc?.file || null}
+              isVideo={laptopSrc?.isVideo || false}
+              videoSeekTime={videoSeekTime}
+              timelinePlaying={timelinePlaying}
+              scale={0.35}
+              lidAngleRef={lidAngleRef}
+            />
+          </group>
+        </group>
+      )
+    }
+    default:
+      return null
+  }
 }
 
 // ── Ground reflection plane ───────────────────────────────────
@@ -592,16 +893,32 @@ function GroundPlane() {
   )
 }
 
-// ── Canvas-texture text overlay ───────────────────────────────
-function CanvasTextOverlay({ overlay, currentTime }) {
+// ── Canvas-texture text overlay (viewport-aware) ─────────────
+const TEXT_Z = 1.0
+function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft }) {
   const meshRef = useRef()
   const ctRef = useRef(currentTime)
   ctRef.current = currentTime
 
+  const TEX_W = 1024
+  const TEX_H = 512
+  const visibleWidth = useVisibleWidth(TEXT_Z)
+  const { camera } = useThree()
+  const visibleHeight = useMemo(() => {
+    const dist = camera.position.z - TEXT_Z
+    const vFov = (camera.fov * Math.PI) / 180
+    return 2 * Math.tan(vFov / 2) * dist
+  }, [camera.fov, camera.position.z])
+
+  const split = textSplit || 0.5
+  const margin = 0.08
+  const textAreaWidth = visibleWidth * split * (1 - margin * 2)
+  const textAreaHeight = visibleHeight * (1 - margin * 2)
+
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
-    canvas.width = 1024
-    canvas.height = 256
+    canvas.width = TEX_W
+    canvas.height = TEX_H
     const tex = new THREE.CanvasTexture(canvas)
     tex.minFilter = THREE.LinearFilter
     tex.magFilter = THREE.LinearFilter
@@ -611,50 +928,89 @@ function CanvasTextOverlay({ overlay, currentTime }) {
   useEffect(() => {
     const canvas = texture.image
     const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0, 0, TEX_W, TEX_H)
 
     const pxSize = Math.max(24, Math.min(200, overlay.fontSize * 1.8))
     ctx.font = `600 ${pxSize}px "${overlay.fontFamily}", Inter, sans-serif`
+    ctx.fillStyle = overlay.color
+
+    const text = overlay.text || ''
+    const words = text.split(' ')
+    const maxWidth = TEX_W * 0.88
+    const lines = []
+    let line = ''
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line)
+        line = word
+      } else {
+        line = test
+      }
+    }
+    if (line) lines.push(line)
+
+    const lineH = pxSize * 1.25
+    const totalH = lines.length * lineH
+    const startY = (TEX_H - totalH) / 2 + lineH * 0.5
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillStyle = overlay.color
-    ctx.fillText(overlay.text || '', canvas.width / 2, canvas.height / 2)
+    lines.forEach((l, i) => {
+      ctx.fillText(l, TEX_W / 2, startY + i * lineH)
+    })
 
     texture.needsUpdate = true
   }, [overlay.text, overlay.fontFamily, overlay.fontSize, overlay.color, texture])
+
+  const meshW = textAreaWidth
+  const meshH = textAreaWidth * (TEX_H / TEX_W)
+  const clampedH = Math.min(meshH, textAreaHeight)
+  const finalW = clampedH < meshH ? clampedH * (TEX_W / TEX_H) : meshW
+
+  // Text always settles in its horizontal half (left or right)
+  const textCenterX = textOnLeft
+    ? -(visibleWidth / 2) + (visibleWidth * split / 2)
+    : (visibleWidth / 2) - (visibleWidth * split / 2)
 
   useFrame(() => {
     if (!meshRef.current) return
     const t = ctRef.current
     const animDuration = 1.2
     const progress = easeOutCubic(Math.min(1, t / animDuration))
-    const baseY = overlay.posY
-    let offX = 0
-    let offY = 0
 
-    switch (overlay.animation) {
-      case 'slideFromRight': offX = -(progress * 2); break
-      case 'slideFromLeft': offX = progress * 2; break
-      case 'slideFromBottom': offY = progress * 1; break
-      case 'slideFromTop': offY = -(progress * 1); break
+    let x, y
+    const anim = overlay.animation
+    if (anim === 'slideFromRight') {
+      x = visibleWidth * 0.8 + (textCenterX - visibleWidth * 0.8) * progress
+      y = overlay.posY || 0
+    } else if (anim === 'slideFromLeft') {
+      x = -visibleWidth * 0.8 + (textCenterX + visibleWidth * 0.8) * progress
+      y = overlay.posY || 0
+    } else if (anim === 'slideFromBottom') {
+      const offY = -visibleHeight * 0.7
+      y = offY + ((overlay.posY || 0) - offY) * progress
+      x = textCenterX
+    } else if (anim === 'slideFromTop') {
+      const offY = visibleHeight * 0.7
+      y = offY + ((overlay.posY || 0) - offY) * progress
+      x = textCenterX
+    } else {
+      x = textCenterX
+      y = overlay.posY || 0
     }
 
-    meshRef.current.position.set(offX, baseY + offY, -1.2)
+    meshRef.current.position.set(x, y, TEXT_Z)
   })
 
-  const aspect = 1024 / 256
-  const height = overlay.fontSize * 0.012
-  const width = height * aspect
-
   return (
-    <mesh ref={meshRef} position={[0, overlay.posY, -1.2]}>
-      <planeGeometry args={[width, height]} />
-      <meshBasicMaterial map={texture} transparent depthWrite={false} />
+    <mesh ref={meshRef} position={[0, overlay.posY || 0, TEXT_Z]} renderOrder={10}>
+      <planeGeometry args={[finalW, clampedH]} />
+      <meshBasicMaterial map={texture} transparent depthWrite={false} depthTest={false} />
     </mesh>
   )
 }
 
-function TextOverlays({ textOverlays, currentTime }) {
+function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft }) {
   if (!textOverlays || textOverlays.length === 0) return null
 
   return (
@@ -667,22 +1023,208 @@ function TextOverlays({ textOverlays, currentTime }) {
         .map((overlay) => {
           const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
           return (
-            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} />
+            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} textSplit={textSplit} textOnLeft={textOnLeft} />
           )
         })}
     </group>
   )
 }
 
+// ── Outro logo overlay (appears at end of video) ─────────────
+function OutroLogo({ logoId, currentTime, totalDuration }) {
+  const groupRef = useRef()
+  const matRef = useRef()
+  const ctRef = useRef(currentTime)
+  ctRef.current = currentTime
+  const durRef = useRef(totalDuration)
+  durRef.current = totalDuration
+  const texLoadedRef = useRef(false)
+
+  const logoUrl = logoId === 'whatsapp' ? '/logos/whatsapp.png' : '/logos/whatsapp-business.png'
+
+  const texture = useMemo(() => {
+    texLoadedRef.current = false
+    const tex = new THREE.TextureLoader().load(logoUrl, () => { texLoadedRef.current = true })
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.minFilter = THREE.LinearFilter
+    tex.magFilter = THREE.LinearFilter
+    return tex
+  }, [logoUrl])
+
+  const LOGO_Z = 2.0
+  const LOGO_DUR = 2.5
+  const FADE_IN = 0.8
+
+  useFrame(({ camera }) => {
+    const grp = groupRef.current
+    const mat = matRef.current
+    if (!grp || !mat) return
+
+    if (!texLoadedRef.current) { grp.scale.set(0, 0, 0); return }
+
+    const t = ctRef.current
+    const dur = durRef.current
+    const logoStart = dur - LOGO_DUR
+
+    if (dur < LOGO_DUR + 0.5 || t < logoStart) {
+      grp.scale.set(0, 0, 0)
+      mat.opacity = 0
+      return
+    }
+
+    const elapsed = t - logoStart
+    const fadeProgress = Math.min(1, elapsed / FADE_IN)
+    const opacity = easeOutCubic(fadeProgress)
+
+    const dist = Math.max(0.1, camera.position.z - LOGO_Z)
+    const vFov = (camera.fov * Math.PI) / 180
+    const visH = 2 * Math.tan(vFov / 2) * dist
+    const baseSize = visH * 0.5
+    const s = (0.6 + 0.4 * easeOutCubic(fadeProgress)) * baseSize
+
+    grp.scale.set(s, s, 1)
+    grp.position.set(0, 0, LOGO_Z)
+    mat.opacity = opacity
+  })
+
+  return (
+    <group ref={groupRef} scale={[0, 0, 0]} renderOrder={20}>
+      <mesh>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial ref={matRef} map={texture} transparent opacity={0} depthTest={false} depthWrite={false} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Draggable split divider ───────────────────────────────────
+function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, onFlip }) {
+  const dividerRef = useRef(null)
+  const dragging = useRef(false)
+
+  useEffect(() => {
+    if (!visible) return
+
+    const onMove = (e) => {
+      if (!dragging.current) return
+      const parent = dividerRef.current?.parentElement
+      if (!parent) return
+      const rect = parent.getBoundingClientRect()
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX
+      const pct = (clientX - rect.left) / rect.width
+      const clamped = Math.min(0.75, Math.max(0.25, pct))
+
+      if (textOnLeft) {
+        onSplitChange(+clamped.toFixed(2))
+      } else {
+        onSplitChange(+(1 - clamped).toFixed(2))
+      }
+    }
+
+    const onUp = () => { dragging.current = false; document.body.style.cursor = '' }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove)
+    window.addEventListener('touchend', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+    }
+  }, [visible, onSplitChange, textOnLeft])
+
+  if (!visible) return null
+
+  const split = textSplit || 0.5
+  const leftPct = textOnLeft
+    ? (split * 100).toFixed(1)
+    : ((1 - split) * 100).toFixed(1)
+
+  return (
+    <div
+      ref={dividerRef}
+      className="split-divider"
+      style={{ left: `${leftPct}%` }}
+      onMouseDown={(e) => { e.preventDefault(); dragging.current = true; document.body.style.cursor = 'col-resize' }}
+      onTouchStart={() => { dragging.current = true }}
+    >
+      <div className="split-divider-handle">
+        <div className="split-divider-dots">
+          <span /><span /><span />
+        </div>
+      </div>
+      {onFlip && (
+        <button
+          className="split-swap-btn"
+          title="Swap text & device sides"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onFlip() }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="17 1 21 5 17 9" />
+            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+            <polyline points="7 23 3 19 7 15" />
+            <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, isPlaying, canvasRef,
-  textOverlays, currentTime, clipAnimationTime, activeTextAnim,
+  textOverlays, currentTime, clipAnimationTime, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
+  outroLogo, totalDuration,
 }) {
   const tint = useTintedLights(bgColor)
+  const containerRef = useRef(null)
+  const [containerSize, setContainerSize] = useState({ w: 1, h: 1 })
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      if (width > 0 && height > 0) setContainerSize({ w: width, h: height })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const canvasStyle = useMemo(() => {
+    if (!aspectRatio) return { width: '100%', height: '100%' }
+    const parts = aspectRatio.split(':')
+    if (parts.length !== 2) return { width: '100%', height: '100%' }
+    const arW = parseFloat(parts[0])
+    const arH = parseFloat(parts[1])
+    if (!arW || !arH) return { width: '100%', height: '100%' }
+
+    const targetAR = arW / arH
+    const containerAR = containerSize.w / containerSize.h
+
+    let w, h
+    if (containerAR > targetAR) {
+      h = containerSize.h
+      w = h * targetAR
+    } else {
+      w = containerSize.w
+      h = w / targetAR
+    }
+
+    return { width: Math.floor(w), height: Math.floor(h) }
+  }, [aspectRatio, containerSize])
+
+  const hasActiveText = activeTextAnim && activeTextAnim !== 'none'
+  const showDivider = hasActiveText
+  const defaultTextOnLeft = activeTextAnim === 'slideFromLeft' || activeTextAnim === 'slideFromBottom'
+  const textOnLeft = layoutFlipped ? !defaultTextOnLeft : defaultTextOnLeft
 
   return (
-    <div className="preview-scene">
+    <div className="preview-scene" ref={containerRef}>
+      <div className="preview-canvas-wrap" style={canvasStyle}>
       <Canvas
         camera={{ position: [0, 0, 2.5], fov: 50 }}
         gl={{
@@ -711,22 +1253,37 @@ export default function PreviewScene({
         <spotLight position={[0, 8, 3]} angle={0.35} penumbra={0.7} intensity={0.5} castShadow />
 
         <Suspense fallback={null}>
-          <AnimatedDevices
-            screens={screens}
-            activeScreen={activeScreen}
-            zoomLevel={zoomLevel}
-            videoSeekTime={videoSeekTime}
-            timelinePlaying={timelinePlaying}
-            deviceType={deviceType}
-            animation={animation}
-            outroAnimation={outroAnimation}
-            clipDuration={clipDuration}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            clipAnimationTime={clipAnimationTime}
-            activeTextAnim={activeTextAnim}
-          />
-          <Particles color={tint.accent} />
+          {MULTI_DEVICE_ANIMS.has(animation) ? (
+            <MultiDeviceScene
+              screens={screens}
+              activeScreen={activeScreen}
+              animation={animation}
+              clipAnimationTime={clipAnimationTime}
+              videoSeekTime={videoSeekTime}
+              timelinePlaying={timelinePlaying}
+              outroAnimation={outroAnimation}
+              clipDuration={clipDuration}
+              slotScreens={slotScreens}
+            />
+          ) : (
+            <AnimatedDevices
+              screens={screens}
+              activeScreen={activeScreen}
+              zoomLevel={zoomLevel}
+              videoSeekTime={videoSeekTime}
+              timelinePlaying={timelinePlaying}
+              deviceType={deviceType}
+              animation={animation}
+              outroAnimation={outroAnimation}
+              clipDuration={clipDuration}
+              isPlaying={isPlaying}
+              currentTime={currentTime}
+              clipAnimationTime={clipAnimationTime}
+              activeTextAnim={activeTextAnim}
+              textSplit={textSplit}
+              textOnLeft={textOnLeft}
+            />
+          )}
           {showBase && (
               <ContactShadows
                 position={[0, -2.5, 0]}
@@ -738,7 +1295,10 @@ export default function PreviewScene({
               />
           )}
         </Suspense>
-        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} />
+        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} textSplit={textSplit} textOnLeft={textOnLeft} />
+        {outroLogo && totalDuration > 3 && (
+          <OutroLogo logoId={outroLogo} currentTime={currentTime} totalDuration={totalDuration} />
+        )}
 
         <OrbitControls
           enablePan={false}
@@ -746,6 +1306,8 @@ export default function PreviewScene({
           enableRotate={false}
         />
       </Canvas>
+      <SplitDivider textSplit={textSplit} onSplitChange={onTextSplitChange} visible={showDivider} textOnLeft={textOnLeft} onFlip={onFlipLayout} />
+      </div>
 
       {screens.length === 0 && (
         <div className="preview-empty">

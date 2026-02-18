@@ -34,9 +34,9 @@
 }
 
 .chip.active {
-  background: #21C063;
-  border-color: #21C063;
-  color: #161717;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -76,7 +76,7 @@
 }
 
 .animation-tile:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--overlay-light);
   border-color: var(--border-hover);
 }
 
@@ -97,7 +97,7 @@
 }
 
 .animation-tile.active .animation-tile-icon {
-  color: #21C063;
+  color: var(--accent);
 }
 
 .anim-icon {
@@ -113,7 +113,7 @@
 }
 
 .animation-tile.active .animation-tile-name {
-  color: #21C063;
+  color: var(--accent);
 }
 
 .animation-tile:hover .animation-tile-name {
@@ -181,7 +181,7 @@
 }
 
 .color-value-edit:focus {
-  border-color: #21C063;
+  border-color: var(--accent);
   background: var(--bg-primary);
   color: var(--text-primary);
 }
@@ -241,7 +241,7 @@
 }
 
 .stepper button:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--overlay-light);
   color: var(--text-primary);
 }
 
@@ -278,8 +278,8 @@
 }
 
 .btn-add-text:hover {
-  border-color: #21C063;
-  color: #21C063;
+  border-color: var(--accent);
+  color: var(--accent);
   background: rgba(33, 192, 99, 0.04);
 }
 
@@ -302,7 +302,7 @@
 }
 
 .text-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--overlay-light);
 }
 
 .text-item.active {
@@ -320,7 +320,7 @@
 }
 
 .text-item.active .text-item-preview {
-  color: #21C063;
+  color: var(--accent);
 }
 
 .text-item-remove {
@@ -383,7 +383,7 @@
 }
 
 .te-input:focus {
-  border-color: #21C063;
+  border-color: var(--accent);
 }
 
 .te-select {
@@ -402,7 +402,7 @@
 }
 
 .te-select:focus {
-  border-color: #21C063;
+  border-color: var(--accent);
 }
 
 .te-size-wrap {
@@ -429,7 +429,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #21C063;
+  background: var(--accent);
   cursor: pointer;
   border: 2px solid var(--bg-primary);
 }
@@ -473,7 +473,7 @@
 .text-anim-btn.active {
   background: rgba(33, 192, 99, 0.08);
   border-color: rgba(33, 192, 99, 0.35);
-  color: #21C063;
+  color: var(--accent);
 }
 
 /* ── Audio sidebar panel ───────────────────────── */
@@ -519,7 +519,7 @@
 }
 
 .audio-track-remove:hover {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .audio-volume-row {
@@ -637,8 +637,8 @@
 }
 
 .music-card-preview.playing {
-  border-color: #21C063;
-  color: #21C063;
+  border-color: var(--accent);
+  color: var(--accent);
   background: rgba(33, 192, 99, 0.08);
 }
 
@@ -656,7 +656,7 @@
 }
 
 .music-card-select:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--overlay-light);
   border-color: var(--text-primary);
 }
 
@@ -675,7 +675,7 @@
   width: 10px;
   height: 10px;
   border: 1.5px solid var(--text-muted);
-  border-top-color: #21C063;
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: card-spin 0.6s linear infinite;
 }
@@ -718,5 +718,99 @@
 .btn-audio-upload:hover {
   border-color: var(--text-primary);
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--overlay-light);
+}
+
+/* WhatsApp theme selector */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  color: var(--text-secondary);
+}
+
+.theme-card:hover {
+  border-color: var(--border-hover);
+  background: var(--overlay-light);
+}
+
+.theme-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  color: var(--text-primary);
+}
+
+.theme-swatch {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 6px;
+  border: 1px solid var(--overlay-light);
+}
+
+.theme-name {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* Logo picker */
+.logo-picker-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 8px;
+}
+
+.logo-pick-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  color: var(--text-secondary);
+}
+
+.logo-pick-btn:hover {
+  border-color: var(--border-hover);
+  background: var(--overlay-light);
+}
+
+.logo-pick-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  color: var(--text-primary);
+}
+
+.logo-pick-btn img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.logo-pick-btn span {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
 }

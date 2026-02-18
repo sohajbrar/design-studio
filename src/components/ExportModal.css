@@ -58,7 +58,7 @@
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--overlay-light);
   color: var(--text-primary);
 }
 

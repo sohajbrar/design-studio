@@ -5,6 +5,7 @@ import './App.css'
 import './components/ControlsPanel.css'
 import UploadPanel from './components/UploadPanel'
 import PreviewScene from './components/PreviewScene'
+import TemplateGallery from './components/TemplateGallery'
 
 import Header from './components/Header'
 import ExportModal from './components/ExportModal'
@@ -41,6 +42,45 @@ const OUTRO_PRESETS = [
   { id: 'slideRightRotate', name: 'Right + Rotate' },
   { id: 'zoomOut', name: 'Zoom Out' },
   { id: 'flip', name: 'Flip' },
+]
+
+const WA_THEMES = [
+  {
+    id: 'wa-dark',
+    name: 'Dark',
+    bgColor: '#0A1014',
+    bgGradient: false,
+    textColor: '#FFFFFF',
+    secondaryTextColor: '#1DAA61',
+    swatch: 'linear-gradient(135deg, #0A1014 50%, #1DAA61 50%)',
+  },
+  {
+    id: 'wa-light',
+    name: 'Light',
+    bgColor: '#E7FDE3',
+    bgGradient: false,
+    textColor: '#FFFFFF',
+    secondaryTextColor: '#1DAA61',
+    swatch: 'linear-gradient(135deg, #E7FDE3 50%, #1DAA61 50%)',
+  },
+  {
+    id: 'wa-beige',
+    name: 'Beige',
+    bgColor: '#FEF4EB',
+    bgGradient: false,
+    textColor: '#FFFFFF',
+    secondaryTextColor: '#1DAA61',
+    swatch: 'linear-gradient(135deg, #FEF4EB 50%, #1DAA61 50%)',
+  },
+  {
+    id: 'wa-green',
+    name: 'Green Pop',
+    bgColor: '#1DAA61',
+    bgGradient: false,
+    textColor: '#FFFFFF',
+    secondaryTextColor: '#15603E',
+    swatch: 'linear-gradient(135deg, #1DAA61 50%, #15603E 50%)',
+  },
 ]
 
 const ANIM_ICONS = {
@@ -251,20 +291,42 @@ function getVideoDuration(url) {
   })
 }
 
+function loadSaved(key, fallback) {
+  try {
+    const v = localStorage.getItem('ds_' + key)
+    if (v === null) return fallback
+    return JSON.parse(v)
+  } catch { return fallback }
+}
+
 function App() {
   const [screens, setScreens] = useState([])
-  const [deviceType, setDeviceType] = useState('iphone')
+  const [deviceType, setDeviceType] = useState(() => loadSaved('deviceType', 'iphone'))
   const [animation, setAnimation] = useState('showcase')
-  const [bgColor, setBgColor] = useState('#161717')
-  const [bgGradient, setBgGradient] = useState(false)
-  const [showBase, setShowBase] = useState(false)
+  const [bgColor, setBgColor] = useState(() => loadSaved('bgColor', '#161717'))
+  const [bgGradient, setBgGradient] = useState(() => loadSaved('bgGradient', false))
+  const [showBase, setShowBase] = useState(() => loadSaved('showBase', false))
   const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [showExport, setShowExport] = useState(false)
-  const [quality, setQuality] = useState('1080p')
-  const [sidebarTab, setSidebarTab] = useState('animations')
+  const [quality, setQuality] = useState(() => loadSaved('quality', '1080p'))
+  const [aspectRatio, setAspectRatio] = useState(() => loadSaved('aspectRatio', 'none'))
+  const [sidebarTab, setSidebarTab] = useState('templates')
+  const [activeTemplateId, setActiveTemplateId] = useState(null)
+  const [showBackConfirm, setShowBackConfirm] = useState(false)
+  const [hasStarted, setHasStarted] = useState(false)
+  const [activeThemeId, setActiveThemeId] = useState(null)
+  const [outroLogo, setOutroLogo] = useState(null)
+  const [siteTheme, setSiteTheme] = useState(() => {
+    return localStorage.getItem('ds_siteTheme') || 'dark'
+  })
   const canvasRef = useRef(null)
   const recorderRef = useRef(null)
+  const animationRef = useRef(animation)
+  animationRef.current = animation
+  const templateOutroRef = useRef('none')
+  const templateClipDurRef = useRef(3)
+  const activeScreenSlotsRef = useRef(null)
 
   // ── Timeline state ───────────────────────────────
   const [timelineClips, setTimelineClips] = useState([])
@@ -274,6 +336,11 @@ function App() {
   const [zoomEffects, setZoomEffects] = useState([])
   const [textOverlays, setTextOverlays] = useState([])
   const [selectedTextId, setSelectedTextId] = useState(null)
+  const [textSplit, setTextSplit] = useState(0.5)
+  const [layoutFlipped, setLayoutFlipped] = useState(false)
+  const [screenSlotMap, setScreenSlotMap] = useState([])
+  const [activeScreenSlots, setActiveScreenSlots] = useState(null)
+  activeScreenSlotsRef.current = activeScreenSlots
 
   // ── Audio state ─────────────────────────────────
   const [musicTrack, setMusicTrack] = useState(null)
@@ -290,6 +357,22 @@ function App() {
       if (audioEngineRef.current) audioEngineRef.current.dispose()
     }
   }, [])
+
+  // Apply site theme to <html> and persist
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', siteTheme)
+    localStorage.setItem('ds_siteTheme', siteTheme)
+  }, [siteTheme])
+
+  // Persist user preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem('ds_bgColor', JSON.stringify(bgColor))
+    localStorage.setItem('ds_bgGradient', JSON.stringify(bgGradient))
+    localStorage.setItem('ds_showBase', JSON.stringify(showBase))
+    localStorage.setItem('ds_deviceType', JSON.stringify(deviceType))
+    localStorage.setItem('ds_quality', JSON.stringify(quality))
+    localStorage.setItem('ds_aspectRatio', JSON.stringify(aspectRatio))
+  }, [bgColor, bgGradient, showBase, deviceType, quality, aspectRatio])
 
   // ── Derived values ───────────────────────────────
   const totalDuration = useMemo(
@@ -347,11 +430,21 @@ function App() {
 
   const activeTextAnim = useMemo(() => {
     if (!textOverlays || textOverlays.length === 0) return 'none'
-    const active = textOverlays.find(
+    const timed = textOverlays.find(
       (t) => t.startTime != null && t.endTime != null && currentTime >= t.startTime && currentTime <= t.endTime
     )
-    return active ? (active.animation || 'none') : 'none'
+    if (timed) return timed.animation || 'none'
+    const always = textOverlays.find((t) => t.startTime == null || t.endTime == null)
+    return always ? (always.animation || 'none') : 'none'
   }, [textOverlays, currentTime])
+
+  const slotScreens = useMemo(() => {
+    if (!activeScreenSlots || screenSlotMap.length === 0) return null
+    return screenSlotMap.map((screenId) => {
+      if (!screenId) return screens[0] || null
+      return screens.find((s) => s.id === screenId) || screens[0] || null
+    })
+  }, [activeScreenSlots, screenSlotMap, screens])
 
   // ── Sync audio engine when tracks change ─────────
   useEffect(() => {
@@ -471,22 +564,107 @@ function App() {
       }
     })
 
+    setScreens((prev) => [...prev, ...newScreens])
+
+    const slots = activeScreenSlotsRef.current
+    if (slots && slots.length > 0) {
+      // Multi-device template: assign media to empty slots, don't create per-file clips
+      setScreenSlotMap((prev) => {
+        const next = [...prev]
+        let slotIdx = next.findIndex((id) => !id)
+        if (slotIdx === -1) slotIdx = 0
+        for (const screen of newScreens) {
+          if (slotIdx < slots.length) {
+            next[slotIdx] = screen.id
+            slotIdx++
+            while (slotIdx < slots.length && next[slotIdx]) slotIdx++
+          }
+        }
+        return next
+      })
+
+      // Ensure at least one template clip exists in the timeline
+      setTimelineClips((prev) => {
+        if (prev.length > 0) return prev
+        const clipDur = templateClipDurRef.current
+        return recalcStartTimes([{
+          id: crypto.randomUUID(),
+          screenId: newScreens[0].id,
+          startTime: 0,
+          duration: clipDur,
+          trimStart: 0,
+          trimEnd: clipDur,
+          effects: [],
+          animation: animationRef.current,
+          outroAnimation: templateOutroRef.current,
+        }])
+      })
+    } else {
+      // Single-device or no template: create a clip per file
+      const clipDur = templateClipDurRef.current
+      const newClips = newScreens.map((screen) => ({
+        id: crypto.randomUUID(),
+        screenId: screen.id,
+        startTime: 0,
+        duration: clipDur,
+        trimStart: 0,
+        trimEnd: clipDur,
+        effects: [],
+        animation: animationRef.current,
+        outroAnimation: templateOutroRef.current,
+      }))
+
+      setTimelineClips((prev) => recalcStartTimes([...prev, ...newClips]))
+
+      // For videos, update duration asynchronously once metadata loads
+      newScreens.forEach((screen, i) => {
+        if (screen.isVideo) {
+          getVideoDuration(screen.url).then((dur) => {
+            const clipId = newClips[i].id
+            setTimelineClips((prev) =>
+              recalcStartTimes(
+                prev.map((c) =>
+                  c.id === clipId ? { ...c, duration: dur, trimEnd: dur } : c
+                )
+              )
+            )
+          })
+        }
+      })
+    }
+  }, [])
+
+  // Timeline drag-drop always creates new clips (even for multi-device templates)
+  const handleTimelineDrop = useCallback((files) => {
+    const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.webm', '.avi', '.mkv', '.m4v']
+    const newScreens = Array.from(files).map((file) => {
+      const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
+      const isVideo = file.type.startsWith('video/') || VIDEO_EXTENSIONS.includes(ext)
+      return {
+        id: crypto.randomUUID(),
+        file,
+        url: URL.createObjectURL(file),
+        name: file.name,
+        isVideo,
+      }
+    })
+
+    const clipDur = templateClipDurRef.current
     const newClips = newScreens.map((screen) => ({
       id: crypto.randomUUID(),
       screenId: screen.id,
       startTime: 0,
-      duration: 3,
+      duration: clipDur,
       trimStart: 0,
-      trimEnd: 3,
+      trimEnd: clipDur,
       effects: [],
-      animation: 'showcase',
-      outroAnimation: 'none',
+      animation: animationRef.current,
+      outroAnimation: templateOutroRef.current,
     }))
 
     setScreens((prev) => [...prev, ...newScreens])
     setTimelineClips((prev) => recalcStartTimes([...prev, ...newClips]))
 
-    // For videos, update duration asynchronously once metadata loads
     newScreens.forEach((screen, i) => {
       if (screen.isVideo) {
         getVideoDuration(screen.url).then((dur) => {
@@ -893,12 +1071,178 @@ function App() {
     }
   }, [])
 
+  // ── Template handler (applies settings to existing screens/clips) ──
+  const handleSelectTemplate = useCallback((template) => {
+    setHasStarted(true)
+    setActiveTemplateId(template.id)
+    setDeviceType(template.deviceType)
+    setAnimation(template.animation)
+    setBgColor(template.bgColor)
+    setBgGradient(template.bgGradient)
+    setShowBase(template.showBase)
+    templateOutroRef.current = template.outroAnimation || 'none'
+    templateClipDurRef.current = template.clipDuration || 3
+    setSidebarTab('media')
+
+    const clipDur = template.clipDuration || 3
+    setTimelineClips((prev) =>
+      recalcStartTimes(
+        prev.map((c) => ({
+          ...c,
+          duration: c.duration > 0 ? c.duration : clipDur,
+          animation: template.animation,
+          outroAnimation: template.outroAnimation || 'none',
+        }))
+      )
+    )
+
+    if (template.textOverlay) {
+      const t = template.textOverlay
+      setTextOverlays((prev) => {
+        const totalClipDur = timelineClips.reduce((s, c) => s + c.duration, 0) || clipDur
+        return [{
+          id: prev[0]?.id || crypto.randomUUID(),
+          text: t.text,
+          fontFamily: 'Inter',
+          fontSize: t.fontSize,
+          color: t.color,
+          animation: t.animation || 'none',
+          posY: t.posY || 0,
+          startTime: 0,
+          endTime: Math.min(2.5, totalClipDur),
+        }]
+      })
+    } else {
+      setTextOverlays([])
+    }
+
+    if (template.musicId) {
+      const track = MUSIC_LIBRARY.find((m) => m.id === template.musicId)
+      if (track) {
+        handleSetMusic({ libraryId: track.id, name: track.name })
+      }
+    }
+
+    // Auto-add zoom effects for zoom-based animations
+    if (template.animation === 'zoomBottomLeft' || template.animation === 'zoomTopRight') {
+      const zoomDur = Math.min(2.2, clipDur)
+      setZoomEffects([{
+        id: crypto.randomUUID(),
+        startTime: 0,
+        endTime: zoomDur,
+        zoomLevel: 1.8,
+      }])
+    } else {
+      setZoomEffects([])
+    }
+
+    if (template.screenSlots) {
+      setActiveScreenSlots(template.screenSlots)
+      setScreenSlotMap((prev) => {
+        const newMap = template.screenSlots.map((_, i) => {
+          if (prev[i]) return prev[i]
+          return screens[i]?.id || screens[0]?.id || null
+        })
+        return newMap
+      })
+    } else {
+      setActiveScreenSlots(null)
+      setScreenSlotMap([])
+    }
+
+    setCurrentTime(0)
+    setTimeout(() => {
+      setIsPlaying(true)
+      setIsTimelinePlaying(true)
+    }, 150)
+  }, [handleSetMusic, timelineClips, screens])
+
+  const handleStartBlank = useCallback(() => {
+    setHasStarted(true)
+    setSidebarTab('media')
+  }, [])
+
+  const handleBackClick = useCallback(() => {
+    setShowBackConfirm(true)
+  }, [])
+
+  const toggleSiteTheme = useCallback(() => {
+    setSiteTheme(prev => prev === 'dark' ? 'light' : 'dark')
+  }, [])
+
+  // ── Back / reset handler ────────────────────────
+  const handleConfirmBack = useCallback(() => {
+    setIsPlaying(false)
+    setIsTimelinePlaying(false)
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      recorderRef.current.stop()
+    }
+    setIsRecording(false)
+
+    screens.forEach((s) => URL.revokeObjectURL(s.url))
+    if (musicTrack?.url && !musicTrack.isLibrary) URL.revokeObjectURL(musicTrack.url)
+    if (voiceoverTrack?.url) URL.revokeObjectURL(voiceoverTrack.url)
+
+    setScreens([])
+    setTimelineClips([])
+    setCurrentTime(0)
+    setSelectedClipId(null)
+    setZoomEffects([])
+    setTextOverlays([])
+    setSelectedTextId(null)
+    setMusicTrack(null)
+    setVoiceoverTrack(null)
+    setSelectedAudioTrack(null)
+    setActiveTemplateId(null)
+    setActiveThemeId(null)
+    setOutroLogo(null)
+    setDeviceType(loadSaved('deviceType', 'iphone'))
+    setAnimation('showcase')
+    setBgColor(loadSaved('bgColor', '#161717'))
+    setBgGradient(loadSaved('bgGradient', false))
+    setShowBase(loadSaved('showBase', false))
+    setQuality(loadSaved('quality', '1080p'))
+    setAspectRatio(loadSaved('aspectRatio', 'none'))
+    setScreenSlotMap([])
+    setActiveScreenSlots(null)
+    templateOutroRef.current = 'none'
+    templateClipDurRef.current = 3
+    setSidebarTab('templates')
+    setShowBackConfirm(false)
+    setHasStarted(false)
+  }, [screens, musicTrack, voiceoverTrack])
+
+  // Warn on browser back / refresh when there are unsaved changes
+  useEffect(() => {
+    if (!hasStarted || screens.length === 0) return
+    const handleBeforeUnload = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasStarted, screens.length])
+
   const hasScreens = screens.length > 0
 
   return (
     <div className="app">
-      <Header>
-        {hasScreens && !convertingToMp4 && (
+      <Header
+        siteTheme={siteTheme}
+        onToggleTheme={toggleSiteTheme}
+        leftAction={hasStarted ? (
+          <button
+            className="btn btn-header btn-back"
+            onClick={handleBackClick}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Back
+          </button>
+        ) : null}
+      >
+        {hasStarted && !convertingToMp4 && (
           <>
             <button
               className="btn btn-header btn-secondary"
@@ -915,20 +1259,63 @@ function App() {
             </button>
           </>
         )}
-        {hasScreens && convertingToMp4 && (
+        {hasStarted && convertingToMp4 && (
           <div className="btn btn-header btn-converting">
             Converting to MP4...
           </div>
         )}
       </Header>
       <main className="main-layout">
-        {!hasScreens ? (
-          <UploadPanel onUpload={handleUpload} fullPage />
+        {!hasStarted ? (
+          <div className="landing-page">
+            <div className="landing-hero">
+              <div className="upload-hero-bg" />
+              <div className="landing-content">
+                <div className="upload-icon-large">
+                  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                    <rect x="8" y="12" width="20" height="36" rx="4" stroke="url(#ug1)" strokeWidth="2.5" />
+                    <rect x="36" y="12" width="20" height="36" rx="4" stroke="url(#ug2)" strokeWidth="2.5" />
+                    <path d="M32 4L28 10H36L32 4Z" fill="#21C063" opacity="0.5" />
+                    <path d="M32 60L28 54H36L32 60Z" fill="#1aad56" opacity="0.5" />
+                    <defs>
+                      <linearGradient id="ug1" x1="8" y1="12" x2="28" y2="48">
+                        <stop stopColor="#21C063" />
+                        <stop offset="1" stopColor="#2ed874" />
+                      </linearGradient>
+                      <linearGradient id="ug2" x1="36" y1="12" x2="56" y2="48">
+                        <stop stopColor="#1aad56" />
+                        <stop offset="1" stopColor="#21C063" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <h1 className="upload-title">Create Stunning Demo Videos</h1>
+                <p className="upload-subtitle">
+                  Pick a template to get started, or begin with a blank canvas
+                </p>
+              </div>
+            </div>
+            <div className="landing-section">
+              <TemplateGallery
+                onSelectTemplate={handleSelectTemplate}
+                activeTemplateId={activeTemplateId}
+                onStartBlank={handleStartBlank}
+              />
+            </div>
+          </div>
         ) : (
           <>
             <aside className="sidebar">
               <nav className="sidebar-tabs">
                 {[
+                  { id: 'templates', icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                    </svg>
+                  )},
                   { id: 'media', icon: (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -989,9 +1376,17 @@ function App() {
                 ))}
               </nav>
               <div className="sidebar-content">
+                {sidebarTab === 'templates' && (
+                  <TemplateGallery
+                    onSelectTemplate={handleSelectTemplate}
+                    activeTemplateId={activeTemplateId}
+                  />
+                )}
+
                 {sidebarTab === 'media' && (
                   <>
                     <UploadPanel onUpload={handleUpload} compact />
+
                     <div className="screen-list">
                       <h3 className="section-title">Screens ({screens.length})</h3>
                       {screens.map((screen, index) => (
@@ -1017,6 +1412,64 @@ function App() {
                         </div>
                       ))}
                     </div>
+
+                    {activeScreenSlots && activeScreenSlots.length > 0 && (
+                      <div className="screen-slot-panel">
+                        <h3 className="section-title">Assign Media to Devices</h3>
+                        <p className="slot-hint">Select which screen each device shows</p>
+                        <div className="screen-slot-list">
+                          {activeScreenSlots.map((slot, i) => {
+                            const assignedId = screenSlotMap[i] || null
+                            const assignedScreen = assignedId ? screens.find((s) => s.id === assignedId) : null
+                            return (
+                              <div key={i} className="screen-slot-row">
+                                <div className="screen-slot-label">
+                                  <span className="slot-index">{i + 1}</span>
+                                  <div className="slot-info">
+                                    <span className="slot-name">{slot.label}</span>
+                                    <span className="slot-device">{slot.device}</span>
+                                  </div>
+                                </div>
+                                <div className="screen-slot-picker">
+                                  {assignedScreen ? (
+                                    <div className="slot-preview-wrap">
+                                      {assignedScreen.isVideo ? (
+                                        <video src={assignedScreen.url} muted className="slot-preview-thumb" />
+                                      ) : (
+                                        <img src={assignedScreen.url} alt="" className="slot-preview-thumb" />
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="slot-preview-empty" />
+                                  )}
+                                  <select
+                                    className="slot-select"
+                                    value={assignedId || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value || null
+                                      setScreenSlotMap((prev) => {
+                                        const next = [...prev]
+                                        next[i] = val
+                                        return next
+                                      })
+                                    }}
+                                  >
+                                    <option value="">
+                                      {screens.length === 0 ? 'No media uploaded' : 'Select media…'}
+                                    </option>
+                                    {screens.map((s, si) => (
+                                      <option key={s.id} value={s.id}>
+                                        {s.name || `Screen ${si + 1}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1240,6 +1693,59 @@ function App() {
                       </div>
                     </div>
                     <div className="control-group">
+                      <h3 className="section-title">Aspect Ratio</h3>
+                      <div className="aspect-ratio-grid">
+                        <button
+                          className={`aspect-ratio-tile ${aspectRatio === 'none' ? 'active' : ''}`}
+                          onClick={() => setAspectRatio('none')}
+                        >
+                          <div className="aspect-ratio-icon">
+                            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                              <rect x="7" y="7" width="22" height="22" rx="2" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 2" fill="currentColor" fillOpacity="0.04" />
+                              <path d="M10 13V10h3M23 10h3v3M26 23v3h-3M13 26h-3v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
+                          <span className="aspect-ratio-label">None</span>
+                          <span className="aspect-ratio-desc">Full</span>
+                        </button>
+                        {[
+                          { id: '16:9', label: '16:9', desc: 'Landscape', w: 16, h: 9 },
+                          { id: '9:16', label: '9:16', desc: 'Portrait', w: 9, h: 16 },
+                          { id: '1:1', label: '1:1', desc: 'Square', w: 1, h: 1 },
+                          { id: '4:5', label: '4:5', desc: 'Feed', w: 4, h: 5 },
+                          { id: '4:3', label: '4:3', desc: 'Classic', w: 4, h: 3 },
+                        ].map((ar) => (
+                          <button
+                            key={ar.id}
+                            className={`aspect-ratio-tile ${aspectRatio === ar.id ? 'active' : ''}`}
+                            onClick={() => setAspectRatio(ar.id)}
+                          >
+                            <div className="aspect-ratio-icon">
+                              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                                {(() => {
+                                  const maxDim = 22
+                                  const scale = maxDim / Math.max(ar.w, ar.h)
+                                  const rw = ar.w * scale
+                                  const rh = ar.h * scale
+                                  const rx = (36 - rw) / 2
+                                  const ry = (36 - rh) / 2
+                                  return (
+                                    <rect
+                                      x={rx} y={ry} width={rw} height={rh} rx="2"
+                                      stroke="currentColor" strokeWidth="1.5"
+                                      fill="currentColor" fillOpacity="0.08"
+                                    />
+                                  )
+                                })()}
+                              </svg>
+                            </div>
+                            <span className="aspect-ratio-label">{ar.label}</span>
+                            <span className="aspect-ratio-desc">{ar.desc}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="control-group">
                       <h3 className="section-title">Export</h3>
                       <div className="control-row">
                         <label className="control-label">Quality</label>
@@ -1289,6 +1795,20 @@ function App() {
                                   setCurrentTime(clip.startTime)
                                 }
                                 setAnimation(preset.id)
+                                if (preset.id === 'zoomBottomLeft' || preset.id === 'zoomTopRight') {
+                                  const dur = clip ? Math.min(2.2, clip.duration) : 2.2
+                                  const start = clip ? clip.startTime : 0
+                                  setZoomEffects((prev) => {
+                                    const hasOverlap = prev.some((e) => e.startTime < start + dur && e.endTime > start)
+                                    if (hasOverlap) return prev
+                                    return [...prev, {
+                                      id: crypto.randomUUID(),
+                                      startTime: start,
+                                      endTime: start + dur,
+                                      zoomLevel: 1.8,
+                                    }]
+                                  })
+                                }
                                 setIsPlaying(true)
                                 setIsTimelinePlaying(true)
                               }}
@@ -1489,14 +2009,59 @@ function App() {
                 {sidebarTab === 'background' && (
                   <div className="controls-panel">
                     <div className="control-group">
-                      <h3 className="section-title">Background</h3>
+                      <h3 className="section-title">WhatsApp Themes</h3>
+                      <div className="theme-grid">
+                        {WA_THEMES.map((theme) => (
+                          <button
+                            key={theme.id}
+                            className={`theme-card ${activeThemeId === theme.id ? 'active' : ''}`}
+                            onClick={() => {
+                              setActiveThemeId(theme.id)
+                              setBgColor(theme.bgColor)
+                              setBgGradient(theme.bgGradient)
+                              setShowBase(false)
+                              setTextOverlays((prev) =>
+                                prev.map((t) => ({ ...t, color: theme.secondaryTextColor || theme.textColor }))
+                              )
+                            }}
+                          >
+                            <div className="theme-swatch" style={{ background: theme.swatch }} />
+                            <span className="theme-name">{theme.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {activeThemeId && (
+                        <>
+                          <h3 className="section-title" style={{ marginTop: 4 }}>Outro Logo</h3>
+                          <p className="anim-hint">Appears at the end of the video</p>
+                          <div className="logo-picker-row">
+                            <button
+                              className={`logo-pick-btn ${outroLogo === 'whatsapp' ? 'active' : ''}`}
+                              onClick={() => setOutroLogo(prev => prev === 'whatsapp' ? null : 'whatsapp')}
+                            >
+                              <img src="/logos/whatsapp.png" alt="WhatsApp" />
+                              <span>WhatsApp</span>
+                            </button>
+                            <button
+                              className={`logo-pick-btn ${outroLogo === 'whatsapp-business' ? 'active' : ''}`}
+                              onClick={() => setOutroLogo(prev => prev === 'whatsapp-business' ? null : 'whatsapp-business')}
+                            >
+                              <img src="/logos/whatsapp-business.png" alt="WA Business" />
+                              <span>Business</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="control-group">
+                      <h3 className="section-title">Custom</h3>
                       <div className="control-row">
                         <label className="control-label">Color</label>
                         <div className="color-picker-wrap">
                           <input
                             type="color"
                             value={bgColor}
-                            onChange={(e) => setBgColor(e.target.value)}
+                            onChange={(e) => { setBgColor(e.target.value); setActiveThemeId(null) }}
                             className="color-input"
                           />
                           <input
@@ -1506,7 +2071,7 @@ function App() {
                             onChange={(e) => {
                               let v = e.target.value
                               if (!v.startsWith('#')) v = '#' + v
-                              if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setBgColor(v)
+                              if (/^#[0-9a-fA-F]{0,6}$/.test(v)) { setBgColor(v); setActiveThemeId(null) }
                             }}
                             onBlur={(e) => {
                               let v = e.target.value
@@ -1559,6 +2124,14 @@ function App() {
                 currentTime={currentTime}
                 clipAnimationTime={clipAnimationTime}
                 activeTextAnim={activeTextAnim}
+                aspectRatio={aspectRatio}
+                textSplit={textSplit}
+                onTextSplitChange={setTextSplit}
+                layoutFlipped={layoutFlipped}
+                onFlipLayout={() => setLayoutFlipped(f => !f)}
+                slotScreens={slotScreens}
+                outroLogo={activeThemeId ? outroLogo : null}
+                totalDuration={totalDuration}
               />
               {timelineClips.length > 0 && (
                 <Timeline
@@ -1579,7 +2152,7 @@ function App() {
                   onAddZoomEffect={handleAddZoomEffect}
                   onUpdateZoomEffect={handleUpdateZoomEffect}
                   onRemoveZoomEffect={handleRemoveZoomEffect}
-                  onUpload={handleUpload}
+                  onUpload={handleTimelineDrop}
                   textOverlays={textOverlays}
                   onAddText={handleAddText}
                   onUpdateText={handleUpdateText}
@@ -1609,6 +2182,28 @@ function App() {
           quality={quality}
           setQuality={setQuality}
         />
+      )}
+
+      {showBackConfirm && (
+        <div className="modal-overlay" onClick={() => setShowBackConfirm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Go back?</h2>
+              <button className="modal-close" onClick={() => setShowBackConfirm(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="modal-info modal-info-warn">
+                <p>All your current changes will be lost, including uploaded screens, timeline edits, and applied settings. This cannot be undone.</p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowBackConfirm(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleConfirmBack}>
+                Yes, go back
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

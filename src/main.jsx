@@ -4,6 +4,12 @@ import './index.css'
 import App from './App.jsx'
 import PasswordGate from './components/PasswordGate.jsx'
 
+// Apply site theme before first paint to avoid flash
+;(() => {
+  const theme = localStorage.getItem('ds_siteTheme') || 'dark'
+  document.documentElement.setAttribute('data-theme', theme)
+})()
+
 // Global error catcher — displays errors on screen so we can debug
 window.onerror = (msg, src, line, col, err) => {
   showError(`[onerror] ${msg}\n${src}:${line}:${col}\n${err?.stack || ''}`)
