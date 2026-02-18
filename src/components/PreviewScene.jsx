@@ -350,21 +350,21 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         break
       }
 
-      // ── LAPTOP OPEN: lid opens from closed to upright ─
+      // ── LAPTOP OPEN: lid opens from closed (folded down) to upright ─
       case 'laptopOpen': {
         const introT = Math.min(1, t / 2.0)
         const eased = easeOutCubic(introT)
-        lidAngleRef.current = eased * (Math.PI / 2)
+        lidAngleRef.current = Math.PI - eased * (Math.PI / 2)
         group.rotation.y = smoothSin(t, 0.2, 0.15)
         group.position.y = smoothSin(t, 0.3, 0.05)
         break
       }
 
-      // ── LAPTOP CLOSE: lid closes from upright to flat ─
+      // ── LAPTOP CLOSE: lid closes from upright to folded down ─
       case 'laptopClose': {
         const introT = Math.min(1, t / 2.0)
         const eased = easeOutCubic(introT)
-        lidAngleRef.current = (1 - eased) * (Math.PI / 2)
+        lidAngleRef.current = (Math.PI / 2) + eased * (Math.PI / 2)
         group.rotation.y = smoothSin(t, 0.2, 0.15)
         group.position.y = smoothSin(t, 0.3, 0.05)
         break
@@ -449,7 +449,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         </group>
       )}
       {showMacbook && (
-        <group ref={macbookRef} position={[0, -0.35, 0]}>
+        <group ref={macbookRef} position={[0, 0.1, 0]}>
           <DeviceFrame
             type="macbook"
             screenUrl={firstScreen?.url || null}
@@ -457,7 +457,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             isVideo={firstScreen?.isVideo || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
-            scale={0.42}
+            scale={0.38}
             lidAngleRef={lidAngleRef}
           />
         </group>
