@@ -318,6 +318,38 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         break
       }
 
+      // ── ZOOM BOTTOM LEFT: Skew & zoom into bottom-left corner ─
+      case 'zoomBottomLeft': {
+        const introT = Math.min(1, t / 2.2)
+        const eased = easeOutCubic(introT)
+        const targetScale = 1.8
+        const s = 1 + (targetScale - 1) * eased
+        group.scale.set(s, s, s)
+        group.rotation.x = -0.25 * eased + smoothSin(t, 0.15, 0.02)
+        group.rotation.y = 0.35 * eased + smoothSin(t, 0.12, 0.03)
+        group.rotation.z = -0.12 * eased
+        group.position.x = 0.6 * eased + smoothSin(t, 0.18, 0.04)
+        group.position.y = 0.5 * eased + smoothSin(t, 0.22, 0.03)
+        group.position.z = 0.3 * eased
+        break
+      }
+
+      // ── ZOOM TOP RIGHT: Skew & zoom into top-right corner ─
+      case 'zoomTopRight': {
+        const introT = Math.min(1, t / 2.2)
+        const eased = easeOutCubic(introT)
+        const targetScale = 1.8
+        const s = 1 + (targetScale - 1) * eased
+        group.scale.set(s, s, s)
+        group.rotation.x = 0.25 * eased + smoothSin(t, 0.15, 0.02)
+        group.rotation.y = -0.35 * eased + smoothSin(t, 0.12, 0.03)
+        group.rotation.z = 0.12 * eased
+        group.position.x = -0.6 * eased + smoothSin(t, 0.18, 0.04)
+        group.position.y = -0.5 * eased + smoothSin(t, 0.22, 0.03)
+        group.position.z = 0.3 * eased
+        break
+      }
+
       // ── LAPTOP OPEN: lid opens from closed to upright ─
       case 'laptopOpen': {
         const introT = Math.min(1, t / 2.0)

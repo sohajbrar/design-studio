@@ -25,6 +25,8 @@ const ANIMATION_PRESETS = [
   { id: 'slideUp', name: 'Slide Up' },
   { id: 'slideRightRotate', name: 'Right + Rotate' },
   { id: 'slideLeftRotate', name: 'Left + Rotate' },
+  { id: 'zoomBottomLeft', name: 'Zoom BL' },
+  { id: 'zoomTopRight', name: 'Zoom TR' },
   { id: 'laptopOpen', name: 'Laptop Open', macbookOnly: true },
   { id: 'laptopClose', name: 'Laptop Close', macbookOnly: true },
 ]
@@ -122,6 +124,26 @@ const ANIM_ICONS = {
       <path d="M40 24h-8M34 20l-4 4 4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
       <path d="M14 14a8 8 0 0 0 0 16" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.35"/>
       <path d="M14 30l2-3h-4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.4"/>
+    </svg>
+  ),
+  zoomBottomLeft: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="6" y="4" width="20" height="32" rx="3" stroke="currentColor" strokeWidth="1.5" transform="rotate(-12 16 20)"/>
+      <circle cx="12" cy="32" r="6" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.35"/>
+      <path d="M14 30l-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.6"/>
+      <path d="M10 34l-2 0 0-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+      <path d="M30 10l6-4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.25"/>
+      <path d="M32 16l6 0" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.25"/>
+    </svg>
+  ),
+  zoomTopRight: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="22" y="12" width="20" height="32" rx="3" stroke="currentColor" strokeWidth="1.5" transform="rotate(12 32 28)"/>
+      <circle cx="38" cy="16" r="6" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.35"/>
+      <path d="M36 18l4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.6"/>
+      <path d="M40 14l2 0 0 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+      <path d="M18 38l-6 4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.25"/>
+      <path d="M16 32l-6 0" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.25"/>
     </svg>
   ),
   laptopOpen: (
