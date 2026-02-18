@@ -534,7 +534,7 @@ function App() {
   }, [])
 
   const handleAddZoomEffect = useCallback((atTime) => {
-    const t = atTime != null ? atTime : currentTime
+    const t = typeof atTime === 'number' && isFinite(atTime) ? atTime : currentTime
     setZoomEffects((prev) => {
       const maxT = totalDuration || 6
       const desired = { start: Math.max(0, t), end: Math.min(maxT, t + 1) }
@@ -572,7 +572,7 @@ function App() {
 
   // ── Text overlay operations ─────────────────────
   const handleAddText = useCallback((atTime) => {
-    const t = atTime != null ? atTime : currentTime
+    const t = typeof atTime === 'number' && isFinite(atTime) ? atTime : currentTime
     setTextOverlays((prev) => {
       const dur = 2
       const maxT = totalDuration || 6
