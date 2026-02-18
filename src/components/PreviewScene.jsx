@@ -1051,7 +1051,7 @@ function OutroLogo({ logoId, currentTime, totalDuration }) {
     return tex
   }, [logoUrl])
 
-  const LOGO_Z = 2.0
+  const LOGO_Z = -0.5
   const LOGO_DUR = 2.5
   const FADE_IN = 0.8
 
@@ -1074,24 +1074,24 @@ function OutroLogo({ logoId, currentTime, totalDuration }) {
 
     const elapsed = t - logoStart
     const fadeProgress = Math.min(1, elapsed / FADE_IN)
-    const opacity = easeOutCubic(fadeProgress)
+    const opacity = easeOutCubic(fadeProgress) * 0.35
 
     const dist = Math.max(0.1, camera.position.z - LOGO_Z)
     const vFov = (camera.fov * Math.PI) / 180
     const visH = 2 * Math.tan(vFov / 2) * dist
-    const baseSize = visH * 0.5
-    const s = (0.6 + 0.4 * easeOutCubic(fadeProgress)) * baseSize
+    const baseSize = visH * 0.22
+    const s = (0.7 + 0.3 * easeOutCubic(fadeProgress)) * baseSize
 
     grp.scale.set(s, s, 1)
-    grp.position.set(0, 0, LOGO_Z)
+    grp.position.set(0, -0.3, LOGO_Z)
     mat.opacity = opacity
   })
 
   return (
-    <group ref={groupRef} scale={[0, 0, 0]} renderOrder={20}>
+    <group ref={groupRef} scale={[0, 0, 0]}>
       <mesh>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial ref={matRef} map={texture} transparent opacity={0} depthTest={false} depthWrite={false} />
+        <meshBasicMaterial ref={matRef} map={texture} transparent opacity={0} />
       </mesh>
     </group>
   )
