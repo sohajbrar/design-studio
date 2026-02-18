@@ -1079,7 +1079,7 @@ function OutroLogo({ logoId, currentTime, totalDuration }) {
     const dist = Math.max(0.1, camera.position.z - LOGO_Z)
     const vFov = (camera.fov * Math.PI) / 180
     const visH = 2 * Math.tan(vFov / 2) * dist
-    const baseSize = visH * 0.22
+    const baseSize = visH * 0.11
     const s = (0.7 + 0.3 * easeOutCubic(fadeProgress)) * baseSize
 
     grp.scale.set(s, s, 1)
@@ -1091,7 +1091,7 @@ function OutroLogo({ logoId, currentTime, totalDuration }) {
     <group ref={groupRef} scale={[0, 0, 0]}>
       <mesh>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial ref={matRef} map={texture} transparent opacity={0} />
+        <meshBasicMaterial ref={matRef} map={texture} transparent opacity={0} toneMapped={false} />
       </mesh>
     </group>
   )
