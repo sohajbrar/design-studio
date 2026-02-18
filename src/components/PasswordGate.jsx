@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import './PasswordGate.css'
 
-const SITE_PASSWORD = 'designstudio2026'
+const SITE_PASSWORD = 'AIhaswon'
 const AUTH_KEY = 'ds_authenticated'
 
 export default function PasswordGate({ children }) {
