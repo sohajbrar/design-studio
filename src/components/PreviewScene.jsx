@@ -12,6 +12,36 @@ function easeInOutCubic(t) { t = Math.min(1, Math.max(0, t)); return t < 0.5 ? 4
 function easeOutBack(t) { t = Math.min(1, Math.max(0, t)); const c1 = 1.70158; const c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2) }
 function smoothSin(t, freq, amp) { return Math.sin(t * freq) * amp }
 
+// ── Derive tinted light colors from background ───────────────
+function useTintedLights(bgColor) {
+  return useMemo(() => {
+    const base = new THREE.Color(bgColor)
+    const hsl = {}
+    base.getHSL(hsl)
+
+    const isVeryDark = hsl.l < 0.15
+    const isNeutral = hsl.s < 0.08
+
+    let tintHue = hsl.h
+    let tintSat = hsl.s
+    if (isNeutral) {
+      tintSat = 0.05
+    }
+
+    const fill = new THREE.Color().setHSL(tintHue, Math.min(tintSat * 0.7, 0.6), isVeryDark ? 0.55 : 0.5)
+    const rim1 = new THREE.Color().setHSL(tintHue, Math.min(tintSat * 0.8, 0.65), isVeryDark ? 0.5 : 0.45)
+    const rim2 = new THREE.Color().setHSL((tintHue + 0.03) % 1, Math.min(tintSat * 0.6, 0.5), isVeryDark ? 0.45 : 0.4)
+    const accent = new THREE.Color().setHSL(tintHue, Math.min(tintSat * 0.9, 0.7), isVeryDark ? 0.5 : 0.45)
+
+    return {
+      fill: '#' + fill.getHexString(),
+      rim1: '#' + rim1.getHexString(),
+      rim2: '#' + rim2.getHexString(),
+      accent: '#' + accent.getHexString(),
+    }
+  }, [bgColor])
+}
+
 // ── Scene background ──────────────────────────────────────────
 function SceneBackground({ bgColor, bgGradient }) {
   const { scene } = useThree()
@@ -22,14 +52,19 @@ function SceneBackground({ bgColor, bgGradient }) {
       canvas.width = 512
       canvas.height = 512
       const ctx = canvas.getContext('2d')
-      // Fill base color first
       ctx.fillStyle = bgColor
       ctx.fillRect(0, 0, 512, 512)
-      // Radial green glow matching home screen: rgba(33,192,99,0.08) at center → transparent at 70%
+      const glowColor = new THREE.Color(bgColor)
+      const hsl = {}
+      glowColor.getHSL(hsl)
+      const glowLight = new THREE.Color().setHSL(hsl.h, Math.min(hsl.s + 0.2, 1), Math.min(hsl.l + 0.35, 0.75))
+      const r = Math.round(glowLight.r * 255)
+      const g = Math.round(glowLight.g * 255)
+      const b = Math.round(glowLight.b * 255)
       const glow = ctx.createRadialGradient(256, 256, 0, 256, 256, 358)
-      glow.addColorStop(0, 'rgba(33, 192, 99, 0.08)')
-      glow.addColorStop(0.7, 'rgba(33, 192, 99, 0)')
-      glow.addColorStop(1, 'rgba(33, 192, 99, 0)')
+      glow.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.1)`)
+      glow.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0)`)
+      glow.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`)
       ctx.fillStyle = glow
       ctx.fillRect(0, 0, 512, 512)
       scene.background = new THREE.CanvasTexture(canvas)
@@ -467,7 +502,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
 }
 
 // ── Ambient particles ─────────────────────────────────────────
-function Particles() {
+function Particles({ color = '#21C063' }) {
   const pointsRef = useRef()
   const geometry = useMemo(() => {
     const geo = new THREE.BufferGeometry()
@@ -491,7 +526,7 @@ function Particles() {
 
   return (
     <points ref={pointsRef} geometry={geometry}>
-      <pointsMaterial size={0.018} color="#21C063" transparent opacity={0.2} sizeAttenuation />
+      <pointsMaterial size={0.018} color={color} transparent opacity={0.2} sizeAttenuation />
     </points>
   )
 }
@@ -593,6 +628,8 @@ export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, bgColor, bgGradient, showBase, isPlaying, canvasRef,
   textOverlays, currentTime, clipAnimationTime, activeTextAnim,
 }) {
+  const tint = useTintedLights(bgColor)
+
   return (
     <div className="preview-scene">
       <Canvas
@@ -614,18 +651,12 @@ export default function PreviewScene({
         <SceneBackground bgColor={bgColor} bgGradient={bgGradient} />
         <CameraAnimator animation={animation} isPlaying={isPlaying} />
 
-        {/* ── Professional 3-point lighting ── */}
         <ambientLight intensity={0.3} />
-        {/* Key light */}
         <directionalLight position={[5, 6, 5]} intensity={1.4} castShadow shadow-mapSize={[1024, 1024]} />
-        {/* Fill light */}
-        <directionalLight position={[-4, 3, -2]} intensity={0.5} color="#2ed874" />
-        {/* Rim lights for edge highlights */}
-        <directionalLight position={[-5, 2, -5]} intensity={0.6} color="#21C063" />
-        <directionalLight position={[5, 2, -5]} intensity={0.4} color="#1aad56" />
-        {/* Accent underlight */}
-        <pointLight position={[0, -3, 2]} intensity={0.25} color="#21C063" distance={8} />
-        {/* Top spotlight */}
+        <directionalLight position={[-4, 3, -2]} intensity={0.5} color={tint.fill} />
+        <directionalLight position={[-5, 2, -5]} intensity={0.6} color={tint.rim1} />
+        <directionalLight position={[5, 2, -5]} intensity={0.4} color={tint.rim2} />
+        <pointLight position={[0, -3, 2]} intensity={0.25} color={tint.accent} distance={8} />
         <spotLight position={[0, 8, 3]} angle={0.35} penumbra={0.7} intensity={0.5} castShadow />
 
         <Suspense fallback={null}>
@@ -642,7 +673,7 @@ export default function PreviewScene({
             clipAnimationTime={clipAnimationTime}
             activeTextAnim={activeTextAnim}
           />
-          <Particles />
+          <Particles color={tint.accent} />
           {showBase && (
               <ContactShadows
                 position={[0, -2.5, 0]}
