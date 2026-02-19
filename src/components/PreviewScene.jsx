@@ -161,7 +161,7 @@ function useVisibleHeight(zDepth) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft, onDeviceClick }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -529,7 +529,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   })
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} onPointerDown={(e) => { e.stopPropagation(); if (onDeviceClick) onDeviceClick() }}>
       {showIphone && (
         <group ref={iphoneRef} position={[isBoth ? -0.8 : 0, 0, 0]}>
           <DeviceFrame
@@ -594,7 +594,7 @@ const MULTI_DEVICE_ANIMS = new Set([
   'flatScatter7',
 ])
 
-function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount }) {
+function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, onDeviceClick }) {
   const groupRef = useRef()
   const devRefs = useRef({})
   const ctRef = useRef(0)
@@ -805,6 +805,8 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     }
   })
 
+  const handleDevClick = (e) => { e.stopPropagation(); if (onDeviceClick) onDeviceClick() }
+
   const renderPhones = (count, scale = 0.3) => {
     if (animation === 'sideScroll10') {
       const spacing = 0.8
@@ -831,25 +833,25 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
   switch (animation) {
     case 'sideScroll10':
-      return <group ref={groupRef}>{renderPhones(multiDeviceCount || 10, 0.28)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 10, 0.28)}</group>
     case 'angled3ZoomOut':
-      return <group ref={groupRef}>{renderPhones(3, 0.33)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(3, 0.33)}</group>
     case 'circle4Rotate':
-      return <group ref={groupRef}>{renderPhones(4, 0.28)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(4, 0.28)}</group>
     case 'angledZoom4':
-      return <group ref={groupRef}>{renderPhones(4, 0.32)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(4, 0.32)}</group>
     case 'carousel6':
-      return <group ref={groupRef}>{renderPhones(6, 0.26)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(6, 0.26)}</group>
     case 'offsetCircleRotate':
-      return <group ref={groupRef}>{renderPhones(6, 0.27)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(6, 0.27)}</group>
     case 'flatScatter7':
-      return <group ref={groupRef}>{renderPhones(7, 0.30)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(7, 0.30)}</group>
     case 'floatingPhoneLaptop':
     case 'phoneInFrontLaptop': {
       const phoneSrc = getSlotScreen(0)
       const laptopSrc = getSlotScreen(1)
       return (
-        <group ref={groupRef}>
+        <group ref={groupRef} onPointerDown={handleDevClick}>
           <group ref={setRef('phone')}>
             <DeviceFrame
               type="iphone"
@@ -1180,7 +1182,7 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, onFlip })
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, isPlaying, canvasRef,
   textOverlays, currentTime, clipAnimationTime, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
-  outroLogo, totalDuration, multiDeviceCount, onTextClick,
+  outroLogo, totalDuration, multiDeviceCount, onTextClick, onDeviceClick,
 }) {
   const tint = useTintedLights(bgColor)
   const containerRef = useRef(null)
@@ -1268,6 +1270,7 @@ export default function PreviewScene({
               clipDuration={clipDuration}
               slotScreens={slotScreens}
               multiDeviceCount={multiDeviceCount}
+              onDeviceClick={onDeviceClick}
             />
           ) : (
             <AnimatedDevices
@@ -1286,6 +1289,7 @@ export default function PreviewScene({
               activeTextAnim={activeTextAnim}
               textSplit={textSplit}
               textOnLeft={textOnLeft}
+              onDeviceClick={onDeviceClick}
             />
           )}
           {showBase && (

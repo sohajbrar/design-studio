@@ -2194,6 +2194,7 @@ function App() {
                 totalDuration={totalDuration}
                 multiDeviceCount={multiDeviceCount}
                 onTextClick={(id) => { setSidebarTab('text'); setSelectedTextId(id) }}
+                onDeviceClick={() => setSidebarTab('animations')}
               />
               {timelineClips.length > 0 && (
                 <Timeline
