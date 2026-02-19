@@ -2193,6 +2193,7 @@ function App() {
                 outroLogo={activeThemeId ? outroLogo : null}
                 totalDuration={totalDuration}
                 multiDeviceCount={multiDeviceCount}
+                onTextClick={(id) => { setSidebarTab('text'); setSelectedTextId(id) }}
               />
               {timelineClips.length > 0 && (
                 <Timeline

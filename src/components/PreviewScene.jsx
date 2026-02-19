@@ -893,7 +893,7 @@ function GroundPlane() {
 
 // ── Canvas-texture text overlay (viewport-aware) ─────────────
 const TEXT_Z = 1.0
-function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft }) {
+function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, onTextClick }) {
   const meshRef = useRef()
   const ctRef = useRef(currentTime)
   ctRef.current = currentTime
@@ -1001,14 +1001,19 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft }) {
   })
 
   return (
-    <mesh ref={meshRef} position={[0, overlay.posY || 0, TEXT_Z]} renderOrder={10}>
+    <mesh
+      ref={meshRef}
+      position={[0, overlay.posY || 0, TEXT_Z]}
+      renderOrder={10}
+      onPointerDown={(e) => { e.stopPropagation(); if (onTextClick) onTextClick(overlay.id) }}
+    >
       <planeGeometry args={[finalW, clampedH]} />
       <meshBasicMaterial map={texture} transparent depthWrite={false} depthTest={false} />
     </mesh>
   )
 }
 
-function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft }) {
+function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, onTextClick }) {
   if (!textOverlays || textOverlays.length === 0) return null
 
   return (
@@ -1021,7 +1026,7 @@ function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft }) {
         .map((overlay) => {
           const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
           return (
-            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} textSplit={textSplit} textOnLeft={textOnLeft} />
+            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} textSplit={textSplit} textOnLeft={textOnLeft} onTextClick={onTextClick} />
           )
         })}
     </group>
@@ -1175,7 +1180,7 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, onFlip })
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, isPlaying, canvasRef,
   textOverlays, currentTime, clipAnimationTime, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
-  outroLogo, totalDuration, multiDeviceCount,
+  outroLogo, totalDuration, multiDeviceCount, onTextClick,
 }) {
   const tint = useTintedLights(bgColor)
   const containerRef = useRef(null)
@@ -1294,7 +1299,7 @@ export default function PreviewScene({
               />
           )}
         </Suspense>
-        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} textSplit={textSplit} textOnLeft={textOnLeft} />
+        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} textSplit={textSplit} textOnLeft={textOnLeft} onTextClick={onTextClick} />
         {outroLogo && totalDuration > 3 && (
           <OutroLogo logoId={outroLogo} currentTime={currentTime} totalDuration={totalDuration} />
         )}
