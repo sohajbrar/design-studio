@@ -78,7 +78,7 @@ function SceneBackground({ bgColor, bgGradient }) {
 }
 
 // ── Camera animator (for presets that move the camera) ─────────
-function CameraAnimator({ animation, isPlaying, multiDeviceCount, clipDuration }) {
+function CameraAnimator({ animation, isPlaying, multiDeviceCount, clipDuration, clipAnimationTime }) {
   const { camera } = useThree()
   const timeRef = useRef(0)
   const defaultPos = useRef(new THREE.Vector3(0, 0, 2.5))
@@ -92,40 +92,42 @@ function CameraAnimator({ animation, isPlaying, multiDeviceCount, clipDuration }
   useFrame((_, delta) => {
     if (!isPlaying) return
     timeRef.current += delta
-    const t = timeRef.current
 
     switch (animation) {
       case 'sideScroll10': {
+        const t = clipAnimationTime != null ? clipAnimationTime : timeRef.current
         const count = multiDeviceCount || 10
         const spacing = 0.8
         const halfSpan = ((count - 1) * spacing) / 2
         const dur = clipDuration || 8
-        const progress = easeInOutCubic(Math.min(1, t / dur))
+        const progress = easeInOutCubic(Math.min(1, Math.max(0, t) / dur))
         const camX = -halfSpan + progress * halfSpan * 2
         camera.position.set(camX, 0.05, 2.5)
         camera.lookAt(camX + 0.3, 0, 0)
         break
       }
       case 'scroll': {
-        const camZ = 2.5 + smoothSin(t, 0.2, 0.25)
-        const camY = smoothSin(t, 0.15, 0.2)
-        const camX = smoothSin(t, 0.12, 0.1)
+        const st = timeRef.current
+        const camZ = 2.5 + smoothSin(st, 0.2, 0.25)
+        const camY = smoothSin(st, 0.15, 0.2)
+        const camX = smoothSin(st, 0.12, 0.1)
         camera.position.set(camX, camY, camZ)
-        camera.lookAt(0, smoothSin(t, 0.15, 0.08), 0)
+        camera.lookAt(0, smoothSin(st, 0.15, 0.08), 0)
         break
       }
       case 'single': {
-        const introT = Math.min(1, t / 2.5)
+        const st = timeRef.current
+        const introT = Math.min(1, st / 2.5)
         const eased = easeOutCubic(introT)
         const targetZ = 2.5 - eased * 0.4
-        const orbitAngle = t * 0.25
+        const orbitAngle = st * 0.25
         const radius = targetZ
         camera.position.set(
           Math.sin(orbitAngle) * radius * 0.1,
-          smoothSin(t, 0.2, 0.1),
-          radius + smoothSin(t, 0.15, 0.1)
+          smoothSin(st, 0.2, 0.1),
+          radius + smoothSin(st, 0.15, 0.1)
         )
-        camera.lookAt(0, smoothSin(t, 0.12, 0.05), 0)
+        camera.lookAt(0, smoothSin(st, 0.12, 0.05), 0)
         break
       }
       default: {
@@ -1242,7 +1244,7 @@ export default function PreviewScene({
         }}
       >
         <SceneBackground bgColor={bgColor} bgGradient={bgGradient} />
-        <CameraAnimator animation={animation} isPlaying={isPlaying} multiDeviceCount={multiDeviceCount} clipDuration={clipDuration} />
+        <CameraAnimator animation={animation} isPlaying={isPlaying} multiDeviceCount={multiDeviceCount} clipDuration={clipDuration} clipAnimationTime={clipAnimationTime} />
 
         <ambientLight intensity={0.3} />
         <directionalLight position={[5, 6, 5]} intensity={1.4} castShadow shadow-mapSize={[1024, 1024]} />
