@@ -198,12 +198,10 @@ function MultiDeviceAnim({ animation }) {
 
     switch (animation) {
       case 'sideScroll10': {
-        g.position.x = 2.8 - t * 0.35
-        g.rotation.y = 0.06
-        for (let i = 0; i < 10; i++) {
-          const r = d[`p${i}`]
-          if (r) r.position.y = Math.sin(t * 0.4 + i * 0.7) * 0.06
-        }
+        const halfSpan = (10 - 1) * 0.7 / 2
+        const progress = Math.min(1, t / 8)
+        const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2
+        g.position.x = -halfSpan * ease + halfSpan * (1 - ease)
         break
       }
       case 'angled3ZoomOut': {
@@ -317,7 +315,7 @@ function MultiDeviceAnim({ animation }) {
   const phones = (n, sc = 0.85) => {
     if (animation === 'sideScroll10') {
       return Array.from({ length: n }, (_, i) => (
-        <group key={i} ref={setRef(`p${i}`)} position={[(i - 4.5) * 0.7, 0, i % 2 === 0 ? 0 : -0.12]}>
+        <group key={i} ref={setRef(`p${i}`)} position={[(i - (n - 1) / 2) * 0.7, 0, 0]}>
           <MiniPhone scale={sc} />
         </group>
       ))

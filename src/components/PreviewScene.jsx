@@ -78,7 +78,7 @@ function SceneBackground({ bgColor, bgGradient }) {
 }
 
 // ── Camera animator (for presets that move the camera) ─────────
-function CameraAnimator({ animation, isPlaying }) {
+function CameraAnimator({ animation, isPlaying, multiDeviceCount, clipDuration }) {
   const { camera } = useThree()
   const timeRef = useRef(0)
   const defaultPos = useRef(new THREE.Vector3(0, 0, 2.5))
@@ -95,6 +95,17 @@ function CameraAnimator({ animation, isPlaying }) {
     const t = timeRef.current
 
     switch (animation) {
+      case 'sideScroll10': {
+        const count = multiDeviceCount || 10
+        const spacing = 0.8
+        const halfSpan = ((count - 1) * spacing) / 2
+        const dur = clipDuration || 8
+        const progress = easeInOutCubic(Math.min(1, t / dur))
+        const camX = -halfSpan + progress * halfSpan * 2
+        camera.position.set(camX, 0.05, 2.5)
+        camera.lookAt(camX + 0.3, 0, 0)
+        break
+      }
       case 'scroll': {
         const camZ = 2.5 + smoothSin(t, 0.2, 0.25)
         const camY = smoothSin(t, 0.15, 0.2)
@@ -118,7 +129,6 @@ function CameraAnimator({ animation, isPlaying }) {
         break
       }
       default: {
-        // Default camera position
         camera.position.lerp(defaultPos.current, 0.05)
         camera.lookAt(0, 0, 0)
       }
@@ -586,7 +596,7 @@ const MULTI_DEVICE_ANIMS = new Set([
   'flatScatter7',
 ])
 
-function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens }) {
+function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount }) {
   const groupRef = useRef()
   const devRefs = useRef({})
   const ctRef = useRef(0)
@@ -629,19 +639,8 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
     switch (animation) {
 
-      // ── 1. Side Scroll 10 ──────────────────────────
+      // ── 1. Side Scroll (camera-driven, phones stay flat) ──
       case 'sideScroll10': {
-        const scrollSpeed = 0.35
-        g.position.x = 3.2 - t * scrollSpeed
-        g.rotation.y = 0.06
-        g.rotation.x = 0.02
-        for (let i = 0; i < 10; i++) {
-          const ref = d[`p${i}`]
-          if (ref) {
-            ref.position.y = Math.sin(t * 0.4 + i * 0.7) * 0.06
-            ref.rotation.z = Math.sin(t * 0.3 + i * 0.5) * 0.015
-          }
-        }
         break
       }
 
@@ -810,8 +809,9 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
   const renderPhones = (count, scale = 0.3) => {
     if (animation === 'sideScroll10') {
+      const spacing = 0.8
       return Array.from({ length: count }, (_, i) => (
-        <group key={i} ref={setRef(`p${i}`)} position={[(i - 4.5) * 0.8, Math.sin(i * 0.7) * 0.12, i % 2 === 0 ? 0 : -0.15]}>
+        <group key={i} ref={setRef(`p${i}`)} position={[(i - (count - 1) / 2) * spacing, 0, 0]}>
           <DeviceFrame {...phonePropsForSlot(i)} scale={scale} />
         </group>
       ))
@@ -833,7 +833,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
   switch (animation) {
     case 'sideScroll10':
-      return <group ref={groupRef}>{renderPhones(10, 0.28)}</group>
+      return <group ref={groupRef}>{renderPhones(multiDeviceCount || 10, 0.28)}</group>
     case 'angled3ZoomOut':
       return <group ref={groupRef}>{renderPhones(3, 0.33)}</group>
     case 'circle4Rotate':
@@ -1177,7 +1177,7 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, onFlip })
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, isPlaying, canvasRef,
   textOverlays, currentTime, clipAnimationTime, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
-  outroLogo, totalDuration,
+  outroLogo, totalDuration, multiDeviceCount,
 }) {
   const tint = useTintedLights(bgColor)
   const containerRef = useRef(null)
@@ -1242,7 +1242,7 @@ export default function PreviewScene({
         }}
       >
         <SceneBackground bgColor={bgColor} bgGradient={bgGradient} />
-        <CameraAnimator animation={animation} isPlaying={isPlaying} />
+        <CameraAnimator animation={animation} isPlaying={isPlaying} multiDeviceCount={multiDeviceCount} clipDuration={clipDuration} />
 
         <ambientLight intensity={0.3} />
         <directionalLight position={[5, 6, 5]} intensity={1.4} castShadow shadow-mapSize={[1024, 1024]} />
@@ -1264,6 +1264,7 @@ export default function PreviewScene({
               outroAnimation={outroAnimation}
               clipDuration={clipDuration}
               slotScreens={slotScreens}
+              multiDeviceCount={multiDeviceCount}
             />
           ) : (
             <AnimatedDevices
