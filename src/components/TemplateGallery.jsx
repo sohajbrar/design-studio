@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, Suspense, lazy } from 'react'
 import './TemplateGallery.css'
+import AIChatFlow from './AIChatFlow'
 
 const MiniPreviewCanvas = lazy(() => import('./MiniPreview'))
 
@@ -587,8 +588,9 @@ function StaticPreviewSvg({ template }) {
   )
 }
 
-export default function TemplateGallery({ onSelectTemplate, activeTemplateId, onStartBlank }) {
+export default function TemplateGallery({ onSelectTemplate, activeTemplateId, onStartBlank, onAIGenerate, aiLoading }) {
   const [hoveredId, setHoveredId] = useState(null)
+  const [showChat, setShowChat] = useState(false)
   const hoverTimer = useRef(null)
 
   const onEnter = useCallback((id) => {
@@ -601,10 +603,26 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
     setHoveredId(null)
   }, [])
 
+  const handleChatComplete = useCallback((result) => {
+    setShowChat(false)
+    onAIGenerate(result)
+  }, [onAIGenerate])
+
+  if (showChat) {
+    return (
+      <div className="template-sidebar template-sidebar-chat">
+        <AIChatFlow
+          onComplete={handleChatComplete}
+          onCancel={() => setShowChat(false)}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="template-sidebar">
       <h3 className="section-title">Templates</h3>
-      <p className="template-sidebar-hint">Hover to preview animation</p>
+      <p className="template-sidebar-hint">Pick a template or create with AI</p>
       <div className="template-sidebar-grid">
         {onStartBlank && (
           <button
@@ -620,6 +638,26 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
             <div className="template-sidebar-info">
               <span className="template-sidebar-name">Blank Canvas</span>
               <span className="template-sidebar-desc">Start from scratch</span>
+            </div>
+          </button>
+        )}
+        {onAIGenerate && (
+          <button
+            className="template-sidebar-card template-ai-card"
+            onClick={() => setShowChat(true)}
+          >
+            <div className="template-sidebar-preview template-ai-preview">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+                <path d="M20 3v4" />
+                <path d="M22 5h-4" />
+                <path d="M4 17v2" />
+                <path d="M5 18H3" />
+              </svg>
+            </div>
+            <div className="template-sidebar-info">
+              <span className="template-sidebar-name">Create with AI</span>
+              <span className="template-sidebar-desc">Describe your video</span>
             </div>
           </button>
         )}

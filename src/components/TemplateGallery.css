@@ -3,6 +3,25 @@
   padding-bottom: 16px;
 }
 
+/* ── AI Tile ─────────────────────────────────────── */
+.template-ai-card {
+  border-color: rgba(33, 192, 99, 0.25);
+}
+
+.template-ai-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px rgba(33, 192, 99, 0.12);
+}
+
+.template-ai-preview {
+  background: linear-gradient(135deg, rgba(33, 192, 99, 0.10) 0%, rgba(33, 192, 99, 0.03) 100%);
+  color: var(--accent);
+}
+
+.template-sidebar-chat {
+  padding: 12px;
+}
+
 .template-sidebar-hint {
   font-size: 0.72rem;
   color: var(--text-muted);

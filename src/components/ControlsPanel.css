@@ -721,6 +721,85 @@
   background: var(--overlay-light);
 }
 
+/* ── AI Voiceover Button ─────────────────────────── */
+.btn-ai-voiceover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: rgba(33, 192, 99, 0.08);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-ai-voiceover:hover:not(:disabled) {
+  background: rgba(33, 192, 99, 0.15);
+}
+
+.btn-ai-voiceover:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Voiceover Script Card ──────────────────────── */
+.voiceover-script-card {
+  margin-top: 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.voiceover-script-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.voiceover-script-header span {
+  flex: 1;
+}
+
+.voiceover-script-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  transition: all 0.15s;
+}
+
+.voiceover-script-copy:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.voiceover-script-text {
+  padding: 8px 10px;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  font-style: italic;
+}
+
 /* WhatsApp theme selector */
 .theme-grid {
   display: grid;

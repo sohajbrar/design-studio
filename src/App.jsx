@@ -10,6 +10,7 @@ import TemplateGallery from './components/TemplateGallery'
 import Header from './components/Header'
 import ExportModal from './components/ExportModal'
 import Timeline from './components/Timeline'
+import AIAssistant from './components/AIAssistant'
 import AudioEngine from './utils/audioEngine'
 import { MUSIC_LIBRARY, generateTrack } from './utils/musicLibrary'
 
@@ -316,6 +317,7 @@ function App() {
   const [activeTemplateId, setActiveTemplateId] = useState(null)
   const [showBackConfirm, setShowBackConfirm] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
+  const hasUnsavedChanges = useRef(false)
   const [activeThemeId, setActiveThemeId] = useState(null)
   const [outroLogo, setOutroLogo] = useState(null)
   const [siteTheme, setSiteTheme] = useState(() => {
@@ -552,8 +554,11 @@ function App() {
     }
   }, [isTimelinePlaying, totalDuration])
 
+  const markChanged = useCallback(() => { hasUnsavedChanges.current = true }, [])
+
   // ── Upload handler (creates clips immediately, updates video durations async) ─
   const handleUpload = useCallback((files) => {
+    markChanged()
     const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.webm', '.avi', '.mkv', '.m4v']
     const newScreens = Array.from(files).map((file) => {
       const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
@@ -685,6 +690,7 @@ function App() {
   }, [])
 
   const handleRemoveScreen = useCallback((id) => {
+    markChanged()
     setScreens((prev) => {
       const screen = prev.find((s) => s.id === id)
       if (screen) URL.revokeObjectURL(screen.url)
@@ -789,6 +795,7 @@ function App() {
 
   // ── Text overlay operations ─────────────────────
   const handleAddText = useCallback((atTime) => {
+    markChanged()
     const t = typeof atTime === 'number' && isFinite(atTime) ? atTime : currentTime
     setTextOverlays((prev) => {
       const dur = 2
@@ -818,6 +825,7 @@ function App() {
   }, [currentTime, totalDuration])
 
   const handleUpdateText = useCallback((textId, updates) => {
+    markChanged()
     setTextOverlays((prev) =>
       prev.map((t) => {
         if (t.id !== textId) return t
@@ -835,6 +843,7 @@ function App() {
   }, [])
 
   const handleRemoveText = useCallback((textId) => {
+    markChanged()
     setTextOverlays((prev) => prev.filter((t) => t.id !== textId))
     setSelectedTextId((prev) => (prev === textId ? null : prev))
   }, [])
@@ -868,6 +877,7 @@ function App() {
   const [loadingTrackId, setLoadingTrackId] = useState(null)
 
   const handleSetMusic = useCallback(async (source) => {
+    markChanged()
     if (previewAudioRef.current) { previewAudioRef.current.pause(); previewAudioRef.current = null }
     setPreviewingTrackId(null)
     let url, name, file = null, isLibrary = false, audioDuration = 30
@@ -899,6 +909,7 @@ function App() {
   }, [totalDuration, getAudioDuration])
 
   const handleSetVoiceover = useCallback(async (file) => {
+    markChanged()
     const url = URL.createObjectURL(file)
     const audioDuration = await getAudioDuration(file)
     const maxT = totalDuration || 30
@@ -1094,6 +1105,7 @@ function App() {
 
   // ── Template handler (applies settings to existing screens/clips) ──
   const handleSelectTemplate = useCallback((template) => {
+    hasUnsavedChanges.current = false
     setHasStarted(true)
     setActiveTemplateId(template.id)
     setDeviceType(template.deviceType)
@@ -1179,13 +1191,176 @@ function App() {
     }, 150)
   }, [handleSetMusic, timelineClips, screens])
 
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiVoiceoverScript, setAiVoiceoverScript] = useState(null)
+  const [aiFeatureContext, setAiFeatureContext] = useState(null)
+  const [voiceoverScriptLoading, setVoiceoverScriptLoading] = useState(false)
+
+  const getCurrentConfig = useCallback(() => ({
+    deviceType,
+    animation,
+    bgColor,
+    whatsappTheme: activeThemeId,
+    outroLogo,
+    textOverlay: textOverlays[0] ? {
+      text: textOverlays[0].text,
+      fontSize: textOverlays[0].fontSize,
+      color: textOverlays[0].color,
+      animation: textOverlays[0].animation,
+    } : null,
+    clipDuration: templateClipDurRef.current || 5,
+  }), [deviceType, animation, bgColor, activeThemeId, outroLogo, textOverlays])
+
+  const applyConfigDelta = useCallback((delta) => {
+    if (!delta) return
+    if (delta.deviceType) setDeviceType(delta.deviceType)
+    if (delta.animation) setAnimation(delta.animation)
+    if (delta.bgColor) setBgColor(delta.bgColor)
+    if (delta.whatsappTheme) {
+      setActiveThemeId(delta.whatsappTheme)
+      const themeColors = { 'wa-dark': '#0A1014', 'wa-light': '#E7FDE3', 'wa-beige': '#FEF4EB', 'wa-green': '#1DAA61' }
+      if (themeColors[delta.whatsappTheme]) setBgColor(themeColors[delta.whatsappTheme])
+    }
+    if (delta.whatsappTheme === null) setActiveThemeId(null)
+    if (delta.outroLogo !== undefined) setOutroLogo(delta.outroLogo)
+    if (delta.outroAnimation) templateOutroRef.current = delta.outroAnimation
+    if (delta.clipDuration) templateClipDurRef.current = delta.clipDuration
+    if (delta.textOverlay) {
+      setTextOverlays(prev => {
+        if (prev.length === 0) {
+          return [{
+            id: crypto.randomUUID(),
+            text: delta.textOverlay.text || 'New Text',
+            fontFamily: 'Inter',
+            fontSize: delta.textOverlay.fontSize || 48,
+            color: delta.textOverlay.color || '#FFFFFF',
+            animation: delta.textOverlay.animation || 'slideFromBottom',
+            posY: -0.45,
+            startTime: 0,
+            endTime: 2.5,
+          }]
+        }
+        return prev.map((t, i) => i === 0 ? { ...t, ...delta.textOverlay } : t)
+      })
+    }
+    markChanged()
+  }, [markChanged])
+
+  const handleAIGenerate = useCallback((result) => {
+    const config = result?.config || result
+    if (!config) return
+    hasUnsavedChanges.current = false
+
+    if (result?.voiceoverScript) setAiVoiceoverScript(result.voiceoverScript)
+    if (result?.featureContext) setAiFeatureContext(result.featureContext)
+
+    setHasStarted(true)
+    setActiveTemplateId('ai-generated')
+
+    if (config.deviceType) setDeviceType(config.deviceType)
+    if (config.animation) setAnimation(config.animation)
+    if (config.bgColor) setBgColor(config.bgColor)
+    setBgGradient(false)
+    setShowBase(false)
+
+    if (config.whatsappTheme) {
+      setActiveThemeId(config.whatsappTheme)
+      const themeColors = {
+        'wa-dark': '#0A1014',
+        'wa-light': '#E7FDE3',
+        'wa-beige': '#FEF4EB',
+        'wa-green': '#1DAA61',
+      }
+      if (themeColors[config.whatsappTheme]) setBgColor(themeColors[config.whatsappTheme])
+    } else {
+      setActiveThemeId(null)
+    }
+
+    setOutroLogo(config.outroLogo || null)
+
+    templateOutroRef.current = config.outroAnimation || 'none'
+    templateClipDurRef.current = config.clipDuration || 5
+
+    if (config.textOverlay) {
+      const t = config.textOverlay
+      setTextOverlays([{
+        id: crypto.randomUUID(),
+        text: t.text,
+        fontFamily: 'Inter',
+        fontSize: t.fontSize || 48,
+        color: t.color || '#FFFFFF',
+        animation: t.animation || 'slideFromBottom',
+        posY: -0.45,
+        startTime: 0,
+        endTime: Math.min(2.5, config.clipDuration || 5),
+      }])
+    } else {
+      setTextOverlays([])
+    }
+
+    const multiAnims = new Set([
+      'sideScroll10', 'angled3ZoomOut', 'circle4Rotate', 'angledZoom4',
+      'carousel6', 'flatScatter7', 'offsetCircleRotate',
+    ])
+
+    if (multiAnims.has(config.animation) && config.screenSlotCount) {
+      const count = config.screenSlotCount
+      setMultiDeviceCount(count)
+      const slots = Array.from({ length: count }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' }))
+      setActiveScreenSlots(slots)
+      setScreenSlotMap(slots.map((_, i) => screens[i]?.id || null))
+    } else if (config.animation === 'floatingPhoneLaptop' || config.animation === 'phoneInFrontLaptop') {
+      setActiveScreenSlots([
+        { label: 'Phone', device: 'iPhone' },
+        { label: 'Laptop', device: 'MacBook' },
+      ])
+      setScreenSlotMap([screens[0]?.id || null, screens[1]?.id || null])
+    } else {
+      setActiveScreenSlots(null)
+      setScreenSlotMap([])
+    }
+
+    const clipDur = config.clipDuration || 5
+    setTimelineClips((prev) =>
+      recalcStartTimes(
+        prev.map((c) => ({
+          ...c,
+          duration: c.duration > 0 ? c.duration : clipDur,
+          animation: config.animation || c.animation,
+          outroAnimation: config.outroAnimation || 'none',
+        }))
+      )
+    )
+
+    if (config.animation === 'zoomBottomLeft' || config.animation === 'zoomTopRight') {
+      setZoomEffects([{
+        id: crypto.randomUUID(),
+        startTime: 0,
+        endTime: Math.min(2.2, clipDur),
+        zoomLevel: 1.8,
+      }])
+    } else {
+      setZoomEffects([])
+    }
+
+    if (result?.recommendedMusicId) {
+      setTimeout(() => {
+        handleSetMusic({ libraryId: result.recommendedMusicId, name: MUSIC_LIBRARY.find(t => t.id === result.recommendedMusicId)?.name || 'AI Pick' })
+      }, 300)
+    }
+
+    setSidebarTab('media')
+    setCurrentTime(0)
+    setTimeout(() => {
+      setIsPlaying(true)
+      setIsTimelinePlaying(true)
+    }, 150)
+  }, [screens, handleSetMusic])
+
   const handleStartBlank = useCallback(() => {
+    hasUnsavedChanges.current = false
     setHasStarted(true)
     setSidebarTab('media')
-  }, [])
-
-  const handleBackClick = useCallback(() => {
-    setShowBackConfirm(true)
   }, [])
 
   const toggleSiteTheme = useCallback(() => {
@@ -1232,7 +1407,16 @@ function App() {
     setSidebarTab('templates')
     setShowBackConfirm(false)
     setHasStarted(false)
+    hasUnsavedChanges.current = false
   }, [screens, musicTrack, voiceoverTrack])
+
+  const handleBackClick = useCallback(() => {
+    if (hasUnsavedChanges.current) {
+      setShowBackConfirm(true)
+    } else {
+      handleConfirmBack()
+    }
+  }, [handleConfirmBack])
 
   // Warn on browser back / refresh when there are unsaved changes
   useEffect(() => {
@@ -1322,6 +1506,8 @@ function App() {
                 onSelectTemplate={handleSelectTemplate}
                 activeTemplateId={activeTemplateId}
                 onStartBlank={handleStartBlank}
+                onAIGenerate={handleAIGenerate}
+                aiLoading={aiLoading}
               />
             </div>
           </div>
@@ -1402,6 +1588,8 @@ function App() {
                   <TemplateGallery
                     onSelectTemplate={handleSelectTemplate}
                     activeTemplateId={activeTemplateId}
+                    onAIGenerate={handleAIGenerate}
+                    aiLoading={aiLoading}
                   />
                 )}
 
@@ -1744,7 +1932,7 @@ function App() {
                           <button
                             key={d.id}
                             className={`animation-tile ${deviceType === d.id ? 'active' : ''}`}
-                            onClick={() => setDeviceType(d.id)}
+                            onClick={() => { markChanged(); setDeviceType(d.id) }}
                           >
                             <div className="animation-tile-icon">{d.icon}</div>
                             <span className="animation-tile-name">{d.label}</span>
@@ -1849,6 +2037,7 @@ function App() {
                               key={preset.id}
                               className={`animation-tile ${currentAnim === preset.id ? 'active' : ''}`}
                               onClick={() => {
+                                markChanged()
                                 const clip = selClip || activeClip
                                 if (clip) {
                                   handleUpdateClip(clip.id, { animation: preset.id })
@@ -1890,6 +2079,7 @@ function App() {
                               key={preset.id}
                               className={`animation-tile ${currentOutro === preset.id ? 'active' : ''}`}
                               onClick={() => {
+                                markChanged()
                                 const clip = selClip || activeClip
                                 if (clip) {
                                   handleUpdateClip(clip.id, { outroAnimation: preset.id })
@@ -2044,23 +2234,76 @@ function App() {
                           </div>
                         </div>
                       ) : (
-                        <label className="btn-audio-upload">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="17 8 12 3 7 8" />
-                            <line x1="12" y1="3" x2="12" y2="15" />
-                          </svg>
-                          Upload Voiceover
-                          <input
-                            type="file"
-                            accept="audio/*"
-                            style={{ display: 'none' }}
-                            onChange={(e) => {
-                              if (e.target.files[0]) handleSetVoiceover(e.target.files[0])
-                              e.target.value = ''
+                        <>
+                          <label className="btn-audio-upload">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="17 8 12 3 7 8" />
+                              <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                            Upload Voiceover
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                if (e.target.files[0]) handleSetVoiceover(e.target.files[0])
+                                e.target.value = ''
+                              }}
+                            />
+                          </label>
+                          <button
+                            className="btn-ai-voiceover"
+                            onClick={async () => {
+                              setVoiceoverScriptLoading(true)
+                              try {
+                                const headline = textOverlays[0]?.text || ''
+                                const res = await fetch('/api/ai/voiceover', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    feature: aiFeatureContext || headline,
+                                    product: activeThemeId?.startsWith('wa-') ? 'WhatsApp' : null,
+                                    headline,
+                                  }),
+                                })
+                                const data = await res.json()
+                                if (data.script) setAiVoiceoverScript(data.script)
+                              } catch {
+                                /* silent */
+                              } finally {
+                                setVoiceoverScriptLoading(false)
+                              }
                             }}
-                          />
-                        </label>
+                            disabled={voiceoverScriptLoading}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+                            </svg>
+                            {voiceoverScriptLoading ? 'Generating...' : 'Generate Script with AI'}
+                          </button>
+                        </>
+                      )}
+                      {aiVoiceoverScript && !voiceoverTrack && (
+                        <div className="voiceover-script-card">
+                          <div className="voiceover-script-header">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+                            </svg>
+                            <span>AI Voiceover Script</span>
+                            <button
+                              className="voiceover-script-copy"
+                              onClick={() => navigator.clipboard.writeText(aiVoiceoverScript)}
+                              title="Copy to clipboard"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                              </svg>
+                            </button>
+                          </div>
+                          <p className="voiceover-script-text">{aiVoiceoverScript}</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2076,6 +2319,7 @@ function App() {
                             key={theme.id}
                             className={`theme-card ${activeThemeId === theme.id ? 'active' : ''}`}
                             onClick={() => {
+                              markChanged()
                               setActiveThemeId(theme.id)
                               setBgColor(theme.bgColor)
                               setBgGradient(theme.bgGradient)
@@ -2097,14 +2341,14 @@ function App() {
                           <div className="logo-picker-row">
                             <button
                               className={`logo-pick-btn ${outroLogo === 'whatsapp' ? 'active' : ''}`}
-                              onClick={() => setOutroLogo(prev => prev === 'whatsapp' ? null : 'whatsapp')}
+                              onClick={() => { markChanged(); setOutroLogo(prev => prev === 'whatsapp' ? null : 'whatsapp') }}
                             >
                               <img src="/logos/whatsapp.png" alt="WhatsApp" />
                               <span>WhatsApp</span>
                             </button>
                             <button
                               className={`logo-pick-btn ${outroLogo === 'whatsapp-business' ? 'active' : ''}`}
-                              onClick={() => setOutroLogo(prev => prev === 'whatsapp-business' ? null : 'whatsapp-business')}
+                              onClick={() => { markChanged(); setOutroLogo(prev => prev === 'whatsapp-business' ? null : 'whatsapp-business') }}
                             >
                               <img src="/logos/whatsapp-business.png" alt="WA Business" />
                               <span>Business</span>
@@ -2121,7 +2365,7 @@ function App() {
                           <input
                             type="color"
                             value={bgColor}
-                            onChange={(e) => { setBgColor(e.target.value); setActiveThemeId(null) }}
+                            onChange={(e) => { markChanged(); setBgColor(e.target.value); setActiveThemeId(null) }}
                             className="color-input"
                           />
                           <input
@@ -2131,7 +2375,7 @@ function App() {
                             onChange={(e) => {
                               let v = e.target.value
                               if (!v.startsWith('#')) v = '#' + v
-                              if (/^#[0-9a-fA-F]{0,6}$/.test(v)) { setBgColor(v); setActiveThemeId(null) }
+                              if (/^#[0-9a-fA-F]{0,6}$/.test(v)) { markChanged(); setBgColor(v); setActiveThemeId(null) }
                             }}
                             onBlur={(e) => {
                               let v = e.target.value
@@ -2188,7 +2432,7 @@ function App() {
                 textSplit={textSplit}
                 onTextSplitChange={setTextSplit}
                 layoutFlipped={layoutFlipped}
-                onFlipLayout={() => setLayoutFlipped(f => !f)}
+                onFlipLayout={() => { markChanged(); setLayoutFlipped(f => !f) }}
                 slotScreens={slotScreens}
                 outroLogo={activeThemeId ? outroLogo : null}
                 totalDuration={totalDuration}
@@ -2237,6 +2481,13 @@ function App() {
           </>
         )}
       </main>
+
+      {hasStarted && (
+        <AIAssistant
+          getCurrentConfig={getCurrentConfig}
+          onApplyDelta={applyConfigDelta}
+        />
+      )}
 
       {showExport && (
         <ExportModal
