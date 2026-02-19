@@ -7,10 +7,6 @@
 const BASE = import.meta.env.BASE_URL + 'music/'
 
 export const MUSIC_LIBRARY = [
-  { id: 'f-1',  name: 'Check This Out',        file: 'check-this-out.mp4' },
-  { id: 'f-2',  name: 'Friday The 13th',       file: 'friday-the-13th.mp4' },
-  { id: 'f-3',  name: 'Happy Days',            file: 'happy-days.mp4' },
-  { id: 'f-4',  name: 'I Love You More',       file: 'i-love-you-more.mp4' },
   { id: 'f-5',  name: 'Beautiful, You Are',    file: 'Beautiful, You Are (Instrumental).mp4' },
   { id: 'f-6',  name: 'Easy To Love',          file: 'Easy To Love (Instrumental).mp4' },
   { id: 'f-7',  name: 'Good Intentions',       file: 'Good Intentions.mp4' },
@@ -18,6 +14,10 @@ export const MUSIC_LIBRARY = [
   { id: 'f-9',  name: 'Paint Me Happy',        file: 'Paint Me Happy.mp4' },
   { id: 'f-10', name: 'Pink Confetti',         file: 'Pink Confetti (Instrumental).mp4' },
   { id: 'f-11', name: 'Take Me Home',          file: 'Take Me Home.mp4' },
+  { id: 'f-1',  name: 'Check This Out',        file: 'check-this-out.mp4' },
+  { id: 'f-2',  name: 'Friday The 13th',       file: 'friday-the-13th.mp4' },
+  { id: 'f-3',  name: 'Happy Days',            file: 'happy-days.mp4' },
+  { id: 'f-4',  name: 'I Love You More',       file: 'i-love-you-more.mp4' },
   { id: 't-1',  name: 'Upbeat Drive',          file: 'track-1.mp3' },
   { id: 't-2',  name: 'Chill Electronic',      file: 'track-2.mp3' },
   { id: 't-3',  name: 'Bright Energy',         file: 'track-3.mp3' },
