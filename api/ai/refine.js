@@ -10,20 +10,29 @@ Given the current config and a user instruction, return ONLY a JSON object conta
 
 AVAILABLE OPTIONS:
 - deviceType: "iphone", "android", "both", "ipad", "macbook"
-- animation: "showcase", "orbit", "flip", "scroll", "single", "slideLeft", "slideRight", "slideDown", "slideUp", "slideRightRotate", "slideLeftRotate", "zoomBottomLeft", "zoomTopRight", "sideBySide", "laptopOpen", "laptopClose", "sideScroll10", "angled3ZoomOut", "circle4Rotate", "angledZoom4", "carousel6", "flatScatter7", "offsetCircleRotate", "floatingPhoneLaptop", "phoneInFrontLaptop"
+- animation (device entrance): "showcase", "orbit", "flip", "scroll", "single", "slideLeft", "slideRight", "slideDown", "slideUp", "slideRightRotate", "slideLeftRotate", "zoomBottomLeft", "zoomTopRight", "sideBySide", "laptopOpen", "laptopClose", "sideScroll10", "angled3ZoomOut", "circle4Rotate", "angledZoom4", "carousel6", "flatScatter7", "offsetCircleRotate", "floatingPhoneLaptop", "phoneInFrontLaptop"
 - outroAnimation: "none", "slideLeft", "slideRight", "slideDown", "slideUp", "slideLeftRotate", "slideRightRotate", "zoomOut", "flip"
 - bgColor: any hex color
 - whatsappTheme: "wa-dark", "wa-light", "wa-beige", "wa-green", or null
 - outroLogo: "whatsapp", "whatsapp-business", or null
-- textOverlay: {"text":string,"fontSize":number,"color":string,"animation":string}
+- textOverlay: {"text":string,"fontSize":number,"color":string,"animation":string,"posY":number}
+- textOverlay.posY: 0.45 = top, 0 = center, -0.45 = bottom (controls vertical text position)
 - textOverlay.animation: "slideFromLeft", "slideFromRight", "slideFromTop", "slideFromBottom", "none"
 - clipDuration: number (seconds)
 
+CRITICAL DISTINCTION — "animation" vs "textOverlay":
+- "animation" controls the DEVICE/phone entrance movement (how the phone slides/rotates in)
+- "textOverlay.animation" controls how the TEXT appears (slide from left/right/top/bottom)
+- "textOverlay.posY" controls WHERE the text is positioned vertically
+- When the user says "move text to center/top/bottom", change textOverlay.posY — NOT animation or deviceType
+- When the user says "center the text", "move text up/down", "text at top/bottom" → change textOverlay.posY
+- When the user says "orbit animation", "flip animation", "slide in" → change animation (device)
+
 RULES:
 - Only return changed fields as a flat delta object.
-- For textOverlay changes, return the full textOverlay object with only modified sub-fields overridden.
-- Interpret natural language: "make it dark" → bgColor change + text color, "bigger text" → fontSize increase, "zoom animation" → animation change, etc.
-- "light theme" / "dark theme" → adjust bgColor + textOverlay.color accordingly.
+- For textOverlay changes, return the textOverlay object with only modified sub-fields.
+- Interpret natural language: "make it dark" → bgColor + text color, "bigger text" → fontSize, "zoom animation" → animation (device), etc.
+- "move text to center" → textOverlay.posY: 0. "text at top" → textOverlay.posY: 0.45. "text at bottom" → textOverlay.posY: -0.45.
 - Keep responses minimal and precise.
 - ONLY output JSON. No explanation, no markdown.
 
@@ -32,6 +41,12 @@ Example output: {"bgColor":"#A3C9F9","textOverlay":{"fontSize":56}}
 
 Example input: "Switch to orbit animation"
 Example output: {"animation":"orbit"}
+
+Example input: "Move text to the center"
+Example output: {"textOverlay":{"posY":0}}
+
+Example input: "Put the text at the top"
+Example output: {"textOverlay":{"posY":0.45}}
 
 Example input: "Make it dark with white text"
 Example output: {"bgColor":"#0A1014","textOverlay":{"color":"#FFFFFF"}}`
@@ -180,6 +195,15 @@ function fallbackRefine(instruction, currentConfig) {
   if (durMatch) delta.clipDuration = Math.min(Math.max(parseInt(durMatch[1]), 2), 15)
   if (/\b(longer|slow)\b/.test(lower) && !durMatch) delta.clipDuration = (currentConfig?.clipDuration || 5) + 2
   if (/\b(shorter|fast|quick)\b/.test(lower) && !durMatch) delta.clipDuration = Math.max((currentConfig?.clipDuration || 5) - 2, 2)
+
+  // --- Text position ---
+  if (/\b(center|middle)\b.*\b(text|heading|title)\b|\b(text|heading|title)\b.*\b(center|middle)\b|move.*text.*center|center.*align|text.*center/.test(lower)) {
+    delta.textOverlay = { ...(delta.textOverlay || {}), posY: 0 }
+  } else if (/\b(top)\b.*\b(text|heading|title)\b|\b(text|heading|title)\b.*\b(top)\b|move.*text.*top|text.*up/.test(lower)) {
+    delta.textOverlay = { ...(delta.textOverlay || {}), posY: 0.45 }
+  } else if (/\b(bottom)\b.*\b(text|heading|title)\b|\b(text|heading|title)\b.*\b(bottom)\b|move.*text.*bottom|text.*down/.test(lower)) {
+    delta.textOverlay = { ...(delta.textOverlay || {}), posY: -0.45 }
+  }
 
   // --- Text animation ---
   if (/text.*from.*left|slide.*left.*text/.test(lower)) delta.textOverlay = { ...(delta.textOverlay || {}), animation: 'slideFromLeft' }

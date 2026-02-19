@@ -1235,12 +1235,21 @@ function App() {
             fontSize: delta.textOverlay.fontSize || 48,
             color: delta.textOverlay.color || '#FFFFFF',
             animation: delta.textOverlay.animation || 'slideFromBottom',
-            posY: -0.45,
+            posY: delta.textOverlay.posY ?? -0.45,
             startTime: 0,
             endTime: 2.5,
           }]
         }
-        return prev.map((t, i) => i === 0 ? { ...t, ...delta.textOverlay } : t)
+        return prev.map((t, i) => {
+          if (i !== 0) return t
+          const merged = { ...t }
+          if (delta.textOverlay.text !== undefined) merged.text = delta.textOverlay.text
+          if (delta.textOverlay.fontSize !== undefined) merged.fontSize = delta.textOverlay.fontSize
+          if (delta.textOverlay.color !== undefined) merged.color = delta.textOverlay.color
+          if (delta.textOverlay.animation !== undefined) merged.animation = delta.textOverlay.animation
+          if (delta.textOverlay.posY !== undefined) merged.posY = delta.textOverlay.posY
+          return merged
+        })
       })
     }
     markChanged()
