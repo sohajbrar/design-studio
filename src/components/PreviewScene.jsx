@@ -454,49 +454,45 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       lidAngleRef.current = Math.PI / 2
     }
 
-    // ── Outro animation override ─────────────────────────────
+    // ── Outro animation (applied additively on top of intro) ───
     const outroDur = 2.8
     if (outroAnimation && outroAnimation !== 'none' && clipDuration > outroDur + 0.5) {
       const outroStart = clipDuration - outroDur
       if (t > outroStart) {
         const p = easeInCubic((t - outroStart) / outroDur)
 
-        group.position.set(0, 0, 0)
-        group.rotation.set(0, 0, 0)
-        group.scale.set(1, 1, 1)
-        if (iph) { iph.rotation.set(0, 0, 0); iph.position.set(iphBaseX, 0, 0); iph.scale.set(1, 1, 1) }
-        if (and) { and.rotation.set(0, 0, 0); and.position.set(andBaseX, 0, 0); and.scale.set(1, 1, 1) }
-
         switch (outroAnimation) {
           case 'slideLeft':
-            group.position.x = -4 * p
+            group.position.x += -4 * p
             break
           case 'slideRight':
-            group.position.x = 4 * p
+            group.position.x += 4 * p
             break
           case 'slideDown':
-            group.position.y = -4 * p
+            group.position.y += -4 * p
             break
           case 'slideUp':
-            group.position.y = 4 * p
+            group.position.y += 4 * p
             break
           case 'slideLeftRotate':
-            group.position.x = -4 * p
-            group.rotation.y = (-Math.PI * 0.5) * p
+            group.position.x += -4 * p
+            group.rotation.y += (-Math.PI * 0.5) * p
             break
           case 'slideRightRotate':
-            group.position.x = 4 * p
-            group.rotation.y = (Math.PI * 0.5) * p
+            group.position.x += 4 * p
+            group.rotation.y += (Math.PI * 0.5) * p
             break
           case 'zoomOut': {
             const s = 1 - p * 0.85
-            group.scale.set(s, s, s)
+            group.scale.x *= s
+            group.scale.y *= s
+            group.scale.z *= s
             break
           }
           case 'flip':
-            group.rotation.y = Math.PI * 2 * p
-            group.position.y = 3.5 * p
-            group.rotation.x = 0.4 * p
+            group.rotation.y += Math.PI * 2 * p
+            group.position.y += 3.5 * p
+            group.rotation.x += 0.4 * p
             break
         }
       }
