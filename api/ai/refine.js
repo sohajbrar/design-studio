@@ -56,20 +56,142 @@ export default async function handler(req, res) {
     } else if (process.env.OPENAI_API_KEY) {
       text = await callOpenAI(userPrompt)
     } else {
-      return res.status(200).json({ delta: null, source: 'none' })
+      const delta = fallbackRefine(instruction, currentConfig)
+      return res.status(200).json({ delta, source: 'local' })
     }
 
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      return res.status(200).json({ delta: null, source: 'parse_error' })
+      const delta = fallbackRefine(instruction, currentConfig)
+      return res.status(200).json({ delta, source: 'local_fallback' })
     }
 
     const delta = JSON.parse(jsonMatch[0])
     return res.status(200).json({ delta, source: process.env.LLAMA_API_KEY ? 'llama' : 'openai' })
   } catch (err) {
     console.error('AI refine error:', err)
-    return res.status(200).json({ delta: null, source: 'error', details: err.message })
+    const delta = fallbackRefine(instruction, currentConfig)
+    return res.status(200).json({ delta, source: 'local_fallback' })
   }
+}
+
+const COLOR_MAP = {
+  red: '#E74C3C', blue: '#A3C9F9', green: '#1DAA61', yellow: '#FBE5B5',
+  orange: '#F4C3B0', pink: '#F3AFC6', purple: '#CFC4FB', lavender: '#CFC4FB',
+  teal: '#A4D9D4', cyan: '#A4D9D4', white: '#FFFFFF', black: '#0A1014',
+  grey: '#D4D6D8', gray: '#D4D6D8', silver: '#D4D6D8', beige: '#FEF4EB',
+  mint: '#BEFAB3', peach: '#F4C3B0', sky: '#A2D5F2',
+}
+
+const ANIMATION_MAP = {
+  showcase: 'showcase', orbit: 'orbit', flip: 'flip', scroll: 'scroll',
+  'side by side': 'sideBySide', single: 'single',
+  'slide left': 'slideLeft', 'slide right': 'slideRight',
+  'slide up': 'slideUp', 'slide down': 'slideDown',
+  rotate: 'slideRightRotate', spin: 'orbit',
+  zoom: 'zoomBottomLeft', carousel: 'carousel6',
+  'laptop open': 'laptopOpen', 'laptop close': 'laptopClose',
+}
+
+function fallbackRefine(instruction, currentConfig) {
+  const lower = instruction.toLowerCase().trim()
+  const delta = {}
+
+  // --- Background color ---
+  for (const [name, hex] of Object.entries(COLOR_MAP)) {
+    if (lower.includes(name) && (lower.includes('background') || lower.includes('bg') || lower.includes('color'))) {
+      delta.bgColor = hex
+      const isDark = ['#0A1014', '#E74C3C'].includes(hex) || name === 'black'
+      delta.textOverlay = { color: isDark ? '#FFFFFF' : '#000000' }
+      break
+    }
+  }
+
+  // --- Dark / light theme ---
+  if (/\b(dark|darker)\b/.test(lower) && !delta.bgColor) {
+    delta.bgColor = '#0A1014'
+    delta.textOverlay = { color: '#FFFFFF' }
+  } else if (/\b(light|lighter|bright|brighter)\b/.test(lower) && !delta.bgColor) {
+    delta.bgColor = '#E7FDE3'
+    delta.textOverlay = { color: '#000000' }
+  }
+
+  // --- WhatsApp themes ---
+  if (/whatsapp\s*dark|wa[\s-]*dark/.test(lower)) {
+    delta.whatsappTheme = 'wa-dark'; delta.bgColor = '#0A1014'
+    delta.textOverlay = { color: '#FFFFFF' }
+  } else if (/whatsapp\s*light|wa[\s-]*light/.test(lower)) {
+    delta.whatsappTheme = 'wa-light'; delta.bgColor = '#E7FDE3'
+    delta.textOverlay = { color: '#000000' }
+  } else if (/whatsapp\s*beige|wa[\s-]*beige|warm\s*theme/.test(lower)) {
+    delta.whatsappTheme = 'wa-beige'; delta.bgColor = '#FEF4EB'
+    delta.textOverlay = { color: '#000000' }
+  } else if (/whatsapp\s*green|wa[\s-]*green|vibrant/.test(lower)) {
+    delta.whatsappTheme = 'wa-green'; delta.bgColor = '#1DAA61'
+    delta.textOverlay = { color: '#FFFFFF' }
+  }
+
+  // --- Standalone color (no "background" keyword) ---
+  if (!delta.bgColor) {
+    for (const [name, hex] of Object.entries(COLOR_MAP)) {
+      const re = new RegExp(`\\b${name}\\b`)
+      if (re.test(lower) && !/text|font|heading/.test(lower)) {
+        delta.bgColor = hex
+        const isDark = ['#0A1014'].includes(hex) || name === 'black'
+        delta.textOverlay = { ...(delta.textOverlay || {}), color: isDark ? '#FFFFFF' : '#000000' }
+        break
+      }
+    }
+  }
+
+  // --- Text color ---
+  if (/white\s*text|text\s*white/.test(lower)) {
+    delta.textOverlay = { ...(delta.textOverlay || {}), color: '#FFFFFF' }
+  } else if (/black\s*text|text\s*black/.test(lower)) {
+    delta.textOverlay = { ...(delta.textOverlay || {}), color: '#000000' }
+  }
+
+  // --- Font size ---
+  if (/\b(bigger|larger|increase|big)\b.*\b(text|font|heading)\b|\b(text|font|heading)\b.*\b(bigger|larger|increase|big)\b/.test(lower)) {
+    const cur = currentConfig?.textOverlay?.fontSize || 48
+    delta.textOverlay = { ...(delta.textOverlay || {}), fontSize: Math.min(cur + 8, 80) }
+  } else if (/\b(smaller|reduce|decrease|tiny|small)\b.*\b(text|font|heading)\b|\b(text|font|heading)\b.*\b(smaller|reduce|decrease|tiny|small)\b/.test(lower)) {
+    const cur = currentConfig?.textOverlay?.fontSize || 48
+    delta.textOverlay = { ...(delta.textOverlay || {}), fontSize: Math.max(cur - 8, 24) }
+  }
+
+  // --- Animation ---
+  for (const [keyword, anim] of Object.entries(ANIMATION_MAP)) {
+    if (lower.includes(keyword)) {
+      delta.animation = anim
+      break
+    }
+  }
+
+  // --- Device type ---
+  if (/\bandroid\b/.test(lower)) delta.deviceType = 'android'
+  else if (/\biphone\b|\bios\b/.test(lower)) delta.deviceType = 'iphone'
+  else if (/\bipad\b|\btablet\b/.test(lower)) delta.deviceType = 'ipad'
+  else if (/\bmac\b|\blaptop\b|\bdesktop\b/.test(lower)) delta.deviceType = 'macbook'
+  else if (/\bdual\b|\bboth\b/.test(lower)) delta.deviceType = 'both'
+
+  // --- Clip duration ---
+  const durMatch = lower.match(/(\d+)\s*(?:sec|second|s\b)/)
+  if (durMatch) delta.clipDuration = Math.min(Math.max(parseInt(durMatch[1]), 2), 15)
+  if (/\b(longer|slow)\b/.test(lower) && !durMatch) delta.clipDuration = (currentConfig?.clipDuration || 5) + 2
+  if (/\b(shorter|fast|quick)\b/.test(lower) && !durMatch) delta.clipDuration = Math.max((currentConfig?.clipDuration || 5) - 2, 2)
+
+  // --- Text animation ---
+  if (/text.*from.*left|slide.*left.*text/.test(lower)) delta.textOverlay = { ...(delta.textOverlay || {}), animation: 'slideFromLeft' }
+  else if (/text.*from.*right|slide.*right.*text/.test(lower)) delta.textOverlay = { ...(delta.textOverlay || {}), animation: 'slideFromRight' }
+  else if (/text.*from.*top|slide.*top.*text/.test(lower)) delta.textOverlay = { ...(delta.textOverlay || {}), animation: 'slideFromTop' }
+  else if (/text.*from.*bottom|slide.*bottom.*text/.test(lower)) delta.textOverlay = { ...(delta.textOverlay || {}), animation: 'slideFromBottom' }
+
+  // --- Remove outro ---
+  if (/no\s*outro|remove\s*outro|disable\s*outro/.test(lower)) delta.outroAnimation = 'none'
+  if (/zoom\s*out\s*outro/.test(lower)) delta.outroAnimation = 'zoomOut'
+
+  return Object.keys(delta).length > 0 ? delta : null
 }
 
 async function callLlama(userPrompt) {
