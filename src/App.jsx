@@ -1439,6 +1439,44 @@ function App() {
                       <div className="screen-slot-panel">
                         <h3 className="section-title">Assign Media to Devices</h3>
                         <p className="slot-hint">Select which screen each device shows</p>
+                        {animation === 'sideScroll10' && (
+                          <div className="device-count-row">
+                            <span className="device-count-label">Number of devices</span>
+                            <div className="device-count-stepper">
+                              <button
+                                className="stepper-btn"
+                                disabled={multiDeviceCount <= 2}
+                                onClick={() => {
+                                  const next = Math.max(2, multiDeviceCount - 1)
+                                  setMultiDeviceCount(next)
+                                  const slots = Array.from({ length: next }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' }))
+                                  setActiveScreenSlots(slots)
+                                  setScreenSlotMap((prev) => {
+                                    return slots.map((_, i) => prev[i] || screens[i]?.id || screens[0]?.id || null)
+                                  })
+                                }}
+                              >
+                                −
+                              </button>
+                              <span className="stepper-value">{multiDeviceCount}</span>
+                              <button
+                                className="stepper-btn"
+                                disabled={multiDeviceCount >= 20}
+                                onClick={() => {
+                                  const next = Math.min(20, multiDeviceCount + 1)
+                                  setMultiDeviceCount(next)
+                                  const slots = Array.from({ length: next }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' }))
+                                  setActiveScreenSlots(slots)
+                                  setScreenSlotMap((prev) => {
+                                    return slots.map((_, i) => prev[i] || screens[i]?.id || screens[0]?.id || null)
+                                  })
+                                }}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         <div className="screen-slot-list">
                           {activeScreenSlots.map((slot, i) => {
                             const assignedId = screenSlotMap[i] || null
@@ -1843,44 +1881,6 @@ function App() {
                           ))}
                         </div>
                       </div>
-                      {currentAnim === 'sideScroll10' && (
-                        <div className="control-group">
-                          <h3 className="section-title">Devices</h3>
-                          <div className="device-count-stepper">
-                            <button
-                              className="stepper-btn"
-                              disabled={multiDeviceCount <= 2}
-                              onClick={() => {
-                                const next = Math.max(2, multiDeviceCount - 1)
-                                setMultiDeviceCount(next)
-                                const slots = Array.from({ length: next }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' }))
-                                setActiveScreenSlots(slots)
-                                setScreenSlotMap((prev) => {
-                                  return slots.map((_, i) => prev[i] || screens[i]?.id || screens[0]?.id || null)
-                                })
-                              }}
-                            >
-                              −
-                            </button>
-                            <span className="stepper-value">{multiDeviceCount}</span>
-                            <button
-                              className="stepper-btn"
-                              disabled={multiDeviceCount >= 20}
-                              onClick={() => {
-                                const next = Math.min(20, multiDeviceCount + 1)
-                                setMultiDeviceCount(next)
-                                const slots = Array.from({ length: next }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' }))
-                                setActiveScreenSlots(slots)
-                                setScreenSlotMap((prev) => {
-                                  return slots.map((_, i) => prev[i] || screens[i]?.id || screens[0]?.id || null)
-                                })
-                              }}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                      )}
                       <div className="control-group">
                         <h3 className="section-title">Exit Animation</h3>
                         <p className="anim-hint">Plays during the last 1.8s of the clip</p>
