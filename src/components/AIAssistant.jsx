@@ -19,7 +19,7 @@ export default function AIAssistant({ getCurrentConfig, onApplyDelta }) {
       if (messages.length === 0) {
         setMessages([{
           role: 'bot',
-          text: 'Need changes? Just tell me what you want — "make it darker", "bigger text", "switch to orbit animation"...',
+          text: 'I can help with anything — switch templates, change animation, background, text, music, zoom, duration, aspect ratio, export settings, and more. Just tell me what you want!',
         }])
       }
     }
@@ -45,17 +45,43 @@ export default function AIAssistant({ getCurrentConfig, onApplyDelta }) {
 
       if (data.delta) {
         onApplyDelta(data.delta)
-        const changes = Object.keys(data.delta)
-          .map(k => k === 'textOverlay' ? 'text' : k.replace(/([A-Z])/g, ' $1').toLowerCase())
-          .join(', ')
+        let summary
+        if (data.delta.templateId) {
+          const name = data.delta.templateId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          summary = `Switched to the ${name} template.`
+        } else {
+          const changes = Object.keys(data.delta)
+            .filter(k => k !== 'addZoom' && k !== 'removeZoom' && k !== 'addTextOverlay' && k !== 'removeTextOverlay')
+            .map(k => {
+              if (k === 'textOverlay') return 'text'
+              if (k === 'musicId') return data.delta.musicId === null ? 'removed music' : 'music'
+              if (k === 'musicVolume') return 'music volume'
+              if (k === 'bgGradient') return 'gradient'
+              if (k === 'showBase') return 'shadow'
+              if (k === 'totalDuration' || k === 'clipDuration') return 'duration'
+              if (k === 'aspectRatio') return 'aspect ratio'
+              if (k === 'textSplit') return 'text/device split'
+              if (k === 'layoutFlipped') return 'layout'
+              if (k === 'exportFormat') return 'export format'
+              return k.replace(/([A-Z])/g, ' $1').toLowerCase()
+            })
+            .join(', ')
+          const actions = []
+          if (data.delta.addZoom) actions.push('added zoom effect')
+          if (data.delta.removeZoom) actions.push('removed zoom effects')
+          if (data.delta.addTextOverlay) actions.push('added text overlay')
+          if (data.delta.removeTextOverlay) actions.push('removed text overlays')
+          const parts = [changes, ...actions].filter(Boolean).join(', ')
+          summary = `Done! Updated ${parts}.`
+        }
         setMessages(prev => [...prev, {
           role: 'bot',
-          text: `Done! Updated ${changes}.`,
+          text: summary,
         }])
       } else {
         setMessages(prev => [...prev, {
           role: 'bot',
-          text: "I couldn't process that change. Try something like \"make the background blue\" or \"use orbit animation\".",
+          text: "I couldn't process that change. Try things like \"switch to product launch template\", \"make it darker\", \"add music\", \"zoom in\", \"make it 10 seconds\", or \"portrait mode\".",
         }])
       }
     } catch {
@@ -117,7 +143,7 @@ export default function AIAssistant({ getCurrentConfig, onApplyDelta }) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="e.g. make the background blue..."
+          placeholder="e.g. switch to carousel, add music, zoom in..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}

@@ -5,7 +5,7 @@ import './App.css'
 import './components/ControlsPanel.css'
 import UploadPanel from './components/UploadPanel'
 import PreviewScene from './components/PreviewScene'
-import TemplateGallery from './components/TemplateGallery'
+import TemplateGallery, { TEMPLATES } from './components/TemplateGallery'
 
 import Header from './components/Header'
 import ExportModal from './components/ExportModal'
@@ -1197,34 +1197,118 @@ function App() {
   const [voiceoverScriptLoading, setVoiceoverScriptLoading] = useState(false)
 
   const getCurrentConfig = useCallback(() => ({
+    activeTemplateId,
     deviceType,
     animation,
     bgColor,
+    bgGradient,
+    showBase,
     whatsappTheme: activeThemeId,
     outroLogo,
+    outroAnimation: templateOutroRef.current || 'none',
     textOverlay: textOverlays[0] ? {
       text: textOverlays[0].text,
       fontSize: textOverlays[0].fontSize,
       color: textOverlays[0].color,
       animation: textOverlays[0].animation,
+      posY: textOverlays[0].posY,
+      startTime: textOverlays[0].startTime,
+      endTime: textOverlays[0].endTime,
     } : null,
+    textSplit,
+    layoutFlipped,
     clipDuration: templateClipDurRef.current || 5,
-  }), [deviceType, animation, bgColor, activeThemeId, outroLogo, textOverlays])
+    totalDuration: totalDuration || templateClipDurRef.current || 5,
+    aspectRatio,
+    quality,
+    exportFormat,
+    hasZoomEffects: zoomEffects.length > 0,
+    musicTrackName: musicTrack?.name || null,
+    musicVolume: musicTrack?.volume ?? null,
+    currentTime,
+  }), [activeTemplateId, deviceType, animation, bgColor, bgGradient, showBase, activeThemeId, outroLogo, textOverlays, textSplit, layoutFlipped, totalDuration, aspectRatio, quality, exportFormat, zoomEffects, musicTrack, currentTime])
 
   const applyConfigDelta = useCallback((delta) => {
     if (!delta) return
+
+    // Template switch — applies the full template preset then returns
+    if (delta.templateId) {
+      const tmpl = TEMPLATES.find(t => t.id === delta.templateId)
+      if (tmpl) {
+        handleSelectTemplate(tmpl)
+        return
+      }
+    }
+
+    // Device & animation
     if (delta.deviceType) setDeviceType(delta.deviceType)
-    if (delta.animation) setAnimation(delta.animation)
+    if (delta.animation) {
+      setAnimation(delta.animation)
+      setTimelineClips(prev => recalcStartTimes(prev.map(c => ({ ...c, animation: delta.animation }))))
+    }
+    if (delta.outroAnimation) {
+      templateOutroRef.current = delta.outroAnimation
+      setTimelineClips(prev => recalcStartTimes(prev.map(c => ({ ...c, outroAnimation: delta.outroAnimation }))))
+    }
+
+    // Background & appearance
     if (delta.bgColor) setBgColor(delta.bgColor)
+    if (delta.bgGradient !== undefined) setBgGradient(delta.bgGradient)
+    if (delta.showBase !== undefined) setShowBase(delta.showBase)
     if (delta.whatsappTheme) {
       setActiveThemeId(delta.whatsappTheme)
       const themeColors = { 'wa-dark': '#0A1014', 'wa-light': '#E7FDE3', 'wa-beige': '#FEF4EB', 'wa-green': '#1DAA61' }
       if (themeColors[delta.whatsappTheme]) setBgColor(themeColors[delta.whatsappTheme])
     }
     if (delta.whatsappTheme === null) setActiveThemeId(null)
+
+    // Logo
     if (delta.outroLogo !== undefined) setOutroLogo(delta.outroLogo)
-    if (delta.outroAnimation) templateOutroRef.current = delta.outroAnimation
-    if (delta.clipDuration) templateClipDurRef.current = delta.clipDuration
+
+    // Aspect ratio
+    if (delta.aspectRatio) setAspectRatio(delta.aspectRatio)
+
+    // Layout
+    if (delta.textSplit !== undefined) setTextSplit(delta.textSplit)
+    if (delta.layoutFlipped !== undefined) setLayoutFlipped(delta.layoutFlipped)
+
+    // Duration — scale all clips proportionally if totalDuration is set
+    if (delta.totalDuration) {
+      const targetDur = delta.totalDuration
+      setTimelineClips(prev => {
+        if (prev.length === 0) return prev
+        const curTotal = prev.reduce((sum, c) => sum + c.duration, 0)
+        if (curTotal <= 0) return prev
+        const scale = targetDur / curTotal
+        return recalcStartTimes(prev.map(c => ({ ...c, duration: Math.max(1, c.duration * scale) })))
+      })
+      templateClipDurRef.current = targetDur
+    } else if (delta.clipDuration) {
+      templateClipDurRef.current = delta.clipDuration
+      setTimelineClips(prev => {
+        if (prev.length === 0) return prev
+        return recalcStartTimes(prev.map(c => ({ ...c, duration: delta.clipDuration })))
+      })
+    }
+
+    // Zoom effects
+    if (delta.addZoom) {
+      handleAddZoomEffect(currentTime)
+    }
+    if (delta.removeZoom) {
+      setZoomEffects([])
+    }
+
+    // Text overlay — add/remove
+    if (delta.addTextOverlay) {
+      handleAddText(currentTime)
+    }
+    if (delta.removeTextOverlay) {
+      setTextOverlays([])
+      setSelectedTextId(null)
+    }
+
+    // Text overlay — modify first overlay
     if (delta.textOverlay) {
       setTextOverlays(prev => {
         if (prev.length === 0) {
@@ -1236,8 +1320,8 @@ function App() {
             color: delta.textOverlay.color || '#FFFFFF',
             animation: delta.textOverlay.animation || 'slideFromBottom',
             posY: delta.textOverlay.posY ?? -0.45,
-            startTime: 0,
-            endTime: 2.5,
+            startTime: delta.textOverlay.startTime ?? 0,
+            endTime: delta.textOverlay.endTime ?? 2.5,
           }]
         }
         return prev.map((t, i) => {
@@ -1248,12 +1332,36 @@ function App() {
           if (delta.textOverlay.color !== undefined) merged.color = delta.textOverlay.color
           if (delta.textOverlay.animation !== undefined) merged.animation = delta.textOverlay.animation
           if (delta.textOverlay.posY !== undefined) merged.posY = delta.textOverlay.posY
+          if (delta.textOverlay.startTime !== undefined) merged.startTime = delta.textOverlay.startTime
+          if (delta.textOverlay.endTime !== undefined) merged.endTime = delta.textOverlay.endTime
           return merged
         })
       })
     }
+
+    // Music — set by library ID or remove
+    if (delta.musicId !== undefined) {
+      if (delta.musicId === null) {
+        setMusicTrack(null)
+      } else {
+        const track = MUSIC_LIBRARY.find(t => t.id === delta.musicId)
+        if (track) {
+          handleSetMusic({ libraryId: track.id, name: track.name })
+        }
+      }
+    }
+
+    // Music volume
+    if (delta.musicVolume !== undefined) {
+      setMusicTrack(prev => prev ? { ...prev, volume: delta.musicVolume } : prev)
+    }
+
+    // Export settings
+    if (delta.quality) setQuality(delta.quality)
+    if (delta.exportFormat) setExportFormat(delta.exportFormat)
+
     markChanged()
-  }, [markChanged])
+  }, [markChanged, currentTime, handleAddZoomEffect, handleAddText, handleSetMusic, handleSelectTemplate])
 
   const handleAIGenerate = useCallback((result) => {
     const config = result?.config || result
@@ -1636,7 +1744,7 @@ function App() {
                       <div className="screen-slot-panel">
                         <h3 className="section-title">Assign Media to Devices</h3>
                         <p className="slot-hint">Select which screen each device shows</p>
-                        {animation === 'sideScroll10' && (
+                        {['sideScroll10', 'carousel6', 'flatScatter7', 'offsetCircleRotate', 'angledZoom4'].includes(animation) && (
                           <div className="device-count-row">
                             <span className="device-count-label">Number of devices</span>
                             <div className="device-count-stepper">

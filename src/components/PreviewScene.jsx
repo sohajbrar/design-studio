@@ -161,7 +161,7 @@ function useVisibleHeight(zDepth) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft, onDeviceClick }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, onDeviceClick }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -169,11 +169,12 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   const macbookRef = useRef()
   const currentZoomRef = useRef(1)
   const lidAngleRef = useRef(Math.PI / 2)
-  const textOffsetRef = useRef({ x: 0 })
+  const textOffsetRef = useRef({ x: 0, y: 0 })
   const prevTextAnim = useRef('none')
   const ctRef = useRef(clipAnimationTime || 0)
   ctRef.current = clipAnimationTime || 0
   const visibleWidth = useVisibleWidth(0)
+  const visibleHeight = useVisibleHeight(0)
 
   const firstScreen = activeScreen || screens[0] || null
   const secondScreen = screens[1] || screens[0] || null
@@ -508,15 +509,26 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       group.scale.z * zs
     )
 
-    // Shift device horizontally to make room for text (always left/right split)
+    // Shift device to make room for text
     let targetOffX = 0
+    let targetOffY = 0
     if (activeTextAnim && activeTextAnim !== 'none') {
       const split = textSplit || 0.5
       const deviceFraction = 1 - split
-      if (textOnLeft) {
-        targetOffX = (visibleWidth / 2) - (visibleWidth * deviceFraction) / 2
+      if (isVerticalLayout) {
+        // Vertical: shift device up or down
+        if (textOnTop) {
+          targetOffY = -(visibleHeight / 2) + (visibleHeight * deviceFraction) / 2
+        } else {
+          targetOffY = (visibleHeight / 2) - (visibleHeight * deviceFraction) / 2
+        }
       } else {
-        targetOffX = -(visibleWidth / 2) + (visibleWidth * deviceFraction) / 2
+        // Horizontal: shift device left or right
+        if (textOnLeft) {
+          targetOffX = (visibleWidth / 2) - (visibleWidth * deviceFraction) / 2
+        } else {
+          targetOffX = -(visibleWidth / 2) + (visibleWidth * deviceFraction) / 2
+        }
       }
     }
 
@@ -525,7 +537,9 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
     const snap = animChanged && activeTextAnim !== 'none'
     const lerpSpeed = snap ? 1 : 0.08
     textOffsetRef.current.x += (targetOffX - textOffsetRef.current.x) * lerpSpeed
+    textOffsetRef.current.y += (targetOffY - textOffsetRef.current.y) * lerpSpeed
     group.position.x += textOffsetRef.current.x
+    group.position.y += textOffsetRef.current.y
   })
 
   return (
@@ -693,41 +707,42 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
         break
       }
 
-      // ── 4. Angled Zoom 4 ──────────────────────────
+      // ── 4. Angled Zoom (dynamic count) ──────────────
       case 'angledZoom4': {
+        const count = multiDeviceCount || 4
         const introP = easeOutCubic(Math.min(1, t / 2.0))
         g.rotation.x = 0.35 * introP + smoothSin(t, 0.12, 0.02)
         g.rotation.y = -0.15 * introP + smoothSin(t, 0.1, 0.06)
         g.position.y = -0.2 * introP + smoothSin(t, 0.2, 0.04)
-        const layouts = [
-          { x: -1.6, y: 0.1, z: -0.8, ry: 0.15, rz: 0.04 },
-          { x: -0.55, y: 0.15, z: -0.2, ry: 0.08, rz: 0.02 },
-          { x: 0.55, y: 0.2, z: 0.2, ry: -0.08, rz: -0.02 },
-          { x: 1.6, y: 0.1, z: -0.4, ry: -0.15, rz: -0.04 },
-        ]
-        layouts.forEach((l, i) => {
+        const totalSpan = 3.2
+        for (let i = 0; i < count; i++) {
           const ref = d[`p${i}`]
-          if (ref) {
-            ref.position.set(l.x, l.y + smoothSin(t + i * 0.5, 0.3, 0.04), l.z)
-            ref.rotation.set(0, l.ry, l.rz)
-          }
-        })
+          if (!ref) continue
+          const frac = count === 1 ? 0.5 : i / (count - 1)
+          const x = -totalSpan / 2 + frac * totalSpan
+          const z = -0.4 + 0.4 * Math.sin(frac * Math.PI)
+          const y = 0.1 + 0.1 * Math.sin(frac * Math.PI)
+          const ry = 0.15 - frac * 0.3
+          const rz = 0.04 - frac * 0.08
+          ref.position.set(x, y + smoothSin(t + i * 0.5, 0.3, 0.04), z)
+          ref.rotation.set(0, ry, rz)
+        }
         break
       }
 
-      // ── 5. Carousel 6 ─────────────────────────────
+      // ── 5. Carousel (dynamic count) ──────────────────
       case 'carousel6': {
+        const count = multiDeviceCount || 6
         g.rotation.y = t * 0.2
         g.position.y = smoothSin(t, 0.25, 0.05)
-        for (let i = 0; i < 6; i++) {
+        const r = Math.max(1.2, 0.3 * count)
+        for (let i = 0; i < count; i++) {
           const ref = d[`p${i}`]
-          if (ref) {
-            const angle = (i / 6) * Math.PI * 2
-            const r = 1.8
-            const yOff = (i % 2 === 0 ? 0.2 : -0.2) + smoothSin(t + i * 0.8, 0.35, 0.06)
-            ref.position.set(Math.sin(angle) * r, yOff, Math.cos(angle) * r)
-            ref.rotation.y = angle
-          }
+          if (!ref) continue
+          const angle = (i / count) * Math.PI * 2
+          const yOff = (i % 2 === 0 ? 0.2 : -0.2) + smoothSin(t + i * 0.8, 0.35, 0.06)
+          ref.position.set(Math.sin(angle) * r, yOff, Math.cos(angle) * r)
+          ref.rotation.y = angle
         }
         break
       }
@@ -769,48 +784,51 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
         break
       }
 
-      // ── 8. Offset Circle Rotate ────────────────────
+      // ── 8. Offset Circle Rotate (dynamic count) ──────
       case 'offsetCircleRotate': {
+        const count = multiDeviceCount || 6
         g.rotation.y = t * 0.18
         g.position.y = smoothSin(t, 0.2, 0.04)
         g.rotation.x = smoothSin(t, 0.1, 0.03)
-        const offsets = [0, 0.25, -0.15, 0.35, -0.3, 0.1]
-        for (let i = 0; i < 6; i++) {
+        const r = Math.max(1.0, 0.25 * count)
+        for (let i = 0; i < count; i++) {
           const ref = d[`p${i}`]
-          if (ref) {
-            const angle = (i / 6) * Math.PI * 2
-            const r = 1.5
-            ref.position.set(Math.sin(angle) * r, offsets[i] + smoothSin(t + i * 0.6, 0.3, 0.04), Math.cos(angle) * r)
-            ref.rotation.y = angle
-            ref.rotation.z = smoothSin(t + i, 0.2, 0.02)
-          }
+          if (!ref) continue
+          const angle = (i / count) * Math.PI * 2
+          const yOff = ((i % 3 === 0) ? 0.25 : (i % 3 === 1) ? -0.15 : 0.1)
+          ref.position.set(Math.sin(angle) * r, yOff + smoothSin(t + i * 0.6, 0.3, 0.04), Math.cos(angle) * r)
+          ref.rotation.y = angle
+          ref.rotation.z = smoothSin(t + i, 0.2, 0.02)
         }
         break
       }
 
-      // ── 9. Flat Scatter — phones lying face-up on a surface ──
+      // ── 9. Flat Grid (dynamic count) — phones lying face-up ──
       case 'flatScatter7': {
+        const count = multiDeviceCount || 7
         g.rotation.x = 0.55
         g.rotation.y = smoothSin(t, 0.04, 0.05)
         g.position.y = 0.35 + smoothSin(t, 0.08, 0.03)
 
-        const grid = [
-          { x: -1.25, z: -0.75, rz: -0.18 },
-          { x:  0.0,  z: -0.75, rz:  0.12 },
-          { x:  1.25, z: -0.75, rz: -0.10 },
-          { x: -1.85, z:  0.35, rz:  0.22 },
-          { x: -0.62, z:  0.35, rz: -0.15 },
-          { x:  0.62, z:  0.35, rz:  0.20 },
-          { x:  1.85, z:  0.35, rz: -0.12 },
-        ]
-
-        for (let i = 0; i < 7; i++) {
-          const ref = d[`p${i}`]
-          if (!ref) continue
-          const s = grid[i]
-          ref.position.set(s.x, 0.01 * i, s.z)
-          ref.rotation.set(-Math.PI / 2, 0, s.rz + smoothSin(t + i * 0.7, 0.03, 0.015))
-          ref.scale.set(1, 1, 1)
+        const cols = Math.min(count, Math.ceil(Math.sqrt(count * 1.5)))
+        const rows = Math.ceil(count / cols)
+        const spacingX = 1.25
+        const spacingZ = 1.1
+        let idx = 0
+        for (let row = 0; row < rows && idx < count; row++) {
+          const itemsInRow = Math.min(cols, count - idx)
+          const rowOffX = -(itemsInRow - 1) * spacingX / 2
+          for (let col = 0; col < itemsInRow; col++) {
+            const ref = d[`p${idx}`]
+            if (ref) {
+              const x = rowOffX + col * spacingX
+              const z = -(rows - 1) * spacingZ / 2 + row * spacingZ
+              ref.position.set(x, 0.01 * idx, z)
+              ref.rotation.set(-Math.PI / 2, 0, 0)
+              ref.scale.set(1, 1, 1)
+            }
+            idx++
+          }
         }
         break
       }
@@ -851,13 +869,13 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     case 'circle4Rotate':
       return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(4, 0.28)}</group>
     case 'angledZoom4':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(4, 0.32)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 4, 0.32)}</group>
     case 'carousel6':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(6, 0.26)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 6, 0.26)}</group>
     case 'offsetCircleRotate':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(6, 0.27)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 6, 0.27)}</group>
     case 'flatScatter7':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(7, 0.30)}</group>
+      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 7, 0.30)}</group>
     case 'floatingPhoneLaptop':
     case 'phoneInFrontLaptop': {
       const phoneSrc = getSlotScreen(0)
@@ -907,7 +925,7 @@ function GroundPlane() {
 
 // ── Canvas-texture text overlay (viewport-aware) ─────────────
 const TEXT_Z = 1.0
-function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, onTextClick }) {
+function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick }) {
   const meshRef = useRef()
   const ctRef = useRef(currentTime)
   ctRef.current = currentTime
@@ -924,8 +942,12 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, onText
 
   const split = textSplit || 0.5
   const margin = 0.08
-  const textAreaWidth = visibleWidth * split * (1 - margin * 2)
-  const textAreaHeight = visibleHeight * (1 - margin * 2)
+  const textAreaWidth = isVerticalLayout
+    ? visibleWidth * (1 - margin * 2)
+    : visibleWidth * split * (1 - margin * 2)
+  const textAreaHeight = isVerticalLayout
+    ? visibleHeight * split * (1 - margin * 2)
+    : visibleHeight * (1 - margin * 2)
 
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
@@ -979,10 +1001,19 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, onText
   const clampedH = Math.min(meshH, textAreaHeight)
   const finalW = clampedH < meshH ? clampedH * (TEX_W / TEX_H) : meshW
 
-  // Text always settles in its horizontal half (left or right)
-  const textCenterX = textOnLeft
-    ? -(visibleWidth / 2) + (visibleWidth * split / 2)
-    : (visibleWidth / 2) - (visibleWidth * split / 2)
+  // Text settles in its allocated region
+  let textCenterX, textCenterY
+  if (isVerticalLayout) {
+    textCenterX = 0
+    textCenterY = textOnTop
+      ? (visibleHeight / 2) - (visibleHeight * split / 2)
+      : -(visibleHeight / 2) + (visibleHeight * split / 2)
+  } else {
+    textCenterX = textOnLeft
+      ? -(visibleWidth / 2) + (visibleWidth * split / 2)
+      : (visibleWidth / 2) - (visibleWidth * split / 2)
+    textCenterY = overlay.posY || 0
+  }
 
   useFrame(() => {
     if (!meshRef.current) return
@@ -994,21 +1025,21 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, onText
     const anim = overlay.animation
     if (anim === 'slideFromRight') {
       x = visibleWidth * 0.8 + (textCenterX - visibleWidth * 0.8) * progress
-      y = overlay.posY || 0
+      y = textCenterY
     } else if (anim === 'slideFromLeft') {
       x = -visibleWidth * 0.8 + (textCenterX + visibleWidth * 0.8) * progress
-      y = overlay.posY || 0
+      y = textCenterY
     } else if (anim === 'slideFromBottom') {
       const offY = -visibleHeight * 0.7
-      y = offY + ((overlay.posY || 0) - offY) * progress
+      y = offY + (textCenterY - offY) * progress
       x = textCenterX
     } else if (anim === 'slideFromTop') {
       const offY = visibleHeight * 0.7
-      y = offY + ((overlay.posY || 0) - offY) * progress
+      y = offY + (textCenterY - offY) * progress
       x = textCenterX
     } else {
       x = textCenterX
-      y = overlay.posY || 0
+      y = textCenterY
     }
 
     meshRef.current.position.set(x, y, TEXT_Z)
@@ -1017,7 +1048,7 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, onText
   return (
     <mesh
       ref={meshRef}
-      position={[0, overlay.posY || 0, TEXT_Z]}
+      position={[0, textCenterY, TEXT_Z]}
       renderOrder={10}
       onPointerDown={(e) => { e.stopPropagation(); if (onTextClick) onTextClick(overlay.id) }}
     >
@@ -1027,7 +1058,7 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, onText
   )
 }
 
-function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, onTextClick }) {
+function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick }) {
   if (!textOverlays || textOverlays.length === 0) return null
 
   return (
@@ -1040,7 +1071,7 @@ function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, onText
         .map((overlay) => {
           const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
           return (
-            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} textSplit={textSplit} textOnLeft={textOnLeft} onTextClick={onTextClick} />
+            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} />
           )
         })}
     </group>
@@ -1115,7 +1146,7 @@ function OutroLogo({ logoId, currentTime, totalDuration }) {
 }
 
 // ── Draggable split divider ───────────────────────────────────
-function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, onFlip }) {
+function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, isVerticalLayout, textOnTop, onFlip }) {
   const dividerRef = useRef(null)
   const dragging = useRef(false)
 
@@ -1127,14 +1158,17 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, onFlip })
       const parent = dividerRef.current?.parentElement
       if (!parent) return
       const rect = parent.getBoundingClientRect()
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX
-      const pct = (clientX - rect.left) / rect.width
-      const clamped = Math.min(0.75, Math.max(0.25, pct))
 
-      if (textOnLeft) {
-        onSplitChange(+clamped.toFixed(2))
+      if (isVerticalLayout) {
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY
+        const pct = (clientY - rect.top) / rect.height
+        const clamped = Math.min(0.75, Math.max(0.25, pct))
+        onSplitChange(+(textOnTop ? clamped : 1 - clamped).toFixed(2))
       } else {
-        onSplitChange(+(1 - clamped).toFixed(2))
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX
+        const pct = (clientX - rect.left) / rect.width
+        const clamped = Math.min(0.75, Math.max(0.25, pct))
+        onSplitChange(+(textOnLeft ? clamped : 1 - clamped).toFixed(2))
       }
     }
 
@@ -1149,11 +1183,50 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, onFlip })
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onUp)
     }
-  }, [visible, onSplitChange, textOnLeft])
+  }, [visible, onSplitChange, textOnLeft, isVerticalLayout, textOnTop])
 
   if (!visible) return null
 
   const split = textSplit || 0.5
+  const isH = isVerticalLayout
+
+  if (isH) {
+    const topPct = textOnTop
+      ? (split * 100).toFixed(1)
+      : ((1 - split) * 100).toFixed(1)
+
+    return (
+      <div
+        ref={dividerRef}
+        className="split-divider split-divider-h"
+        style={{ top: `${topPct}%` }}
+        onMouseDown={(e) => { e.preventDefault(); dragging.current = true; document.body.style.cursor = 'row-resize' }}
+        onTouchStart={() => { dragging.current = true }}
+      >
+        <div className="split-divider-handle split-divider-handle-h">
+          <div className="split-divider-dots split-divider-dots-h">
+            <span /><span /><span />
+          </div>
+        </div>
+        {onFlip && (
+          <button
+            className="split-swap-btn split-swap-btn-h"
+            title="Swap text & device positions"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onFlip() }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="17 1 21 5 17 9" />
+              <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+              <polyline points="7 23 3 19 7 15" />
+              <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+            </svg>
+          </button>
+        )}
+      </div>
+    )
+  }
+
   const leftPct = textOnLeft
     ? (split * 100).toFixed(1)
     : ((1 - split) * 100).toFixed(1)
@@ -1236,8 +1309,11 @@ export default function PreviewScene({
 
   const hasActiveText = activeTextAnim && activeTextAnim !== 'none'
   const showDivider = hasActiveText
-  const defaultTextOnLeft = activeTextAnim === 'slideFromLeft' || activeTextAnim === 'slideFromBottom'
-  const textOnLeft = layoutFlipped ? !defaultTextOnLeft : defaultTextOnLeft
+  const isVerticalLayout = activeTextAnim === 'slideFromTop' || activeTextAnim === 'slideFromBottom'
+  const defaultTextOnLeft = activeTextAnim === 'slideFromLeft'
+  const defaultTextOnTop = activeTextAnim === 'slideFromTop'
+  const textOnLeft = isVerticalLayout ? false : (layoutFlipped ? !defaultTextOnLeft : defaultTextOnLeft)
+  const textOnTop = isVerticalLayout ? (layoutFlipped ? !defaultTextOnTop : defaultTextOnTop) : false
 
   return (
     <div className="preview-scene" ref={containerRef}>
@@ -1301,6 +1377,8 @@ export default function PreviewScene({
               activeTextAnim={activeTextAnim}
               textSplit={textSplit}
               textOnLeft={textOnLeft}
+              isVerticalLayout={isVerticalLayout}
+              textOnTop={textOnTop}
               onDeviceClick={onDeviceClick}
             />
           )}
@@ -1315,7 +1393,7 @@ export default function PreviewScene({
               />
           )}
         </Suspense>
-        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} textSplit={textSplit} textOnLeft={textOnLeft} onTextClick={onTextClick} />
+        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} />
         {outroLogo && totalDuration > 3 && (
           <OutroLogo logoId={outroLogo} currentTime={currentTime} totalDuration={totalDuration} />
         )}
@@ -1326,7 +1404,7 @@ export default function PreviewScene({
           enableRotate={false}
         />
       </Canvas>
-      <SplitDivider textSplit={textSplit} onSplitChange={onTextSplitChange} visible={showDivider} textOnLeft={textOnLeft} onFlip={onFlipLayout} />
+      <SplitDivider textSplit={textSplit} onSplitChange={onTextSplitChange} visible={showDivider} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onFlip={onFlipLayout} />
       </div>
 
       {screens.length === 0 && (

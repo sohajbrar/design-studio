@@ -148,6 +148,12 @@
   flex-direction: row;
 }
 
+.split-swap-btn.split-swap-btn-h {
+  top: 50%;
+  left: calc(50% + 30px);
+  transform: translateY(-50%);
+}
+
 .preview-empty {
   position: absolute;
   inset: 0;
