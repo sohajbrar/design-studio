@@ -212,13 +212,20 @@ function MultiDeviceAnim({ animation }) {
         break
       }
       case 'circle4Rotate': {
-        g.rotation.y = t * 0.25
-        g.position.y = sSin(t, 0.3, 0.06)
+        const stepDur = 1.4
+        const transDur = 0.5
+        const rawStep = t / stepDur
+        const stepIdx = Math.floor(rawStep)
+        const frac = rawStep - stepIdx
+        const snapFrac = frac < (transDur / stepDur) ? easeOut(frac / (transDur / stepDur)) : 1
+        const smoothStep = Math.min(stepIdx + snapFrac, 4)
+        g.rotation.y = (smoothStep / 4) * Math.PI * 2
+        g.rotation.x = 0.08
         for (let i = 0; i < 4; i++) {
           const r = d[`p${i}`]
           if (r) {
             const a = (i / 4) * Math.PI * 2
-            r.position.set(Math.sin(a) * 1.1, sSin(t + i, 0.4, 0.04), Math.cos(a) * 1.1)
+            r.position.set(Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5)
             r.rotation.y = a
           }
         }

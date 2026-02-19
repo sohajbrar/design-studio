@@ -666,15 +666,27 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
       // ── 3. Circle 4 Rotate ─────────────────────────
       case 'circle4Rotate': {
-        g.rotation.y = t * 0.25
-        g.position.y = smoothSin(t, 0.3, 0.06)
-        g.rotation.x = smoothSin(t, 0.15, 0.03)
+        const stepDur = 1.4
+        const transDur = 0.5
+        const totalSteps = 4
+        const rawStep = t / stepDur
+        const stepIdx = Math.floor(rawStep)
+        const frac = rawStep - stepIdx
+        const snapFrac = frac < (transDur / stepDur)
+          ? easeOutCubic(frac / (transDur / stepDur))
+          : 1
+        const smoothStep = Math.min(stepIdx + snapFrac, totalSteps)
+        const targetAngle = (smoothStep / totalSteps) * Math.PI * 2
+
+        g.rotation.y = targetAngle
+        g.rotation.x = 0.08
+
+        const radius = 0.52
         for (let i = 0; i < 4; i++) {
           const ref = d[`p${i}`]
           if (ref) {
             const angle = (i / 4) * Math.PI * 2
-            const r = 1.3
-            ref.position.set(Math.sin(angle) * r, smoothSin(t + i, 0.4, 0.05), Math.cos(angle) * r)
+            ref.position.set(Math.sin(angle) * radius, 0, Math.cos(angle) * radius)
             ref.rotation.y = angle
           }
         }
