@@ -67,6 +67,8 @@ function useTintedLights(bgColor) {
 // ── Scene background ──────────────────────────────────────────
 function SceneBackground({ bgColor, bgGradient }) {
   const { scene } = useThree()
+  const meshRef = useRef()
+  const [gradientTex, setGradientTex] = useState(null)
 
   useEffect(() => {
     if (bgGradient && typeof bgGradient === 'object' && bgGradient.blobs) {
@@ -79,7 +81,7 @@ function SceneBackground({ bgColor, bgGradient }) {
       ctx.fillRect(0, 0, W, H)
 
       for (const blob of bgGradient.blobs) {
-        const x = blob.cx * W, y = blob.cy * H, rad = blob.r * W
+        const x = blob.cx * W, y = (1 - blob.cy) * H, rad = blob.r * W
         const grad = ctx.createRadialGradient(x, y, 0, x, y, rad)
         const [r, g, b] = blob.c
         grad.addColorStop(0, `rgba(${r},${g},${b},${blob.a})`)
@@ -89,7 +91,10 @@ function SceneBackground({ bgColor, bgGradient }) {
         ctx.fillStyle = grad
         ctx.fillRect(0, 0, W, H)
       }
-      scene.background = new THREE.CanvasTexture(canvas)
+      const tex = new THREE.CanvasTexture(canvas)
+      tex.colorSpace = THREE.SRGBColorSpace
+      scene.background = null
+      setGradientTex(tex)
     } else if (bgGradient === true) {
       const canvas = document.createElement('canvas')
       canvas.width = 512
@@ -110,13 +115,24 @@ function SceneBackground({ bgColor, bgGradient }) {
       glow.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`)
       ctx.fillStyle = glow
       ctx.fillRect(0, 0, 512, 512)
-      scene.background = new THREE.CanvasTexture(canvas)
+      const tex = new THREE.CanvasTexture(canvas)
+      tex.colorSpace = THREE.SRGBColorSpace
+      scene.background = null
+      setGradientTex(tex)
     } else {
       scene.background = new THREE.Color(bgColor)
+      setGradientTex(null)
     }
   }, [bgColor, bgGradient, scene])
 
-  return null
+  if (!gradientTex) return null
+
+  return (
+    <mesh ref={meshRef} position={[0, 0, -50]} renderOrder={-1000}>
+      <planeGeometry args={[120, 120]} />
+      <meshBasicMaterial map={gradientTex} toneMapped={false} depthWrite={false} />
+    </mesh>
+  )
 }
 
 // ── Camera animator (for presets that move the camera) ─────────
@@ -227,6 +243,8 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   // Per-clip position/rotation storage
   const clipAdjMap = useRef({})
   const prevClipIdRef = useRef(activeClipId)
+  const activeClipIdRef = useRef(activeClipId)
+  activeClipIdRef.current = activeClipId
 
   // Transition blending between clips
   const transFromRef = useRef(null)
@@ -234,43 +252,10 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   const TRANS_DUR = 0.4
 
   useEffect(() => {
-    if (activeClipId && prevClipIdRef.current && activeClipId !== prevClipIdRef.current) {
-      // Save adjustments for the outgoing clip
-      clipAdjMap.current[prevClipIdRef.current] = {
-        pos: { ...userPosRef.current },
-        rot: { ...userRotRef.current },
-      }
-      // Load adjustments for the incoming clip
-      const incoming = clipAdjMap.current[activeClipId]
-      if (incoming) {
-        userPosRef.current = { ...incoming.pos }
-        userRotRef.current = { ...incoming.rot }
-      } else {
-        userPosRef.current = { x: 0, y: 0 }
-        userRotRef.current = { x: 0, y: 0 }
-      }
-      // Start transition blend
-      if (groupRef.current) {
-        const g = groupRef.current
-        transFromRef.current = {
-          px: g.position.x, py: g.position.y, pz: g.position.z,
-          rx: g.rotation.x, ry: g.rotation.y, rz: g.rotation.z,
-          sx: g.scale.x, sy: g.scale.y, sz: g.scale.z,
-        }
-        transTRef.current = 0
-      }
-      const hasAdj = clipAdjMap.current[activeClipId] &&
-        (Math.abs(clipAdjMap.current[activeClipId].pos.x) > 0.001 || Math.abs(clipAdjMap.current[activeClipId].rot.x) > 0.001)
-      if (onManualAdjust) onManualAdjust(!!hasAdj)
-    }
-    prevClipIdRef.current = activeClipId
-  }, [activeClipId, onManualAdjust])
-
-  useEffect(() => {
     userRotRef.current = { x: 0, y: 0 }
     userPosRef.current = { x: 0, y: 0 }
     if (activeClipId) clipAdjMap.current[activeClipId] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
-  }, [resetKey, activeClipId])
+  }, [resetKey])
 
   const isSingleDevice = deviceType !== 'both'
 
@@ -306,6 +291,13 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       const hasAdj = Math.abs(userRotRef.current.x) > 0.001 || Math.abs(userRotRef.current.y) > 0.001 ||
                      Math.abs(userPosRef.current.x) > 0.001 || Math.abs(userPosRef.current.y) > 0.001
       if (onManualAdjust) onManualAdjust(hasAdj)
+      const cid = activeClipIdRef.current
+      if (cid) {
+        clipAdjMap.current[cid] = {
+          pos: { ...userPosRef.current },
+          rot: { ...userRotRef.current },
+        }
+      }
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
@@ -317,6 +309,10 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
     e.stopPropagation()
     userRotRef.current = { x: 0, y: 0 }
     userPosRef.current = { x: 0, y: 0 }
+    const cid = activeClipIdRef.current
+    if (cid) {
+      clipAdjMap.current[cid] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+    }
     if (onManualAdjust) onManualAdjust(false)
   }, [onManualAdjust])
 
@@ -332,6 +328,36 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
 
   useFrame(() => {
     if (!groupRef.current) return
+
+    // Synchronous per-clip adjustment swap (runs in animation loop, no timing gap)
+    const curClipId = activeClipIdRef.current
+    if (curClipId !== prevClipIdRef.current) {
+      if (prevClipIdRef.current) {
+        clipAdjMap.current[prevClipIdRef.current] = {
+          pos: { ...userPosRef.current },
+          rot: { ...userRotRef.current },
+        }
+      }
+      const incoming = clipAdjMap.current[curClipId]
+      if (incoming) {
+        userPosRef.current = { ...incoming.pos }
+        userRotRef.current = { ...incoming.rot }
+      } else {
+        userPosRef.current = { x: 0, y: 0 }
+        userRotRef.current = { x: 0, y: 0 }
+      }
+      if (groupRef.current) {
+        const g = groupRef.current
+        transFromRef.current = {
+          px: g.position.x, py: g.position.y, pz: g.position.z,
+          rx: g.rotation.x, ry: g.rotation.y, rz: g.rotation.z,
+          sx: g.scale.x, sy: g.scale.y, sz: g.scale.z,
+        }
+        transTRef.current = 0
+      }
+      prevClipIdRef.current = curClipId
+    }
+
     const t = ctRef.current
     const group = groupRef.current
     const iph = iphoneRef.current
@@ -837,6 +863,8 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
   // Per-clip position/rotation storage
   const clipAdjMap = useRef({})
   const prevClipIdRef = useRef(activeClipId)
+  const activeClipIdRef = useRef(activeClipId)
+  activeClipIdRef.current = activeClipId
 
   // Transition blending
   const transFromRef = useRef(null)
@@ -844,40 +872,10 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
   const TRANS_DUR = 0.4
 
   useEffect(() => {
-    if (activeClipId && prevClipIdRef.current && activeClipId !== prevClipIdRef.current) {
-      clipAdjMap.current[prevClipIdRef.current] = {
-        pos: { ...userPosRef.current },
-        rot: { ...userRotRef.current },
-      }
-      const incoming = clipAdjMap.current[activeClipId]
-      if (incoming) {
-        userPosRef.current = { ...incoming.pos }
-        userRotRef.current = { ...incoming.rot }
-      } else {
-        userPosRef.current = { x: 0, y: 0 }
-        userRotRef.current = { x: 0, y: 0 }
-      }
-      if (groupRef.current) {
-        const g = groupRef.current
-        transFromRef.current = {
-          px: g.position.x, py: g.position.y, pz: g.position.z,
-          rx: g.rotation.x, ry: g.rotation.y, rz: g.rotation.z,
-          sx: g.scale.x, sy: g.scale.y, sz: g.scale.z,
-        }
-        transTRef.current = 0
-      }
-      const hasAdj = clipAdjMap.current[activeClipId] &&
-        (Math.abs(clipAdjMap.current[activeClipId].pos.x) > 0.001 || Math.abs(clipAdjMap.current[activeClipId].rot.x) > 0.001)
-      if (onManualAdjust) onManualAdjust(!!hasAdj)
-    }
-    prevClipIdRef.current = activeClipId
-  }, [activeClipId, onManualAdjust])
-
-  useEffect(() => {
     userRotRef.current = { x: 0, y: 0 }
     userPosRef.current = { x: 0, y: 0 }
     if (activeClipId) clipAdjMap.current[activeClipId] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
-  }, [resetKey, activeClipId])
+  }, [resetKey])
 
   const handlePointerDown = useCallback((e) => {
     e.stopPropagation()
@@ -909,6 +907,13 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       const hasAdj = Math.abs(userRotRef.current.x) > 0.001 || Math.abs(userRotRef.current.y) > 0.001 ||
                      Math.abs(userPosRef.current.x) > 0.001 || Math.abs(userPosRef.current.y) > 0.001
       if (onManualAdjust) onManualAdjust(hasAdj)
+      const cid = activeClipIdRef.current
+      if (cid) {
+        clipAdjMap.current[cid] = {
+          pos: { ...userPosRef.current },
+          rot: { ...userRotRef.current },
+        }
+      }
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
@@ -920,6 +925,10 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     e.stopPropagation()
     userRotRef.current = { x: 0, y: 0 }
     userPosRef.current = { x: 0, y: 0 }
+    const cid = activeClipIdRef.current
+    if (cid) {
+      clipAdjMap.current[cid] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+    }
     if (onManualAdjust) onManualAdjust(false)
   }, [onManualAdjust])
   const ctRef = useRef(0)
@@ -953,9 +962,36 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
   const lidAngleRef = useRef(Math.PI / 2)
 
   useFrame(() => {
-    const t = ctRef.current
     const g = groupRef.current
     if (!g) return
+
+    // Synchronous per-clip adjustment swap
+    const curClipId = activeClipIdRef.current
+    if (curClipId !== prevClipIdRef.current) {
+      if (prevClipIdRef.current) {
+        clipAdjMap.current[prevClipIdRef.current] = {
+          pos: { ...userPosRef.current },
+          rot: { ...userRotRef.current },
+        }
+      }
+      const incoming = clipAdjMap.current[curClipId]
+      if (incoming) {
+        userPosRef.current = { ...incoming.pos }
+        userRotRef.current = { ...incoming.rot }
+      } else {
+        userPosRef.current = { x: 0, y: 0 }
+        userRotRef.current = { x: 0, y: 0 }
+      }
+      transFromRef.current = {
+        px: g.position.x, py: g.position.y, pz: g.position.z,
+        rx: g.rotation.x, ry: g.rotation.y, rz: g.rotation.z,
+        sx: g.scale.x, sy: g.scale.y, sz: g.scale.z,
+      }
+      transTRef.current = 0
+      prevClipIdRef.current = curClipId
+    }
+
+    const t = ctRef.current
     const d = devRefs.current
 
     g.position.set(0, 0, 0)
