@@ -1214,7 +1214,8 @@ function App() {
     setTimeout(() => {
       setIsPlaying(true)
       setIsTimelinePlaying(true)
-    }, 150)
+      hasUnsavedChanges.current = false
+    }, 250)
   }, [handleSetMusic, timelineClips, screens])
 
   const [aiLoading, setAiLoading] = useState(false)
@@ -1643,7 +1644,8 @@ function App() {
     setTimeout(() => {
       setIsPlaying(true)
       setIsTimelinePlaying(true)
-    }, 150)
+      hasUnsavedChanges.current = false
+    }, 500)
   }, [screens, handleSetMusic])
 
   const handleStartBlank = useCallback(() => {
@@ -1681,14 +1683,18 @@ function App() {
   const handleConfirmBack = useCallback(() => {
     setIsPlaying(false)
     setIsTimelinePlaying(false)
-    if (recorderRef.current && recorderRef.current.state === 'recording') {
-      recorderRef.current.stop()
-    }
+    try {
+      if (recorderRef.current && recorderRef.current.state === 'recording') {
+        recorderRef.current.stop()
+      }
+    } catch (_) { /* ignore */ }
     setIsRecording(false)
 
-    screens.forEach((s) => URL.revokeObjectURL(s.url))
-    if (musicTrack?.url && !musicTrack.isLibrary) URL.revokeObjectURL(musicTrack.url)
-    if (voiceoverTrack?.url) URL.revokeObjectURL(voiceoverTrack.url)
+    try {
+      screens.forEach((s) => URL.revokeObjectURL(s.url))
+      if (musicTrack?.url && !musicTrack.isLibrary) URL.revokeObjectURL(musicTrack.url)
+      if (voiceoverTrack?.url) URL.revokeObjectURL(voiceoverTrack.url)
+    } catch (_) { /* ignore cleanup errors */ }
 
     setScreens([])
     setTimelineClips([])
