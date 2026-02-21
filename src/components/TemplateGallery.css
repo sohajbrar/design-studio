@@ -170,6 +170,7 @@
   padding: 2px 6px;
   border-radius: 100px;
   opacity: 0.85;
+  z-index: 2;
 }
 
 /* 2-column grid inside sidebar */
@@ -214,7 +215,7 @@
 /* Preview area */
 .template-sidebar-preview {
   position: relative;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 10;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -277,6 +278,7 @@
   opacity: 0.35;
   letter-spacing: 0.05em;
   pointer-events: none;
+  z-index: 2;
 }
 
 /* Device badge */
@@ -291,6 +293,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  z-index: 2;
   background: var(--badge-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);

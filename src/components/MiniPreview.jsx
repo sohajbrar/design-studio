@@ -69,16 +69,37 @@ function SceneBg({ bgColor }) {
   return null
 }
 
+// ── Frame controller: drives invalidation for demand frameloop ─
+function FrameController({ paused }) {
+  const { invalidate } = useThree()
+  const mounted = useRef(false)
+
+  useEffect(() => {
+    invalidate()
+    mounted.current = true
+  }, [invalidate])
+
+  useEffect(() => {
+    if (!paused) invalidate()
+  }, [paused, invalidate])
+
+  useFrame(() => {
+    if (!paused) invalidate()
+  })
+
+  return null
+}
+
 // ── Single / dual device animations ──────────────────────────
-function SingleDeviceAnim({ animation, deviceType }) {
+function SingleDeviceAnim({ animation, deviceType, paused }) {
   const gRef = useRef()
-  const tRef = useRef(0)
+  const tRef = useRef(2.5)
   const isBoth = deviceType === 'both'
   const isLaptop = deviceType === 'macbook'
   const isIpad = deviceType === 'ipad'
 
   useFrame((_, dt) => {
-    tRef.current += dt
+    if (!paused) tRef.current += dt
     const t = tRef.current
     const g = gRef.current
     if (!g) return
@@ -137,11 +158,13 @@ function SingleDeviceAnim({ animation, deviceType }) {
       }
       case 'zoomBottomLeft': {
         const p = easeOut(Math.min(1, t / 2.2))
-        const s = 1 + 0.8 * p
+        const s = 1 + 0.5 * p
         g.scale.set(s, s, s)
-        g.rotation.x = -0.25 * p
+        g.rotation.x = -0.25 * p + sSin(t, 0.15, 0.02)
         g.rotation.y = 0.35 * p + sSin(t, 0.12, 0.03)
-        g.position.set(0.6 * p, 0.5 * p, 0.3 * p)
+        g.rotation.z = -0.12 * p
+        g.position.y = sSin(t, 0.22, 0.03)
+        g.position.z = 0.3 * p
         break
       }
       case 'laptopOpen': {
@@ -179,14 +202,14 @@ function SingleDeviceAnim({ animation, deviceType }) {
 }
 
 // ── Multi-device animations ──────────────────────────────────
-function MultiDeviceAnim({ animation }) {
+function MultiDeviceAnim({ animation, paused }) {
   const gRef = useRef()
   const refs = useRef({})
-  const tRef = useRef(0)
+  const tRef = useRef(2.5)
   const setRef = (k) => (el) => { if (el) refs.current[k] = el }
 
   useFrame((_, dt) => {
-    tRef.current += dt
+    if (!paused) tRef.current += dt
     const t = tRef.current
     const g = gRef.current
     if (!g) return
@@ -233,86 +256,114 @@ function MultiDeviceAnim({ animation }) {
       }
       case 'angledZoom4': {
         const p = easeOut(Math.min(1, t / 2.0))
-        g.rotation.x = 0.35 * p
+        g.rotation.x = 0.35 * p + sSin(t, 0.12, 0.02)
         g.rotation.y = -0.15 * p + sSin(t, 0.1, 0.06)
-        const lays = [
-          { x: -1.4, z: -0.7 }, { x: -0.45, z: -0.2 },
-          { x: 0.45, z: 0.2 }, { x: 1.4, z: -0.3 },
-        ]
-        lays.forEach((l, i) => {
+        g.position.y = -0.2 * p + sSin(t, 0.2, 0.04)
+        const span = 3.0
+        for (let i = 0; i < 4; i++) {
           const r = d[`p${i}`]
-          if (r) r.position.set(l.x, sSin(t + i * 0.5, 0.3, 0.03), l.z)
-        })
+          if (!r) continue
+          const frac = i / 3
+          const x = -span / 2 + frac * span
+          const z = -0.4 + 0.4 * Math.sin(frac * Math.PI)
+          const y = 0.1 + 0.1 * Math.sin(frac * Math.PI)
+          const ry = 0.15 - frac * 0.3
+          r.position.set(x, y + sSin(t + i * 0.5, 0.3, 0.04), z)
+          r.rotation.set(0, ry, 0.04 - frac * 0.08)
+        }
         break
       }
       case 'carousel6': {
         g.rotation.y = t * 0.2
+        g.position.y = sSin(t, 0.25, 0.05)
+        const cR = 1.8
         for (let i = 0; i < 6; i++) {
           const r = d[`p${i}`]
-          if (r) {
-            const a = (i / 6) * Math.PI * 2
-            r.position.set(Math.sin(a) * 1.5, (i % 2 === 0 ? 0.15 : -0.15), Math.cos(a) * 1.5)
-            r.rotation.y = a
-          }
+          if (!r) continue
+          const a = (i / 6) * Math.PI * 2
+          const yOff = (i % 2 === 0 ? 0.2 : -0.2) + sSin(t + i * 0.8, 0.35, 0.06)
+          r.position.set(Math.sin(a) * cR, yOff, Math.cos(a) * cR)
+          r.rotation.y = a
         }
         break
       }
       case 'floatingPhoneLaptop': {
         g.rotation.y = sSin(t, 0.15, 0.12)
+        g.position.y = sSin(t, 0.2, 0.04)
         if (d.phone) {
-          d.phone.position.set(-1.1 + sSin(t, 0.18, 0.06), sSin(t + 1, 0.25, 0.1), 0.3)
-          d.phone.rotation.set(0, 0.2 + sSin(t, 0.15, 0.05), 0)
+          d.phone.position.set(-1.4 + sSin(t, 0.18, 0.08), sSin(t + 1, 0.25, 0.12), 0.3)
+          d.phone.rotation.set(sSin(t, 0.2, 0.04), 0.2 + sSin(t, 0.15, 0.06), sSin(t + 0.5, 0.18, 0.03))
         }
         if (d.laptop) {
-          d.laptop.position.set(0.8, 0.05 + sSin(t, 0.3, 0.06), -0.2)
-          d.laptop.rotation.set(-0.12, -0.2 + sSin(t, 0.12, 0.04), 0)
+          d.laptop.position.set(1.1 + sSin(t + 0.5, 0.12, 0.06), 0.1 + sSin(t, 0.3, 0.08), -0.3)
+          d.laptop.rotation.set(-0.15 + sSin(t + 1, 0.15, 0.03), -0.25 + sSin(t, 0.12, 0.05), sSin(t + 0.3, 0.15, 0.02))
         }
         break
       }
       case 'phoneInFrontLaptop': {
         const sp = easeOut(Math.min(1, t / 2.0))
         g.rotation.y = sSin(t, 0.12, 0.06)
+        g.position.y = sSin(t, 0.2, 0.04)
         if (d.laptop) {
-          d.laptop.position.set(0, 0.1, -0.4)
-          d.laptop.rotation.set(-0.1, 0, 0)
+          d.laptop.position.set(0, 0.15, -0.5)
+          d.laptop.rotation.set(-0.12 + sSin(t, 0.1, 0.02), sSin(t, 0.08, 0.03), 0)
         }
         if (d.phone) {
-          d.phone.position.set(3 + (0.7 - 3) * sp, -0.2 + sSin(t, 0.2, 0.04), 0.6)
-          d.phone.rotation.set(0, -0.1, 0)
+          d.phone.position.set(3.5 + (0.9 - 3.5) * sp + sSin(t, 0.15, 0.03), -0.3 + sSin(t + 0.5, 0.2, 0.06), 0.8)
+          d.phone.rotation.set(sSin(t, 0.12, 0.02), -0.1 + sSin(t, 0.1, 0.04), sSin(t + 1, 0.15, 0.02))
         }
         break
       }
       case 'offsetCircleRotate': {
         g.rotation.y = t * 0.18
+        g.rotation.x = sSin(t, 0.1, 0.03)
         g.position.y = sSin(t, 0.2, 0.04)
-        const offs = [0, 0.2, -0.12, 0.28, -0.2, 0.08]
+        const oR = 1.5
         for (let i = 0; i < 6; i++) {
           const r = d[`p${i}`]
-          if (r) {
-            const a = (i / 6) * Math.PI * 2
-            r.position.set(Math.sin(a) * 1.3, offs[i], Math.cos(a) * 1.3)
-            r.rotation.y = a
-          }
+          if (!r) continue
+          const a = (i / 6) * Math.PI * 2
+          const yOff = (i % 3 === 0) ? 0.25 : (i % 3 === 1) ? -0.15 : 0.1
+          r.position.set(Math.sin(a) * oR, yOff + sSin(t + i * 0.6, 0.3, 0.04), Math.cos(a) * oR)
+          r.rotation.y = a
+          r.rotation.z = sSin(t + i, 0.2, 0.02)
         }
         break
       }
       case 'flatScatter7': {
-        g.rotation.x = 0.55
-        g.rotation.y = sSin(t, 0.04, 0.05)
-        g.position.y = 0.35
-        const grid = [
-          { x: -1.25, z: -0.75, rz: -0.18 }, { x: 0, z: -0.75, rz: 0.12 },
-          { x: 1.25, z: -0.75, rz: -0.10 }, { x: -1.85, z: 0.35, rz: 0.22 },
-          { x: -0.62, z: 0.35, rz: -0.15 }, { x: 0.62, z: 0.35, rz: 0.20 },
-          { x: 1.85, z: 0.35, rz: -0.12 },
-        ]
-        for (let i = 0; i < 7; i++) {
-          const r = d[`p${i}`]
-          if (!r) continue
-          const s = grid[i]
-          r.position.set(s.x, 0.01 * i, s.z)
-          r.rotation.set(-Math.PI / 2, 0, s.rz + sSin(t + i * 0.7, 0.03, 0.015))
-          r.scale.set(1, 1, 1)
+        const introEnd = 2.0, settleEnd = 3.5
+        const startRX = 0.4, topRX = 1.25
+        if (t < introEnd) {
+          const p = easeOut(t / introEnd)
+          g.rotation.x = startRX + (topRX - startRX) * p
+          g.rotation.y = 0.2 * (1 - p)
+          g.position.y = 0.45 - 0.1 * p
+        } else if (t < settleEnd) {
+          g.rotation.x = topRX + sSin(t, 0.06, 0.015)
+          g.rotation.y = sSin(t, 0.04, 0.02)
+          g.position.y = 0.35 + sSin(t, 0.08, 0.02)
+        } else {
+          const orbitT = t - settleEnd
+          g.rotation.x = topRX + sSin(t, 0.06, 0.015)
+          g.rotation.y = orbitT * 0.12 + sSin(t, 0.04, 0.02)
+          g.position.y = 0.35 + sSin(t, 0.08, 0.02)
+        }
+        const sp = 0.74
+        const cols = 4, rows = 2
+        const offX = -(cols - 1) * sp / 2, offZ = -(rows - 1) * sp / 2
+        let idx = 0
+        for (let row = 0; row < rows; row++) {
+          const items = Math.min(cols, 7 - idx)
+          const colStart = Math.floor((cols - items) / 2)
+          for (let c = 0; c < items; c++) {
+            const col = colStart + c
+            const r = d[`p${idx}`]
+            if (r) {
+              r.position.set(offX + col * sp, 0, offZ + row * sp)
+              r.rotation.set(-Math.PI / 2, 0, (row + col) % 2 === 1 ? Math.PI / 2 : 0)
+            }
+            idx++
+          }
         }
         break
       }
@@ -375,7 +426,7 @@ const MULTI = new Set([
   'flatScatter7',
 ])
 
-export default function MiniPreviewCanvas({ animation, bgColor, deviceType }) {
+export default function MiniPreviewCanvas({ animation, bgColor, deviceType, paused = false }) {
   const glRef = useRef(null)
 
   const onCreated = useCallback(({ gl }) => { glRef.current = gl }, [])
@@ -393,18 +444,19 @@ export default function MiniPreviewCanvas({ animation, bgColor, deviceType }) {
       camera={{ position: [0, 0, 2.8], fov: 45 }}
       gl={{ antialias: true, alpha: false, powerPreference: 'low-power' }}
       dpr={1}
-      frameloop="always"
+      frameloop="demand"
       style={{ width: '100%', height: '100%', borderRadius: 'inherit' }}
       onCreated={onCreated}
     >
+      <FrameController paused={paused} />
       <SceneBg bgColor={bgColor} />
       <ambientLight intensity={0.5} />
       <directionalLight position={[3, 4, 3]} intensity={1.2} />
       <directionalLight position={[-2, 2, -1]} intensity={0.4} />
       {MULTI.has(animation) ? (
-        <MultiDeviceAnim animation={animation} />
+        <MultiDeviceAnim animation={animation} paused={paused} />
       ) : (
-        <SingleDeviceAnim animation={animation} deviceType={deviceType} />
+        <SingleDeviceAnim animation={animation} deviceType={deviceType} paused={paused} />
       )}
     </Canvas>
   )

@@ -4,6 +4,49 @@ import AIChatFlow from './AIChatFlow'
 
 const MiniPreviewCanvas = lazy(() => import('./MiniPreview'))
 
+function useIsVisible(ref) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(([e]) => setVisible(e.isIntersecting), { rootMargin: '100px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [ref])
+  return visible
+}
+
+function TemplateCardPreview({ template, themed, isHovered, cardAccent }) {
+  const ref = useRef(null)
+  const visible = useIsVisible(ref)
+  const bgColor = themed ? themed.variant.bgColor : template.bgColor
+
+  return (
+    <div ref={ref} style={{ width: '100%', height: '100%' }}>
+      {visible ? (
+        <Suspense fallback={
+          <div className="template-sidebar-device" style={{ color: cardAccent }}>
+            <StaticPreviewSvg template={template} />
+          </div>
+        }>
+          <div className="template-mini-preview">
+            <MiniPreviewCanvas
+              animation={template.animation}
+              bgColor={bgColor}
+              deviceType={template.deviceType}
+              paused={!isHovered}
+            />
+          </div>
+        </Suspense>
+      ) : (
+        <div className="template-sidebar-device" style={{ color: cardAccent }}>
+          <StaticPreviewSvg template={template} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Brand theme collections ──────────────────────────────────
 const BRAND_THEMES = {
   whatsapp: {
@@ -44,10 +87,14 @@ const BRAND_THEMES = {
       </svg>
     ),
     variants: [
-      { id: 'ig-dark',     name: 'Dark',     bgColor: '#121212', textColor: '#FFFFFF', secondaryTextColor: '#E1306C', accentColor: '#E1306C', previewGradient: '#121212' },
-      { id: 'ig-light',    name: 'Light',    bgColor: '#FAFAFA', textColor: '#262626', secondaryTextColor: '#E1306C', accentColor: '#E1306C', previewGradient: '#FAFAFA' },
-      { id: 'ig-gradient', name: 'Gradient', bgColor: '#833AB4', textColor: '#FFFFFF', secondaryTextColor: '#FCCC63', accentColor: '#FCCC63', previewGradient: '#833AB4' },
-      { id: 'ig-sunset',   name: 'Sunset',   bgColor: '#F77737', textColor: '#FFFFFF', secondaryTextColor: '#FFFFFF', accentColor: '#FFFFFF', previewGradient: '#F77737' },
+      { id: 'ig-black',         name: 'Black',         bgColor: '#000000', textColor: '#FFFFFF', secondaryTextColor: '#F689FF', accentColor: '#F689FF', previewGradient: '#000000' },
+      { id: 'ig-purple-dark',   name: 'Purple Dark',   bgColor: '#270264', textColor: '#FFFFFF', secondaryTextColor: '#F689FF', accentColor: '#F689FF', previewGradient: '#270264' },
+      { id: 'ig-lavender-dark', name: 'Lavender Dark', bgColor: '#4C0046', textColor: '#FFFFFF', secondaryTextColor: '#F689FF', accentColor: '#F689FF', previewGradient: '#4C0046' },
+      { id: 'ig-green',         name: 'Green',         bgColor: '#E7FCEF', textColor: '#0C1014', secondaryTextColor: '#270264', accentColor: '#270264', previewGradient: '#E7FCEF' },
+      { id: 'ig-yellow',        name: 'Yellow',        bgColor: '#FFFADC', textColor: '#0C1014', secondaryTextColor: '#270264', accentColor: '#270264', previewGradient: '#FFFADC' },
+      { id: 'ig-purple-light',  name: 'Purple Light',  bgColor: '#F4EEFF', textColor: '#270264', secondaryTextColor: '#4C0046', accentColor: '#4C0046', previewGradient: '#F4EEFF' },
+      { id: 'ig-pink',          name: 'Pink',          bgColor: '#FFE7F6', textColor: '#0C1014', secondaryTextColor: '#4C0046', accentColor: '#4C0046', previewGradient: '#FFE7F6' },
+      { id: 'ig-lavender',      name: 'Lavender',      bgColor: '#FFEBFC', textColor: '#4C0046', secondaryTextColor: '#270264', accentColor: '#270264', previewGradient: '#FFEBFC' },
     ],
     musicPool: ['f-3', 'f-10', 'f-2', 'f-6', 'f-5', 'f-7'],
   },
@@ -464,7 +511,7 @@ export const TEMPLATES = [
     bgColor: '#A2D5F2',
     bgGradient: false,
     showBase: false,
-    clipDuration: 7,
+    clipDuration: 10,
     textOverlay: null,
     musicId: 'f-2',
     screenSlots: Array.from({ length: 7 }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' })),
@@ -864,25 +911,12 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
                 className="template-sidebar-preview"
                 style={{ background: cardBg }}
               >
-                {isHovered ? (
-                  <div className="template-mini-preview">
-                    <Suspense fallback={
-                      <div className="template-sidebar-device" style={{ color: cardAccent }}>
-                        <StaticPreviewSvg template={template} />
-                      </div>
-                    }>
-                      <MiniPreviewCanvas
-                        animation={template.animation}
-                        bgColor={themed ? themed.variant.bgColor : template.bgColor}
-                        deviceType={template.deviceType}
-                      />
-                    </Suspense>
-                  </div>
-                ) : (
-                  <div className="template-sidebar-device" style={{ color: cardAccent }}>
-                    <StaticPreviewSvg template={template} />
-                  </div>
-                )}
+                <TemplateCardPreview
+                  template={template}
+                  themed={themed}
+                  isHovered={isHovered}
+                  cardAccent={cardAccent}
+                />
                 {!isHovered && template.textOverlay && (
                   <div
                     className="template-sidebar-text-hint"

@@ -495,8 +495,8 @@
 
 .landing-section {
   width: 100%;
-  max-width: 900px;
-  padding: 0 24px;
+  max-width: 1400px;
+  padding: 0 40px;
 }
 
 .landing-section-title {
@@ -545,15 +545,38 @@
 }
 
 .landing-section .template-sidebar-grid {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
   padding: 0 10px;
+}
+
+@media (min-width: 1200px) {
+  .landing-section .template-sidebar-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .landing-section {
+    padding: 0 16px;
+  }
+  .landing-section .template-sidebar-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-section .template-sidebar-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
 }
 
 .landing-blank {
   width: 100%;
-  max-width: 900px;
-  padding: 20px 34px 48px;
+  max-width: 1400px;
+  padding: 20px 50px 48px;
 }
 
 .landing-blank-btn {

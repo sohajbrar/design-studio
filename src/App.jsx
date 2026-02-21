@@ -248,6 +248,8 @@ const FONT_OPTIONS = [
   { name: 'Montserrat' },
   { name: 'Playfair Display' },
   { name: 'Space Grotesk' },
+  { name: 'Instagram Sans' },
+  { name: 'Instagram Sans Condensed' },
 ]
 
 const TEXT_ANIMATIONS = [
@@ -514,14 +516,14 @@ function App() {
     const handleKeyDown = (e) => {
       const tag = e.target.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return
-      if (e.code === 'Space' && screens.length > 0) {
+      if (e.code === 'Space' && hasStarted) {
         e.preventDefault()
         togglePlayback()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [screens.length, togglePlayback])
+  }, [hasStarted, togglePlayback])
 
   // ── Timeline playback loop ───────────────────────
   const rafRef = useRef(null)
@@ -827,18 +829,20 @@ function App() {
       const newText = {
         id: crypto.randomUUID(),
         text: 'Your text here',
-        fontFamily: 'Inter',
+        fontFamily: globalBrandTheme === 'instagram' ? 'Instagram Sans' : 'Inter',
         fontSize: 48,
         color: '#ffffff',
         animation: 'none',
+        posX: 0,
         posY: 0,
+        behindDevice: false,
         startTime: placed.start,
         endTime: placed.end,
       }
       setSelectedTextId(newText.id)
       return [...prev, newText]
     })
-  }, [currentTime, totalDuration])
+  }, [currentTime, totalDuration, globalBrandTheme])
 
   const handleUpdateText = useCallback((textId, updates) => {
     markChanged()
@@ -1140,8 +1144,19 @@ function App() {
     }
 
     const clipDur = template.clipDuration || 3
-    setTimelineClips((prev) =>
-      recalcStartTimes(
+    setTimelineClips((prev) => {
+      if (prev.length === 0) {
+        return recalcStartTimes([{
+          id: crypto.randomUUID(),
+          screenId: null,
+          duration: clipDur,
+          trimStart: 0,
+          trimEnd: clipDur,
+          animation: template.animation,
+          outroAnimation: template.outroAnimation || 'none',
+        }])
+      }
+      return recalcStartTimes(
         prev.map((c) => ({
           ...c,
           duration: c.duration > 0 ? c.duration : clipDur,
@@ -1149,7 +1164,7 @@ function App() {
           outroAnimation: template.outroAnimation || 'none',
         }))
       )
-    )
+    })
 
     if (template.textOverlay) {
       const t = template.textOverlay
@@ -1158,7 +1173,7 @@ function App() {
         return [{
           id: prev[0]?.id || crypto.randomUUID(),
           text: t.text,
-          fontFamily: 'Inter',
+          fontFamily: globalBrandTheme === 'instagram' ? 'Instagram Sans' : 'Inter',
           fontSize: t.fontSize,
           color: t.color,
           animation: t.animation || 'none',
@@ -1328,7 +1343,7 @@ function App() {
           return [{
             id: crypto.randomUUID(),
             text: delta.textOverlay.text || 'New Text',
-            fontFamily: 'Inter',
+            fontFamily: globalBrandTheme === 'instagram' ? 'Instagram Sans' : 'Inter',
             fontSize: delta.textOverlay.fontSize || 48,
             color: delta.textOverlay.color || '#FFFFFF',
             animation: delta.textOverlay.animation || 'slideFromBottom',
@@ -1416,7 +1431,7 @@ function App() {
       setTextOverlays([{
         id: crypto.randomUUID(),
         text: t.text,
-        fontFamily: 'Inter',
+        fontFamily: globalBrandTheme === 'instagram' ? 'Instagram Sans' : 'Inter',
         fontSize: t.fontSize || 48,
         color: t.color || '#FFFFFF',
         animation: t.animation || 'slideFromBottom',
@@ -1451,8 +1466,19 @@ function App() {
     }
 
     const clipDur = config.clipDuration || 5
-    setTimelineClips((prev) =>
-      recalcStartTimes(
+    setTimelineClips((prev) => {
+      if (prev.length === 0) {
+        return recalcStartTimes([{
+          id: crypto.randomUUID(),
+          screenId: null,
+          duration: clipDur,
+          trimStart: 0,
+          trimEnd: clipDur,
+          animation: config.animation || 'none',
+          outroAnimation: config.outroAnimation || 'none',
+        }])
+      }
+      return recalcStartTimes(
         prev.map((c) => ({
           ...c,
           duration: c.duration > 0 ? c.duration : clipDur,
@@ -1460,7 +1486,7 @@ function App() {
           outroAnimation: config.outroAnimation || 'none',
         }))
       )
-    )
+    })
 
     setZoomEffects([])
 
@@ -1482,6 +1508,18 @@ function App() {
     hasUnsavedChanges.current = false
     setHasStarted(true)
     setSidebarTab('media')
+    setTimelineClips((prev) => {
+      if (prev.length > 0) return prev
+      return recalcStartTimes([{
+        id: crypto.randomUUID(),
+        screenId: null,
+        duration: 3,
+        trimStart: 0,
+        trimEnd: 3,
+        animation: animation,
+        outroAnimation: 'none',
+      }])
+    })
     if (globalBrandTheme === 'whatsapp') {
       const theme = WA_THEMES.find((t) => t.id === 'wa-light')
       if (theme) {
@@ -1491,7 +1529,7 @@ function App() {
         setShowBase(false)
       }
     }
-  }, [globalBrandTheme])
+  }, [globalBrandTheme, animation])
 
   const toggleSiteTheme = useCallback(() => {
     setSiteTheme(prev => prev === 'dark' ? 'light' : 'dark')
@@ -1774,7 +1812,9 @@ function App() {
                       <div className="screen-slot-panel">
                         <h3 className="section-title">Assign Media to Devices</h3>
                         <p className="slot-hint">Select which screen each device shows</p>
-                        {['sideScroll10', 'carousel6', 'flatScatter7', 'offsetCircleRotate', 'angledZoom4'].includes(animation) && (
+                        {['sideScroll10', 'carousel6', 'flatScatter7', 'offsetCircleRotate', 'angledZoom4', 'circle4Rotate'].includes(animation) && (() => {
+                          const maxDevices = animation === 'circle4Rotate' ? 6 : 20
+                          return (
                           <div className="device-count-row">
                             <span className="device-count-label">Number of devices</span>
                             <div className="device-count-stepper">
@@ -1796,9 +1836,9 @@ function App() {
                               <span className="stepper-value">{multiDeviceCount}</span>
                               <button
                                 className="stepper-btn"
-                                disabled={multiDeviceCount >= 20}
+                                disabled={multiDeviceCount >= maxDevices}
                                 onClick={() => {
-                                  const next = Math.min(20, multiDeviceCount + 1)
+                                  const next = Math.min(maxDevices, multiDeviceCount + 1)
                                   setMultiDeviceCount(next)
                                   const slots = Array.from({ length: next }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' }))
                                   setActiveScreenSlots(slots)
@@ -1811,7 +1851,8 @@ function App() {
                               </button>
                             </div>
                           </div>
-                        )}
+                          )
+                        })()}
                         <div className="screen-slot-list">
                           {activeScreenSlots.map((slot, i) => {
                             const assignedId = screenSlotMap[i] || null
@@ -1983,12 +2024,29 @@ function App() {
                                 ].map((pos) => (
                                   <button
                                     key={pos.val}
-                                    className={`chip small ${selectedText.posY === pos.val ? 'active' : ''}`}
-                                    onClick={() => handleUpdateText(selectedText.id, { posY: pos.val })}
+                                    className={`chip small ${selectedText.posY === pos.val && (selectedText.posX || 0) === 0 ? 'active' : ''}`}
+                                    onClick={() => handleUpdateText(selectedText.id, { posX: 0, posY: pos.val })}
                                   >
                                     {pos.label}
                                   </button>
                                 ))}
+                              </div>
+                            </div>
+                            <div className="te-row">
+                              <label className="control-label">Layer</label>
+                              <div className="control-chips">
+                                <button
+                                  className={`chip small ${!selectedText.behindDevice ? 'active' : ''}`}
+                                  onClick={() => handleUpdateText(selectedText.id, { behindDevice: false })}
+                                >
+                                  In Front
+                                </button>
+                                <button
+                                  className={`chip small ${selectedText.behindDevice ? 'active' : ''}`}
+                                  onClick={() => handleUpdateText(selectedText.id, { behindDevice: true })}
+                                >
+                                  Behind
+                                </button>
                               </div>
                             </div>
                             <div className="te-row-col">
@@ -2581,9 +2639,11 @@ function App() {
                 totalDuration={totalDuration}
                 multiDeviceCount={multiDeviceCount}
                 onTextClick={(id) => { setSidebarTab('text'); setSelectedTextId(id) }}
+                onTextDrag={(id, pos) => handleUpdateText(id, pos)}
                 onDeviceClick={() => setSidebarTab('animations')}
+                onDrop={handleUpload}
               />
-              {timelineClips.length > 0 && (
+              {hasStarted && (
                 <Timeline
                   clips={timelineClips}
                   screens={screens}

@@ -13,6 +13,27 @@ function easeOutBack(t) { t = Math.min(1, Math.max(0, t)); const c1 = 1.70158; c
 function easeInCubic(t) { t = Math.min(1, Math.max(0, t)); return t * t * t }
 function smoothSin(t, freq, amp) { return Math.sin(t * freq) * amp }
 
+// ── Rounded-rect contact shadow for flat-grid devices ────────
+const FLAT_SHADOW_TEX = (() => {
+  const w = 128, h = 256
+  const c = document.createElement('canvas')
+  c.width = w; c.height = h
+  const ctx = c.getContext('2d')
+  const blur = 14
+  const r = 18
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'
+  ctx.shadowBlur = blur
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 0
+  ctx.beginPath()
+  ctx.roundRect(blur, blur, w - blur * 2, h - blur * 2, r)
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'
+  ctx.fill()
+  const tex = new THREE.CanvasTexture(c)
+  tex.needsUpdate = true
+  return tex
+})()
+
 // ── Derive tinted light colors from background ───────────────
 function useTintedLights(bgColor) {
   return useMemo(() => {
@@ -488,12 +509,12 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         const introT = Math.min(1, riseT / riseDur)
         const eased = easeOutCubic(introT)
 
-        const startRotX = -0.7 + userRotRef.current.x
+        const startRotX = -1.1 + userRotRef.current.x
         const startRotY = 0.15 + userRotRef.current.y
         const startRotZ = 0.08
         const startScale = 1.6
         const startPosX = userPosRef.current.x
-        const startPosY = -0.6 + userPosRef.current.y
+        const startPosY = -0.15 + userPosRef.current.y
         const startZ = 0.5
 
         group.rotation.x = startRotX * (1 - eased) + smoothSin(t, 0.15, 0.02)
@@ -820,11 +841,12 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
         break
       }
 
-      // ── 3. Circle 4 Rotate ─────────────────────────
+      // ── 3. Circle Rotate (dynamic count) ─────────────────────────
       case 'circle4Rotate': {
+        const count = multiDeviceCount || 4
         const stepDur = 1.4
         const transDur = 0.5
-        const totalSteps = 4
+        const totalSteps = count
         const rawStep = t / stepDur
         const stepIdx = Math.floor(rawStep)
         const frac = rawStep - stepIdx
@@ -837,11 +859,11 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
         g.rotation.y = targetAngle
         g.rotation.x = 0.08
 
-        const radius = 0.52
-        for (let i = 0; i < 4; i++) {
+        const radius = Math.max(0.4, 0.13 * count)
+        for (let i = 0; i < count; i++) {
           const ref = d[`p${i}`]
           if (ref) {
-            const angle = (i / 4) * Math.PI * 2
+            const angle = (i / count) * Math.PI * 2
             ref.position.set(Math.sin(angle) * radius, 0, Math.cos(angle) * radius)
             ref.rotation.y = angle
           }
@@ -948,29 +970,86 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       // ── 9. Flat Grid (dynamic count) — phones lying face-up ──
       case 'flatScatter7': {
         const count = multiDeviceCount || 7
-        g.rotation.x = 0.55
-        g.rotation.y = smoothSin(t, 0.04, 0.05)
-        g.position.y = 0.35 + smoothSin(t, 0.08, 0.03)
+
+        // Phase 1: perspective intro (0 → 2.5s) — angled view easing toward top-down
+        // Phase 2: settle to top-down (2.5 → 4.5s)
+        // Phase 3: slow orbit rotation (4.5s+)
+        const introEnd = 2.5
+        const settleEnd = 3.0
+
+        const startRotX = 0.4
+        const topDownRotX = 1.25
+
+        if (t < introEnd) {
+          const p = easeOutCubic(t / introEnd)
+          g.rotation.x = startRotX + (topDownRotX - startRotX) * p
+          g.rotation.y = 0.2 * (1 - p)
+          g.position.y = 0.5 - 0.15 * p
+        } else if (t < settleEnd) {
+          const p = easeInOutCubic((t - introEnd) / (settleEnd - introEnd))
+          g.rotation.x = topDownRotX + smoothSin(t, 0.06, 0.015)
+          g.rotation.y = smoothSin(t, 0.04, 0.02) * p
+          g.position.y = 0.35 + smoothSin(t, 0.08, 0.02)
+        } else {
+          const orbitT = t - settleEnd
+          g.rotation.x = topDownRotX + smoothSin(t, 0.06, 0.015)
+          g.rotation.y = orbitT * 0.12 + smoothSin(t, 0.04, 0.02)
+          g.position.y = 0.35 + smoothSin(t, 0.08, 0.02)
+        }
+
+        const edgeGap = 0.18
+        const spacing = 0.36 + edgeGap + 0.78
 
         const cols = Math.min(count, Math.ceil(Math.sqrt(count * 1.5)))
         const rows = Math.ceil(count / cols)
-        const spacingX = 1.25
-        const spacingZ = 1.1
+
+        const gridW = (cols - 1) * spacing
+        const gridZ = (rows - 1) * spacing
+        const maxSpan = Math.max(gridW, gridZ)
+        const fitScale = maxSpan > 5.2 ? 5.2 / maxSpan : 1
+
+        const gridOffX = -(cols - 1) * spacing / 2
+        const gridOffZ = -(rows - 1) * spacing / 2
+
         let idx = 0
-        for (let row = 0; row < rows && idx < count; row++) {
+        for (let row = 0; row < rows; row++) {
           const itemsInRow = Math.min(cols, count - idx)
-          const rowOffX = -(itemsInRow - 1) * spacingX / 2
-          for (let col = 0; col < itemsInRow; col++) {
+          const colStart = Math.floor((cols - itemsInRow) / 2)
+          for (let c = 0; c < itemsInRow; c++) {
+            const col = colStart + c
             const ref = d[`p${idx}`]
             if (ref) {
-              const x = rowOffX + col * spacingX
-              const z = -(rows - 1) * spacingZ / 2 + row * spacingZ
-              ref.position.set(x, 0.01 * idx, z)
-              ref.rotation.set(-Math.PI / 2, 0, 0)
-              ref.scale.set(1, 1, 1)
+              const x = (gridOffX + col * spacing) * fitScale
+              const z = (gridOffZ + row * spacing) * fitScale
+              const isLandscape = (row + col) % 2 === 1
+              ref.position.set(x, 0, z)
+              ref.rotation.set(-Math.PI / 2, 0, isLandscape ? Math.PI / 2 : 0)
+              ref.scale.set(fitScale, fitScale, fitScale)
             }
             idx++
+            if (idx >= count) break
           }
+        }
+        break
+      }
+
+      default: {
+        const count = multiDeviceCount || 4
+        const introP = easeOutCubic(Math.min(1, t / 2.0))
+        g.rotation.x = 0.15 * introP + smoothSin(t, 0.08, 0.02)
+        g.rotation.y = smoothSin(t, 0.12, 0.06)
+        g.position.y = smoothSin(t, 0.2, 0.04)
+        const totalSpan = Math.min(4.5, 0.9 * count)
+        for (let i = 0; i < count; i++) {
+          const ref = d[`p${i}`]
+          if (!ref) continue
+          const frac = count === 1 ? 0.5 : i / (count - 1)
+          const x = -totalSpan / 2 + frac * totalSpan
+          const z = -0.3 + 0.3 * Math.sin(frac * Math.PI)
+          const y = 0.05 + 0.1 * Math.sin(frac * Math.PI)
+          const ry = 0.12 - frac * 0.24
+          ref.position.set(x, y + smoothSin(t + i * 0.5, 0.25, 0.04), z)
+          ref.rotation.set(0, ry, 0)
         }
         break
       }
@@ -997,6 +1076,19 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
         </group>
       ))
     }
+    if (animation === 'flatScatter7') {
+      const devW = 2.4 * scale
+      const devH = 5.2 * scale
+      return Array.from({ length: count }, (_, i) => (
+        <group key={i} ref={setRef(`p${i}`)}>
+          <DeviceFrame {...phonePropsForSlot(i)} scale={scale} />
+          <mesh position={[0, 0, -0.06 * scale]} renderOrder={-1}>
+            <planeGeometry args={[devW * 1.12, devH * 1.04]} />
+            <meshBasicMaterial map={FLAT_SHADOW_TEX} transparent opacity={0.4} depthWrite={false} />
+          </mesh>
+        </group>
+      ))
+    }
     return Array.from({ length: count }, (_, i) => (
       <group key={i} ref={setRef(`p${i}`)}>
         <DeviceFrame {...phonePropsForSlot(i)} scale={scale} />
@@ -1010,7 +1102,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     case 'angled3ZoomOut':
       return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(3, 0.33)}</group>
     case 'circle4Rotate':
-      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(4, 0.28)}</group>
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 4, 0.28)}</group>
     case 'angledZoom4':
       return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 4, 0.32)}</group>
     case 'carousel6':
@@ -1056,7 +1148,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       )
     }
     default:
-      return null
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 4, 0.30)}</group>
   }
 }
 
@@ -1071,21 +1163,24 @@ function GroundPlane() {
 }
 
 // ── Canvas-texture text overlay (viewport-aware) ─────────────
-const TEXT_Z = 1.0
-function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick }) {
+const TEXT_Z_FRONT = 1.0
+const TEXT_Z_BEHIND = -0.5
+function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
   const meshRef = useRef()
   const ctRef = useRef(currentTime)
   ctRef.current = currentTime
+  const dragRef = useRef({ active: false, startX: 0, startY: 0, origPosX: 0, origPosY: 0 })
 
   const TEX_W = 1024
   const TEX_H = 512
-  const visibleWidth = useVisibleWidth(TEXT_Z)
-  const { camera } = useThree()
+  const zDepth = overlay.behindDevice ? TEXT_Z_BEHIND : TEXT_Z_FRONT
+  const visibleWidth = useVisibleWidth(zDepth)
+  const { camera, size } = useThree()
   const visibleHeight = useMemo(() => {
-    const dist = camera.position.z - TEXT_Z
+    const dist = camera.position.z - zDepth
     const vFov = (camera.fov * Math.PI) / 180
     return 2 * Math.tan(vFov / 2) * dist
-  }, [camera.fov, camera.position.z])
+  }, [camera.fov, camera.position.z, zDepth])
 
   const split = textSplit || 0.5
   const margin = 0.08
@@ -1095,6 +1190,8 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
   const textAreaHeight = isVerticalLayout
     ? visibleHeight * split * (1 - margin * 2)
     : visibleHeight * (1 - margin * 2)
+
+  const isDraggable = overlay.animation === 'none'
 
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
@@ -1107,40 +1204,50 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
   }, [])
 
   useEffect(() => {
-    const canvas = texture.image
-    const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, TEX_W, TEX_H)
-
+    let cancelled = false
     const pxSize = Math.max(24, Math.min(200, overlay.fontSize * 1.8))
-    ctx.font = `600 ${pxSize}px "${overlay.fontFamily}", Inter, sans-serif`
-    ctx.fillStyle = overlay.color
+    const fontSpec = `600 ${pxSize}px "${overlay.fontFamily}"`
 
-    const text = overlay.text || ''
-    const words = text.split(' ')
-    const maxWidth = TEX_W * 0.88
-    const lines = []
-    let line = ''
-    for (const word of words) {
-      const test = line ? line + ' ' + word : word
-      if (ctx.measureText(test).width > maxWidth && line) {
-        lines.push(line)
-        line = word
-      } else {
-        line = test
+    const draw = () => {
+      if (cancelled) return
+      const canvas = texture.image
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, TEX_W, TEX_H)
+
+      ctx.font = `${fontSpec}, Inter, sans-serif`
+      ctx.fillStyle = overlay.color
+
+      const text = overlay.text || ''
+      const words = text.split(' ')
+      const maxWidth = TEX_W * 0.88
+      const lines = []
+      let line = ''
+      for (const word of words) {
+        const test = line ? line + ' ' + word : word
+        if (ctx.measureText(test).width > maxWidth && line) {
+          lines.push(line)
+          line = word
+        } else {
+          line = test
+        }
       }
+      if (line) lines.push(line)
+
+      const lineH = pxSize * 1.25
+      const totalH = lines.length * lineH
+      const startY = (TEX_H - totalH) / 2 + lineH * 0.5
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      lines.forEach((l, i) => {
+        ctx.fillText(l, TEX_W / 2, startY + i * lineH)
+      })
+
+      texture.needsUpdate = true
     }
-    if (line) lines.push(line)
 
-    const lineH = pxSize * 1.25
-    const totalH = lines.length * lineH
-    const startY = (TEX_H - totalH) / 2 + lineH * 0.5
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    lines.forEach((l, i) => {
-      ctx.fillText(l, TEX_W / 2, startY + i * lineH)
-    })
+    document.fonts.load(fontSpec).then(draw).catch(draw)
 
-    texture.needsUpdate = true
+    return () => { cancelled = true }
   }, [overlay.text, overlay.fontFamily, overlay.fontSize, overlay.color, texture])
 
   const meshW = textAreaWidth
@@ -1148,22 +1255,24 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
   const clampedH = Math.min(meshH, textAreaHeight)
   const finalW = clampedH < meshH ? clampedH * (TEX_W / TEX_H) : meshW
 
-  // Text settles in its allocated region
   let textCenterX, textCenterY
   if (isVerticalLayout) {
     textCenterX = 0
     textCenterY = textOnTop
       ? (visibleHeight / 2) - (visibleHeight * split / 2)
       : -(visibleHeight / 2) + (visibleHeight * split / 2)
-  } else {
+  } else if (overlay.animation !== 'none') {
     textCenterX = textOnLeft
       ? -(visibleWidth / 2) + (visibleWidth * split / 2)
       : (visibleWidth / 2) - (visibleWidth * split / 2)
     textCenterY = overlay.posY || 0
+  } else {
+    textCenterX = overlay.posX || 0
+    textCenterY = overlay.posY || 0
   }
 
   useFrame(() => {
-    if (!meshRef.current) return
+    if (!meshRef.current || dragRef.current.active) return
     const t = ctRef.current
     const animDuration = 1.2
     const progress = easeOutCubic(Math.min(1, t / animDuration))
@@ -1189,23 +1298,73 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
       y = textCenterY
     }
 
-    meshRef.current.position.set(x, y, TEXT_Z)
+    meshRef.current.position.set(x, y, zDepth)
   })
+
+  const handlePointerDown = useCallback((e) => {
+    e.stopPropagation()
+    if (onTextClick) onTextClick(overlay.id)
+    if (!isDraggable || !onTextDrag) return
+
+    const dr = dragRef.current
+    dr.active = true
+    dr.startX = e.clientX
+    dr.startY = e.clientY
+    dr.origPosX = overlay.posX || 0
+    dr.origPosY = overlay.posY || 0
+    e.target?.setPointerCapture?.(e.pointerId)
+
+    const onMove = (ev) => {
+      if (!dr.active) return
+      const dx = (ev.clientX - dr.startX) / size.width * visibleWidth
+      const dy = -(ev.clientY - dr.startY) / size.height * visibleHeight
+      if (meshRef.current) {
+        meshRef.current.position.set(dr.origPosX + dx, dr.origPosY + dy, zDepth)
+      }
+    }
+
+    const onUp = (ev) => {
+      if (!dr.active) return
+      dr.active = false
+      const dx = (ev.clientX - dr.startX) / size.width * visibleWidth
+      const dy = -(ev.clientY - dr.startY) / size.height * visibleHeight
+      const newX = dr.origPosX + dx
+      const newY = dr.origPosY + dy
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+        onTextDrag(overlay.id, { posX: newX, posY: newY })
+      }
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }, [isDraggable, onTextDrag, overlay.id, overlay.posX, overlay.posY, visibleWidth, visibleHeight, size.width, size.height, zDepth])
+
+  const behind = !!overlay.behindDevice
+  const rOrder = behind ? -1 : 10
 
   return (
     <mesh
       ref={meshRef}
-      position={[0, textCenterY, TEXT_Z]}
-      renderOrder={10}
-      onPointerDown={(e) => { e.stopPropagation(); if (onTextClick) onTextClick(overlay.id) }}
+      position={[textCenterX, textCenterY, zDepth]}
+      renderOrder={rOrder}
+      onPointerDown={handlePointerDown}
+      onPointerOver={isDraggable ? (e) => { e.stopPropagation(); document.body.style.cursor = 'grab' } : undefined}
+      onPointerOut={isDraggable ? () => { document.body.style.cursor = '' } : undefined}
     >
       <planeGeometry args={[finalW, clampedH]} />
-      <meshBasicMaterial map={texture} transparent depthWrite={false} depthTest={false} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        depthWrite={!behind}
+        depthTest={!behind ? false : true}
+      />
     </mesh>
   )
 }
 
-function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick }) {
+function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
   if (!textOverlays || textOverlays.length === 0) return null
 
   return (
@@ -1218,7 +1377,7 @@ function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVert
         .map((overlay) => {
           const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
           return (
-            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} />
+            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} onTextDrag={onTextDrag} />
           )
         })}
     </group>
@@ -1414,11 +1573,13 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, isVertica
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef,
   textOverlays, currentTime, clipAnimationTime, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
-  outroLogo, totalDuration, multiDeviceCount, onTextClick, onDeviceClick,
+  outroLogo, totalDuration, multiDeviceCount, onTextClick, onTextDrag, onDeviceClick, onDrop,
 }) {
   const tint = useTintedLights(bgColor)
   const containerRef = useRef(null)
   const [containerSize, setContainerSize] = useState({ w: 1, h: 1 })
+  const [isDragOver, setIsDragOver] = useState(false)
+  const dragCounterRef = useRef(0)
   const [hasManualAdjust, setHasManualAdjust] = useState(false)
   const [resetKey, setResetKey] = useState(0)
   const handleResetAdjust = useCallback(() => {
@@ -1468,8 +1629,58 @@ export default function PreviewScene({
   const textOnLeft = isVerticalLayout ? false : (layoutFlipped ? !defaultTextOnLeft : defaultTextOnLeft)
   const textOnTop = isVerticalLayout ? (layoutFlipped ? !defaultTextOnTop : defaultTextOnTop) : false
 
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounterRef.current++
+    if (e.dataTransfer.types.includes('Files')) setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounterRef.current--
+    if (dragCounterRef.current <= 0) { dragCounterRef.current = 0; setIsDragOver(false) }
+  }, [])
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounterRef.current = 0
+    setIsDragOver(false)
+    if (!onDrop) return
+    const files = [...e.dataTransfer.files].filter((f) =>
+      f.type.startsWith('image/') || f.type.startsWith('video/')
+    )
+    if (files.length > 0) onDrop(files)
+  }, [onDrop])
+
   return (
-    <div className="preview-scene" ref={containerRef}>
+    <div
+      className={`preview-scene${isDragOver ? ' preview-drag-over' : ''}`}
+      ref={containerRef}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {isDragOver && (
+        <div className="preview-drop-overlay">
+          <div className="preview-drop-ring">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Drop media here</span>
+          </div>
+        </div>
+      )}
       <div className="preview-canvas-wrap" style={canvasStyle}>
       <Canvas
         camera={{ position: [0, 0, 2.5], fov: 50 }}
@@ -1499,7 +1710,7 @@ export default function PreviewScene({
         <spotLight position={[0, 8, 3]} angle={0.35} penumbra={0.7} intensity={0.5} castShadow />
 
         <Suspense fallback={null}>
-          {MULTI_DEVICE_ANIMS.has(animation) ? (
+          {(MULTI_DEVICE_ANIMS.has(animation) || slotScreens) ? (
             <MultiDeviceScene
               screens={screens}
               activeScreen={activeScreen}
@@ -1552,7 +1763,7 @@ export default function PreviewScene({
               />
           )}
         </Suspense>
-        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} />
+        <TextOverlays textOverlays={textOverlays} currentTime={currentTime} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} onTextDrag={onTextDrag} />
         {outroLogo && totalDuration > 3 && (
           <OutroLogo logoId={outroLogo} currentTime={currentTime} totalDuration={totalDuration} />
         )}
@@ -1577,7 +1788,7 @@ export default function PreviewScene({
 
       {screens.length === 0 && (
         <div className="preview-empty">
-          <p>Upload screens to see the 3D preview</p>
+          <p>Drag &amp; drop or upload media</p>
         </div>
       )}
     </div>
