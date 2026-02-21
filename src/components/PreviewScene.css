@@ -175,13 +175,13 @@
   left: 10px;
   display: flex;
   gap: 2px;
-  background: var(--overlay-border);
+  background: rgba(30, 30, 30, 0.65);
   backdrop-filter: blur(12px);
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
   padding: 2px;
   z-index: 12;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .preview-mode-btn {
@@ -193,21 +193,21 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.6);
   cursor: pointer;
   padding: 0;
   transition: all 0.15s;
 }
 
 .preview-mode-btn:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .preview-mode-btn.active {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 /* ── Reset manual adjustments button ────────── */
@@ -221,21 +221,22 @@
   padding: 5px 10px;
   font-size: 0.72rem;
   font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--overlay-border);
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(30, 30, 30, 0.65);
   backdrop-filter: blur(12px);
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
   cursor: pointer;
   z-index: 12;
   transition: all 0.15s;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .preview-reset-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  border-color: var(--border-hover);
+  color: #fff;
+  background: rgba(30, 30, 30, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .preview-empty {
