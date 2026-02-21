@@ -182,7 +182,7 @@ function useVisibleHeight(zDepth) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -211,7 +211,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
 
   const handlePointerDown = useCallback((e) => {
     e.stopPropagation()
-    const mode = e.shiftKey && isSingleDevice ? 'translate' : 'rotate'
+    const mode = interactionMode === 'move' ? 'translate' : 'rotate'
     dragRef.current = {
       active: true, mode, moved: false,
       startX: e.clientX, startY: e.clientY,
@@ -246,7 +246,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-  }, [onDeviceClick, onManualAdjust, isSingleDevice])
+  }, [onDeviceClick, onManualAdjust, interactionMode])
 
   const handleDoubleClick = useCallback((e) => {
     e.stopPropagation()
@@ -728,22 +728,26 @@ const MULTI_DEVICE_ANIMS = new Set([
   'flatScatter7',
 ])
 
-function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust }) {
+function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode }) {
   const groupRef = useRef()
   const devRefs = useRef({})
   const userRotRef = useRef({ x: 0, y: 0 })
+  const userPosRef = useRef({ x: 0, y: 0 })
   const dragRef = useRef({ active: false, startX: 0, startY: 0, moved: false })
 
   useEffect(() => {
     userRotRef.current = { x: 0, y: 0 }
+    userPosRef.current = { x: 0, y: 0 }
   }, [resetKey])
 
   const handlePointerDown = useCallback((e) => {
     e.stopPropagation()
+    const mode = interactionMode === 'move' ? 'translate' : 'rotate'
     dragRef.current = {
-      active: true, moved: false,
+      active: true, mode, moved: false,
       startX: e.clientX, startY: e.clientY,
       origRotX: userRotRef.current.x, origRotY: userRotRef.current.y,
+      origPosX: userPosRef.current.x, origPosY: userPosRef.current.y,
     }
     const onMove = (ev) => {
       const dr = dragRef.current
@@ -751,25 +755,32 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       const dx = ev.clientX - dr.startX
       const dy = ev.clientY - dr.startY
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dr.moved = true
-      userRotRef.current.y = dr.origRotY + dx * 0.005
-      userRotRef.current.x = dr.origRotX + dy * 0.005
+      if (dr.mode === 'rotate') {
+        userRotRef.current.y = dr.origRotY + dx * 0.005
+        userRotRef.current.x = dr.origRotX + dy * 0.005
+      } else {
+        userPosRef.current.x = dr.origPosX + dx * 0.004
+        userPosRef.current.y = dr.origPosY - dy * 0.004
+      }
     }
     const onUp = () => {
       const dr = dragRef.current
       dr.active = false
       if (!dr.moved && onDeviceClick) onDeviceClick()
-      const hasAdj = Math.abs(userRotRef.current.x) > 0.001 || Math.abs(userRotRef.current.y) > 0.001
+      const hasAdj = Math.abs(userRotRef.current.x) > 0.001 || Math.abs(userRotRef.current.y) > 0.001 ||
+                     Math.abs(userPosRef.current.x) > 0.001 || Math.abs(userPosRef.current.y) > 0.001
       if (onManualAdjust) onManualAdjust(hasAdj)
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-  }, [onDeviceClick, onManualAdjust])
+  }, [onDeviceClick, onManualAdjust, interactionMode])
 
   const handleDoubleClick = useCallback((e) => {
     e.stopPropagation()
     userRotRef.current = { x: 0, y: 0 }
+    userPosRef.current = { x: 0, y: 0 }
     if (onManualAdjust) onManualAdjust(false)
   }, [onManualAdjust])
   const ctRef = useRef(0)
@@ -1057,6 +1068,8 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
     g.rotation.x += userRotRef.current.x
     g.rotation.y += userRotRef.current.y
+    g.position.x += userPosRef.current.x
+    g.position.y += userPosRef.current.y
   })
 
   const renderPhones = (count, scale = 0.3) => {
@@ -1582,6 +1595,7 @@ export default function PreviewScene({
   const dragCounterRef = useRef(0)
   const [hasManualAdjust, setHasManualAdjust] = useState(false)
   const [resetKey, setResetKey] = useState(0)
+  const [interactionMode, setInteractionMode] = useState('rotate')
   const handleResetAdjust = useCallback(() => {
     setResetKey(k => k + 1)
     setHasManualAdjust(false)
@@ -1681,7 +1695,7 @@ export default function PreviewScene({
           </div>
         </div>
       )}
-      <div className="preview-canvas-wrap" style={canvasStyle}>
+      <div className={`preview-canvas-wrap${interactionMode === 'move' ? ' mode-move' : ''}`} style={canvasStyle}>
       <Canvas
         camera={{ position: [0, 0, 2.5], fov: 50 }}
         gl={{
@@ -1726,6 +1740,7 @@ export default function PreviewScene({
               onDeviceClick={onDeviceClick}
               resetKey={resetKey}
               onManualAdjust={setHasManualAdjust}
+              interactionMode={interactionMode}
             />
           ) : (
             <AnimatedDevices
@@ -1750,6 +1765,7 @@ export default function PreviewScene({
               onDeviceClick={onDeviceClick}
               resetKey={resetKey}
               onManualAdjust={setHasManualAdjust}
+              interactionMode={interactionMode}
             />
           )}
           {showBase && (
@@ -1775,6 +1791,32 @@ export default function PreviewScene({
         />
       </Canvas>
       <SplitDivider textSplit={textSplit} onSplitChange={onTextSplitChange} visible={showDivider} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onFlip={onFlipLayout} />
+      <div className="preview-interaction-toggle">
+        <button
+          className={`preview-mode-btn${interactionMode === 'rotate' ? ' active' : ''}`}
+          onClick={() => setInteractionMode('rotate')}
+          title="Rotate device (drag to rotate)"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.5 2v6h-6" />
+            <path d="M21.34 13.72A10 10 0 1 1 19.07 4.93L21.5 8" />
+          </svg>
+        </button>
+        <button
+          className={`preview-mode-btn${interactionMode === 'move' ? ' active' : ''}`}
+          onClick={() => setInteractionMode('move')}
+          title="Move device (drag to reposition)"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 9l-3 3 3 3" />
+            <path d="M9 5l3-3 3 3" />
+            <path d="M15 19l-3 3-3-3" />
+            <path d="M19 9l3 3-3 3" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <line x1="12" y1="2" x2="12" y2="22" />
+          </svg>
+        </button>
+      </div>
       {hasManualAdjust && (
         <button className="preview-reset-btn" onClick={handleResetAdjust} title="Reset manual adjustments">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

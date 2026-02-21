@@ -161,6 +161,54 @@
 .preview-canvas-wrap canvas:active {
   cursor: grabbing;
 }
+.preview-canvas-wrap.mode-move canvas {
+  cursor: move;
+}
+.preview-canvas-wrap.mode-move canvas:active {
+  cursor: move;
+}
+
+/* ── Interaction mode toggle (rotate / move) ── */
+.preview-interaction-toggle {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  gap: 2px;
+  background: var(--overlay-border);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  z-index: 12;
+  box-shadow: var(--shadow-sm);
+}
+
+.preview-mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.preview-mode-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.preview-mode-btn.active {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
 
 /* ── Reset manual adjustments button ────────── */
 .preview-reset-btn {
