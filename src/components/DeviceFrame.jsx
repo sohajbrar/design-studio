@@ -162,6 +162,16 @@ const DEVICE_CONFIGS = {
     frameColor: '#a0a0a0',
     sideColor: '#b0b0b0',
   },
+  media: {
+    width: 2.8,
+    height: 2.8 * IPHONE_ASPECT,
+    depth: 0.06,
+    cornerRadius: 0.22,
+    screenInset: 0,
+    bezelColor: '#1a1a1a',
+    frameColor: '#c0c0c0',
+    sideColor: '#d0d0d0',
+  },
 }
 
 function createRoundedRectShape(w, h, r) {
@@ -622,6 +632,29 @@ export default function DeviceFrame({
             </group>
           </group>
         </group>
+      ) : type === 'media' ? (
+        <>
+          {/* ── Media-only: slim slab with shiny edges, no bezel ── */}
+          <mesh geometry={bodyGeo} position={[0, 0, -config.depth / 2]}>
+            <meshPhysicalMaterial
+              color={config.frameColor}
+              metalness={0.92}
+              roughness={0.08}
+              clearcoat={1.0}
+              clearcoatRoughness={0.1}
+              reflectivity={1}
+            />
+          </mesh>
+
+          <mesh position={[0, 0, -config.depth - 0.001]}>
+            <shapeGeometry args={[createRoundedRectShape(config.width - 0.01, config.height - 0.01, config.cornerRadius - 0.005)]} />
+            <meshStandardMaterial color="#1a1a1a" metalness={0.3} roughness={0.6} />
+          </mesh>
+
+          <mesh ref={screenMeshRef} geometry={screenGeo} position={[0, 0, frontZ]}>
+            <meshBasicMaterial color="#111122" toneMapped={false} />
+          </mesh>
+        </>
       ) : (
         <>
           {/* ── Standard devices: phone / tablet body ── */}

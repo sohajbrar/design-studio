@@ -209,6 +209,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   const androidRef = useRef()
   const ipadRef = useRef()
   const macbookRef = useRef()
+  const mediaRef = useRef()
   const currentZoomRef = useRef(1)
   const lidAngleRef = useRef(Math.PI / 2)
   const textOffsetRef = useRef({ x: 0, y: 0 })
@@ -326,6 +327,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   const showAndroid = deviceType === 'android' || deviceType === 'both'
   const showIpad = deviceType === 'ipad'
   const showMacbook = deviceType === 'macbook'
+  const showMedia = deviceType === 'media'
   const isBoth = deviceType === 'both'
 
   useFrame(() => {
@@ -795,6 +797,21 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             timelinePlaying={timelinePlaying}
             scale={0.38}
             lidAngleRef={lidAngleRef}
+            showShadow={showDeviceShadow}
+          />
+        </group>
+      )}
+      {showMedia && (
+        <group ref={mediaRef} position={[0, 0, 0]}>
+          <DeviceFrame
+            type="media"
+            screenUrl={firstScreen?.url || null}
+            screenFile={firstScreen?.file || null}
+            isVideo={firstScreen?.isVideo || false}
+            isGif={firstScreen?.isGif || false}
+            videoSeekTime={videoSeekTime}
+            timelinePlaying={timelinePlaying}
+            scale={0.35}
             showShadow={showDeviceShadow}
           />
         </group>

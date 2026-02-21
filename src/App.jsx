@@ -371,7 +371,7 @@ const TEXT_ANIMATIONS = [
   { id: 'slideFromTop', name: 'From Top' },
 ]
 
-const DEVICE_TYPES = ['iphone', 'android', 'both']
+const DEVICE_TYPES = ['iphone', 'android', 'both', 'ipad', 'macbook', 'media']
 
 function findNonOverlappingSlot(existing, desiredStart, duration, maxTime) {
   const sorted = existing
@@ -2763,6 +2763,12 @@ function App() {
                               <line x1="14" y1="11" x2="18" y2="11" opacity="0.5" />
                               <rect x="28" y="8" width="16" height="28" rx="2" />
                               <circle cx="36" cy="11" r="0.8" fill="currentColor" opacity="0.4" />
+                            </svg>
+                          )},
+                          { id: 'media', label: 'None', icon: (
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="12" y="8" width="24" height="32" rx="4" strokeDasharray="4 2" />
+                              <path d="M20 18 L32 24 L20 30 Z" fill="currentColor" opacity="0.3" />
                             </svg>
                           )},
                         ].map((d) => (
