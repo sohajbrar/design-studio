@@ -38,7 +38,7 @@ export default function UploadPanel({ onUpload, fullPage = false, compact = fals
         <input
           ref={inputRef}
           type="file"
-          accept="image/*,video/*,.mov,.mp4,.webm,.avi"
+          accept="image/*,video/*,.mov,.mp4,.webm,.avi,.gif"
           multiple
           onChange={handleChange}
           hidden
@@ -87,7 +87,7 @@ export default function UploadPanel({ onUpload, fullPage = false, compact = fals
             <input
               ref={inputRef}
               type="file"
-              accept="image/*,video/*,.mov,.mp4,.webm,.avi"
+              accept="image/*,video/*,.mov,.mp4,.webm,.avi,.gif"
               multiple
               onChange={handleChange}
               hidden

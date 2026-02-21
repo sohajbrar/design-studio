@@ -22,7 +22,7 @@ export default function Header({ children, leftAction, siteTheme, onToggleTheme 
               </defs>
             </svg>
           </div>
-          <span className="logo-text">Design Studio</span><span className="logo-byline">by Sohaj</span>
+          <span className="logo-text">AI Design Studio</span><span className="logo-byline">by Sohaj</span>
         </div>
       </div>
       <div className="header-center">

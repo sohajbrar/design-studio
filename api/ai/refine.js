@@ -37,13 +37,14 @@ Templates (switching to a template applies a complete preset — animation, colo
 
 Device & Animation:
 - deviceType: "iphone", "android", "both", "ipad", "macbook"
-- animation (device entrance): "showcase", "orbit", "flip", "scroll", "single", "slideLeft", "slideRight", "slideDown", "slideUp", "slideRightRotate", "slideLeftRotate", "zoomBottomLeft", "zoomTopRight", "sideBySide", "laptopOpen", "laptopClose", "sideScroll10", "angled3ZoomOut", "circle4Rotate", "angledZoom4", "carousel6", "flatScatter7", "offsetCircleRotate", "floatingPhoneLaptop", "phoneInFrontLaptop"
+- animation (device entrance): "showcase", "orbit", "flip", "scroll", "single", "slideLeft", "slideRight", "slideDown", "slideUp", "slideRightRotate", "slideLeftRotate", "zoomBottomLeft", "zoomTopRight", "heroRise", "sideBySide", "laptopOpen", "laptopClose", "sideScroll10", "angled3ZoomOut", "circle4Rotate", "angledZoom4", "carousel6", "flatScatter7", "offsetCircleRotate", "floatingPhoneLaptop", "phoneInFrontLaptop"
 - outroAnimation: "none", "slideLeft", "slideRight", "slideDown", "slideUp", "slideLeftRotate", "slideRightRotate", "zoomOut", "flip"
 
 Background & Appearance:
 - bgColor: any hex color string
 - bgGradient: boolean (true = gradient overlay on background, false = solid color)
 - showBase: boolean (true = show contact shadow under device, false = hide)
+- showDeviceShadow: boolean (true = show per-device floating drop shadow, false = hide)
 - whatsappTheme: "wa-dark", "wa-light", "wa-beige", "wa-green", or null
 
 Text Overlay:
@@ -113,7 +114,8 @@ RULES:
 - "dual device" → {"templateId":"dual-device"}. "phone and laptop" → {"templateId":"floating-phone-laptop"}.
 - Interpret natural language: "make it dark" → bgColor + text color, "bigger text" → fontSize, "zoom in" → addZoom: true, etc.
 - "add gradient" → bgGradient: true. "remove gradient" → bgGradient: false.
-- "show shadow" → showBase: true. "hide shadow"/"no shadow" → showBase: false.
+- "show shadow"/"base shadow" → showBase: true. "hide shadow"/"no shadow" → showBase: false.
+- "device shadow"/"floating shadow"/"drop shadow" → showDeviceShadow: true. "remove device shadow" → showDeviceShadow: false.
 - "zoom in"/"add zoom" → addZoom: true. "remove zoom"/"no zoom" → removeZoom: true.
 - "landscape" → aspectRatio: "16:9". "portrait" → aspectRatio: "9:16". "square" → aspectRatio: "1:1".
 - "play some music"/"add music" → pick a suitable musicId. "stop music"/"remove music" → musicId: null.
@@ -134,6 +136,9 @@ Example output: {"animation":"orbit"}
 
 Example input: "Add a gradient and show the shadow"
 Example output: {"bgGradient":true,"showBase":true}
+
+Example input: "Add a device shadow to make it look like it's floating"
+Example output: {"showDeviceShadow":true}
 
 Example input: "Make it square and add some chill music"
 Example output: {"aspectRatio":"1:1","musicId":"t-2"}
@@ -236,7 +241,7 @@ const ANIMATION_MAP = {
   'slide left': 'slideLeft', 'slide right': 'slideRight',
   'slide up': 'slideUp', 'slide down': 'slideDown',
   rotate: 'slideRightRotate', spin: 'orbit',
-  zoom: 'zoomBottomLeft', carousel: 'carousel6',
+  zoom: 'zoomBottomLeft', carousel: 'carousel6', 'hero rise': 'heroRise', 'hero': 'heroRise', 'rise': 'heroRise',
   'laptop open': 'laptopOpen', 'laptop close': 'laptopClose',
 }
 
@@ -422,8 +427,12 @@ function fallbackRefine(instruction, currentConfig) {
   else if (/remove\s*gradient|disable\s*gradient|no\s*gradient|gradient\s*off|hide\s*gradient/.test(lower)) delta.bgGradient = false
 
   // --- Base shadow ---
-  if (/show\s*shadow|add\s*shadow|enable\s*shadow|shadow\s*on|show\s*base/.test(lower)) delta.showBase = true
+  if (/show\s*shadow|add\s*shadow|enable\s*shadow|shadow\s*on|show\s*base|base\s*shadow/.test(lower)) delta.showBase = true
   else if (/hide\s*shadow|remove\s*shadow|no\s*shadow|shadow\s*off|hide\s*base|remove\s*base/.test(lower)) delta.showBase = false
+
+  // --- Device shadow (floating drop shadow) ---
+  if (/device\s*shadow|floating\s*shadow|drop\s*shadow|float.*shadow/.test(lower)) delta.showDeviceShadow = true
+  else if (/remove\s*device\s*shadow|no\s*device\s*shadow|hide\s*device\s*shadow/.test(lower)) delta.showDeviceShadow = false
 
   // --- Zoom ---
   if (/add\s*zoom|zoom\s*in|enable\s*zoom/.test(lower)) delta.addZoom = true

@@ -276,7 +276,7 @@ export default function AIChatFlow({ onComplete, onCancel }) {
         <div className="ai-chat-header-left">
           <div className="ai-chat-avatar">{STARDUST_ICON(18)}</div>
           <div>
-            <span className="ai-chat-title">MetaGen AI</span>
+            <span className="ai-chat-title">Studio AI</span>
             <span className="ai-chat-subtitle">Video Assistant</span>
           </div>
         </div>

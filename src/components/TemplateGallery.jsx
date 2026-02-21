@@ -1,8 +1,80 @@
-import { useState, useRef, useCallback, Suspense, lazy } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect, Suspense, lazy } from 'react'
 import './TemplateGallery.css'
 import AIChatFlow from './AIChatFlow'
 
 const MiniPreviewCanvas = lazy(() => import('./MiniPreview'))
+
+// ── Brand theme collections ──────────────────────────────────
+const BRAND_THEMES = {
+  whatsapp: {
+    label: 'WhatsApp',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+      </svg>
+    ),
+    variants: [
+      { id: 'wa-dark',  name: 'Dark',      bgColor: '#0A1014', textColor: '#FFFFFF', secondaryTextColor: '#1DAA61', accentColor: '#1DAA61', previewGradient: '#0A1014' },
+      { id: 'wa-light', name: 'Light',     bgColor: '#E7FDE3', textColor: '#FFFFFF', secondaryTextColor: '#1DAA61', accentColor: '#1DAA61', previewGradient: '#E7FDE3' },
+      { id: 'wa-beige', name: 'Beige',     bgColor: '#FEF4EB', textColor: '#FFFFFF', secondaryTextColor: '#1DAA61', accentColor: '#1DAA61', previewGradient: '#FEF4EB' },
+      { id: 'wa-green', name: 'Green Pop', bgColor: '#1DAA61', textColor: '#FFFFFF', secondaryTextColor: '#15603E', accentColor: '#15603E', previewGradient: '#1DAA61' },
+    ],
+    musicPool: ['f-5', 'f-8', 'f-1', 'f-6', 'f-10', 'f-3'],
+  },
+  facebook: {
+    label: 'Facebook',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      </svg>
+    ),
+    variants: [
+      { id: 'fb-dark',    name: 'Dark',     bgColor: '#18191A', textColor: '#FFFFFF', secondaryTextColor: '#1877F2', accentColor: '#1877F2', previewGradient: '#18191A' },
+      { id: 'fb-light',   name: 'Light',    bgColor: '#F0F2F5', textColor: '#1C1E21', secondaryTextColor: '#1877F2', accentColor: '#1877F2', previewGradient: '#F0F2F5' },
+      { id: 'fb-blue',    name: 'Blue',     bgColor: '#1877F2', textColor: '#FFFFFF', secondaryTextColor: '#E4F0FF', accentColor: '#E4F0FF', previewGradient: '#1877F2' },
+      { id: 'fb-navy',    name: 'Navy',     bgColor: '#0A2647', textColor: '#FFFFFF', secondaryTextColor: '#4599FF', accentColor: '#4599FF', previewGradient: '#0A2647' },
+    ],
+    musicPool: ['f-7', 'f-8', 'f-1', 'f-9', 'f-11', 'f-4'],
+  },
+  instagram: {
+    label: 'Instagram',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+      </svg>
+    ),
+    variants: [
+      { id: 'ig-dark',     name: 'Dark',     bgColor: '#121212', textColor: '#FFFFFF', secondaryTextColor: '#E1306C', accentColor: '#E1306C', previewGradient: '#121212' },
+      { id: 'ig-light',    name: 'Light',    bgColor: '#FAFAFA', textColor: '#262626', secondaryTextColor: '#E1306C', accentColor: '#E1306C', previewGradient: '#FAFAFA' },
+      { id: 'ig-gradient', name: 'Gradient', bgColor: '#833AB4', textColor: '#FFFFFF', secondaryTextColor: '#FCCC63', accentColor: '#FCCC63', previewGradient: '#833AB4' },
+      { id: 'ig-sunset',   name: 'Sunset',   bgColor: '#F77737', textColor: '#FFFFFF', secondaryTextColor: '#FFFFFF', accentColor: '#FFFFFF', previewGradient: '#F77737' },
+    ],
+    musicPool: ['f-3', 'f-10', 'f-2', 'f-6', 'f-5', 'f-7'],
+  },
+}
+
+function hashStr(str) {
+  let h = 5381
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0
+  return h
+}
+
+function buildThemeMap(templates, brandKey) {
+  if (!brandKey || !BRAND_THEMES[brandKey]) return null
+  const brand = BRAND_THEMES[brandKey]
+  const variants = brand.variants
+  const music = brand.musicPool
+  const map = {}
+  templates.forEach((tmpl) => {
+    const h = hashStr(tmpl.id + brandKey)
+    const v = variants[h % variants.length]
+    const m = music[(h >>> 8) % music.length]
+    map[tmpl.id] = { variant: v, musicId: m }
+  })
+  return map
+}
+
+export { BRAND_THEMES }
 
 export const TEMPLATES = [
   {
@@ -18,7 +90,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 4,
     textOverlay: { text: 'Your App Name', fontSize: 52, color: '#000000', posY: -0.45, animation: 'slideFromBottom' },
-    musicId: 't-1',
+    musicId: 'f-5',
     preview: {
       gradient: '#CFC4FB',
       accentColor: '#4a3d8f',
@@ -37,7 +109,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 4,
     textOverlay: { text: 'Launching Soon', fontSize: 56, color: '#000000', posY: 0.45, animation: 'slideFromTop' },
-    musicId: 't-3',
+    musicId: 'f-8',
     preview: {
       gradient: '#A2D5F2',
       accentColor: '#1a5276',
@@ -56,7 +128,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 4,
     textOverlay: null,
-    musicId: 't-6',
+    musicId: 'f-1',
     preview: {
       gradient: '#BEFAB3',
       accentColor: '#2d6a1e',
@@ -75,7 +147,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 5,
     textOverlay: null,
-    musicId: 't-12',
+    musicId: 'f-6',
     preview: {
       gradient: '#FBE5B5',
       accentColor: '#7a5c1f',
@@ -94,7 +166,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 5,
     textOverlay: { text: 'Built for Desktop', fontSize: 44, color: '#000000', posY: -0.45, animation: 'slideFromBottom' },
-    musicId: 't-8',
+    musicId: 'f-10',
     preview: {
       gradient: '#F4C3B0',
       accentColor: '#7a3b24',
@@ -113,7 +185,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 4,
     textOverlay: null,
-    musicId: 't-5',
+    musicId: 'f-9',
     preview: {
       gradient: '#F3AFC6',
       accentColor: '#8a2851',
@@ -132,7 +204,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 3,
     textOverlay: { text: 'Download Now', fontSize: 48, color: '#000000', posY: -0.45, animation: 'slideFromRight' },
-    musicId: 't-7',
+    musicId: 'f-7',
     preview: {
       gradient: '#D4D6D8',
       accentColor: '#3d3f41',
@@ -151,7 +223,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 5,
     textOverlay: null,
-    musicId: 't-9',
+    musicId: 'f-2',
     preview: {
       gradient: '#A3C9F9',
       accentColor: '#1e4d7a',
@@ -170,7 +242,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 2.5,
     textOverlay: { text: 'Try It Free', fontSize: 52, color: '#000000', posY: 0.45, animation: 'slideFromTop' },
-    musicId: 't-19',
+    musicId: 'f-3',
     preview: {
       gradient: '#A4D9D4',
       accentColor: '#2a5e58',
@@ -189,7 +261,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 4,
     textOverlay: null,
-    musicId: 't-15',
+    musicId: 'f-11',
     preview: {
       gradient: '#CFC4FB',
       accentColor: '#4a3d8f',
@@ -208,7 +280,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 5,
     textOverlay: { text: 'Designed for You', fontSize: 48, color: '#000000', posY: -0.45, animation: 'slideFromLeft' },
-    musicId: 't-10',
+    musicId: 'f-4',
     preview: {
       gradient: '#A2D5F2',
       accentColor: '#1a5276',
@@ -227,7 +299,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 3,
     textOverlay: null,
-    musicId: 't-2',
+    musicId: 'f-5',
     preview: {
       gradient: '#BEFAB3',
       accentColor: '#2d6a1e',
@@ -247,7 +319,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 8,
     textOverlay: null,
-    musicId: 't-1',
+    musicId: 'f-8',
     screenSlots: Array.from({ length: 10 }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' })),
     preview: {
       gradient: '#FBE5B5',
@@ -268,7 +340,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 5,
     textOverlay: null,
-    musicId: 't-5',
+    musicId: 'f-10',
     screenSlots: [{ label: 'Left Phone', device: 'iPhone' }, { label: 'Center Phone', device: 'iPhone' }, { label: 'Right Phone', device: 'iPhone' }],
     preview: {
       gradient: '#F4C3B0',
@@ -289,7 +361,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 6,
     textOverlay: null,
-    musicId: 't-9',
+    musicId: 'f-6',
     screenSlots: [{ label: 'Front', device: 'iPhone' }, { label: 'Right', device: 'iPhone' }, { label: 'Back', device: 'iPhone' }, { label: 'Left', device: 'iPhone' }],
     preview: {
       gradient: '#F3AFC6',
@@ -310,7 +382,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 5,
     textOverlay: null,
-    musicId: 't-3',
+    musicId: 'f-1',
     screenSlots: [{ label: 'Phone 1', device: 'iPhone' }, { label: 'Phone 2', device: 'iPhone' }, { label: 'Phone 3', device: 'iPhone' }, { label: 'Phone 4', device: 'iPhone' }],
     preview: {
       gradient: '#D4D6D8',
@@ -331,7 +403,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 7,
     textOverlay: null,
-    musicId: 't-6',
+    musicId: 'f-7',
     screenSlots: Array.from({ length: 6 }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' })),
     preview: {
       gradient: '#A3C9F9',
@@ -352,7 +424,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 6,
     textOverlay: null,
-    musicId: 't-8',
+    musicId: 'f-9',
     screenSlots: [{ label: 'Phone', device: 'iPhone' }, { label: 'Laptop', device: 'MacBook' }],
     preview: {
       gradient: '#A4D9D4',
@@ -373,7 +445,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 5,
     textOverlay: null,
-    musicId: 't-10',
+    musicId: 'f-4',
     screenSlots: [{ label: 'Phone', device: 'iPhone' }, { label: 'Laptop', device: 'MacBook' }],
     preview: {
       gradient: '#CFC4FB',
@@ -394,7 +466,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 7,
     textOverlay: null,
-    musicId: 't-12',
+    musicId: 'f-2',
     screenSlots: Array.from({ length: 7 }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' })),
     preview: {
       gradient: '#A2D5F2',
@@ -415,7 +487,7 @@ export const TEMPLATES = [
     showBase: false,
     clipDuration: 7,
     textOverlay: null,
-    musicId: 't-7',
+    musicId: 'f-3',
     screenSlots: Array.from({ length: 6 }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' })),
     preview: {
       gradient: '#BEFAB3',
@@ -588,10 +660,17 @@ function StaticPreviewSvg({ template }) {
   )
 }
 
-export default function TemplateGallery({ onSelectTemplate, activeTemplateId, onStartBlank, onAIGenerate, aiLoading }) {
+export default function TemplateGallery({ onSelectTemplate, activeTemplateId, onStartBlank, onAIGenerate, aiLoading, globalBrandTheme, onBrandThemeChange, compact }) {
   const [hoveredId, setHoveredId] = useState(null)
   const [showChat, setShowChat] = useState(false)
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false)
+  const dropdownRef = useRef(null)
   const hoverTimer = useRef(null)
+
+  const themeMap = useMemo(
+    () => buildThemeMap(TEMPLATES, globalBrandTheme),
+    [globalBrandTheme]
+  )
 
   const onEnter = useCallback((id) => {
     clearTimeout(hoverTimer.current)
@@ -608,6 +687,48 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
     onAIGenerate(result)
   }, [onAIGenerate])
 
+  const handleTemplateClick = useCallback((template) => {
+    if (themeMap && themeMap[template.id]) {
+      const { variant, musicId } = themeMap[template.id]
+      const themed = {
+        ...template,
+        bgColor: variant.bgColor,
+        bgGradient: false,
+        musicId,
+        _brandTheme: globalBrandTheme,
+        _themeVariantId: variant.id,
+        textOverlay: template.textOverlay
+          ? { ...template.textOverlay, color: variant.secondaryTextColor }
+          : null,
+        preview: {
+          ...template.preview,
+          gradient: variant.previewGradient,
+          accentColor: variant.accentColor,
+        },
+      }
+      onSelectTemplate(themed)
+    } else {
+      onSelectTemplate(template)
+    }
+  }, [themeMap, globalBrandTheme, onSelectTemplate])
+
+  const handleDropdownSelect = useCallback((key) => {
+    onBrandThemeChange(key === globalBrandTheme ? null : key)
+    setThemeDropdownOpen(false)
+  }, [globalBrandTheme, onBrandThemeChange])
+
+  // Close dropdown on outside click
+  const handleDocClick = useCallback((e) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      setThemeDropdownOpen(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleDocClick)
+    return () => document.removeEventListener('mousedown', handleDocClick)
+  }, [handleDocClick])
+
   if (showChat) {
     return (
       <div className="template-sidebar template-sidebar-chat">
@@ -619,10 +740,75 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
     )
   }
 
+  const activeBrand = globalBrandTheme ? BRAND_THEMES[globalBrandTheme] : null
+
   return (
     <div className="template-sidebar">
-      <h3 className="section-title">Templates</h3>
-      <p className="template-sidebar-hint">Pick a template or create with AI</p>
+      <div className="template-sidebar-header">
+        <div>
+          <h3 className="section-title">Templates</h3>
+        </div>
+        <div className="theme-dropdown-wrap" ref={dropdownRef}>
+          <button
+            className={`theme-dropdown-trigger ${globalBrandTheme ? 'has-theme' : ''} ${compact ? 'compact' : ''}`}
+            onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+            title={activeBrand ? activeBrand.label : 'Themes'}
+          >
+            {activeBrand ? (
+              <>
+                <span className="theme-dropdown-icon">{activeBrand.icon}</span>
+                {!compact && <span>{activeBrand.label}</span>}
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                  <path d="M2 12h20" />
+                </svg>
+                {!compact && <span>Themes</span>}
+              </>
+            )}
+            <svg className="theme-dropdown-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: themeDropdownOpen ? 'rotate(180deg)' : 'none' }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {themeDropdownOpen && (
+            <div className="theme-dropdown-menu">
+              {Object.entries(BRAND_THEMES).map(([key, brand]) => (
+                <button
+                  key={key}
+                  className={`theme-dropdown-item ${globalBrandTheme === key ? 'active' : ''}`}
+                  onClick={() => handleDropdownSelect(key)}
+                >
+                  <span className="theme-dropdown-item-icon">{brand.icon}</span>
+                  <span className="theme-dropdown-item-label">{brand.label}</span>
+                  {globalBrandTheme === key && (
+                    <svg className="theme-dropdown-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+              {globalBrandTheme && (
+                <>
+                  <div className="theme-dropdown-divider" />
+                  <button
+                    className="theme-dropdown-item theme-dropdown-clear"
+                    onClick={() => { onBrandThemeChange(null); setThemeDropdownOpen(false) }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                    <span className="theme-dropdown-item-label">No Theme</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
       <div className="template-sidebar-grid">
         {onStartBlank && (
           <button
@@ -663,34 +849,37 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
         )}
         {TEMPLATES.map((template) => {
           const isHovered = hoveredId === template.id
+          const themed = themeMap?.[template.id]
+          const cardBg = themed ? themed.variant.previewGradient : template.preview.gradient
+          const cardAccent = themed ? themed.variant.accentColor : template.preview.accentColor
           return (
             <button
               key={template.id}
               className={`template-sidebar-card ${activeTemplateId === template.id ? 'active' : ''}`}
-              onClick={() => onSelectTemplate(template)}
+              onClick={() => handleTemplateClick(template)}
               onMouseEnter={() => onEnter(template.id)}
               onMouseLeave={onLeave}
             >
               <div
                 className="template-sidebar-preview"
-                style={{ background: template.preview.gradient }}
+                style={{ background: cardBg }}
               >
                 {isHovered ? (
                   <div className="template-mini-preview">
                     <Suspense fallback={
-                      <div className="template-sidebar-device" style={{ color: template.preview.accentColor }}>
+                      <div className="template-sidebar-device" style={{ color: cardAccent }}>
                         <StaticPreviewSvg template={template} />
                       </div>
                     }>
                       <MiniPreviewCanvas
                         animation={template.animation}
-                        bgColor={template.bgColor}
+                        bgColor={themed ? themed.variant.bgColor : template.bgColor}
                         deviceType={template.deviceType}
                       />
                     </Suspense>
                   </div>
                 ) : (
-                  <div className="template-sidebar-device" style={{ color: template.preview.accentColor }}>
+                  <div className="template-sidebar-device" style={{ color: cardAccent }}>
                     <StaticPreviewSvg template={template} />
                   </div>
                 )}
@@ -698,14 +887,14 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
                   <div
                     className="template-sidebar-text-hint"
                     style={{
-                      color: template.textOverlay.color,
+                      color: themed ? themed.variant.secondaryTextColor : template.textOverlay.color,
                       [template.textOverlay.posY > 0 ? 'top' : 'bottom']: '6px',
                     }}
                   >
                     Aa
                   </div>
                 )}
-                <div className="template-sidebar-badge" style={{ color: template.preview.accentColor }}>
+                <div className="template-sidebar-badge" style={{ color: cardAccent }}>
                   {template.preview.multiDevice ? (
                     <>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -722,6 +911,11 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
                     </>
                   )}
                 </div>
+                {themed && (
+                  <div className="template-theme-badge" style={{ background: themed.variant.accentColor, color: themed.variant.textColor }}>
+                    {themed.variant.name}
+                  </div>
+                )}
               </div>
               <div className="template-sidebar-info">
                 <span className="template-sidebar-name">{template.name}</span>

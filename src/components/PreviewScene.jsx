@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, Suspense, useState } from 'react'
+import { useRef, useEffect, useMemo, useCallback, Suspense, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, ContactShadows } from '@react-three/drei'
 import * as THREE from 'three'
@@ -161,7 +161,7 @@ function useVisibleHeight(zDepth) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, onDeviceClick }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -175,6 +175,64 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   ctRef.current = clipAnimationTime || 0
   const visibleWidth = useVisibleWidth(0)
   const visibleHeight = useVisibleHeight(0)
+
+  const userRotRef = useRef({ x: 0, y: 0 })
+  const userPosRef = useRef({ x: 0, y: 0 })
+  const heroRiseActive = useRef(false)
+  const dragRef = useRef({ active: false, mode: null, startX: 0, startY: 0, moved: false })
+
+  useEffect(() => {
+    userRotRef.current = { x: 0, y: 0 }
+    userPosRef.current = { x: 0, y: 0 }
+  }, [resetKey])
+
+  const isSingleDevice = deviceType !== 'both'
+
+  const handlePointerDown = useCallback((e) => {
+    e.stopPropagation()
+    const mode = e.shiftKey && isSingleDevice ? 'translate' : 'rotate'
+    dragRef.current = {
+      active: true, mode, moved: false,
+      startX: e.clientX, startY: e.clientY,
+      origRotX: userRotRef.current.x, origRotY: userRotRef.current.y,
+      origPosX: userPosRef.current.x, origPosY: userPosRef.current.y,
+    }
+
+    const onMove = (ev) => {
+      const dr = dragRef.current
+      if (!dr.active) return
+      const dx = ev.clientX - dr.startX
+      const dy = ev.clientY - dr.startY
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dr.moved = true
+
+      if (dr.mode === 'rotate') {
+        userRotRef.current.y = dr.origRotY + dx * 0.005
+        userRotRef.current.x = dr.origRotX + dy * 0.005
+      } else {
+        userPosRef.current.x = dr.origPosX + dx * 0.004
+        userPosRef.current.y = dr.origPosY - dy * 0.004
+      }
+    }
+    const onUp = () => {
+      const dr = dragRef.current
+      dr.active = false
+      if (!dr.moved && onDeviceClick) onDeviceClick()
+      const hasAdj = Math.abs(userRotRef.current.x) > 0.001 || Math.abs(userRotRef.current.y) > 0.001 ||
+                     Math.abs(userPosRef.current.x) > 0.001 || Math.abs(userPosRef.current.y) > 0.001
+      if (onManualAdjust) onManualAdjust(hasAdj)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }, [onDeviceClick, onManualAdjust, isSingleDevice])
+
+  const handleDoubleClick = useCallback((e) => {
+    e.stopPropagation()
+    userRotRef.current = { x: 0, y: 0 }
+    userPosRef.current = { x: 0, y: 0 }
+    if (onManualAdjust) onManualAdjust(false)
+  }, [onManualAdjust])
 
   const firstScreen = activeScreen || screens[0] || null
   const secondScreen = screens[1] || screens[0] || null
@@ -201,6 +259,8 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
     const andBaseX = isBoth ? 0.8 : 0
     if (iph) { iph.rotation.set(0, 0, 0); iph.position.set(iphBaseX, 0, 0); iph.scale.set(1, 1, 1) }
     if (and) { and.rotation.set(0, 0, 0); and.position.set(andBaseX, 0, 0); and.scale.set(1, 1, 1) }
+
+    heroRiseActive.current = false
 
     switch (animation) {
       // ── SHOWCASE: Sweeping arc with floating ──────────────
@@ -333,7 +393,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
 
       // ── SLIDE FROM LEFT ─────────────────────────────
       case 'slideLeft': {
-        const introT = Math.min(1, t / 1.8)
+        const introT = Math.min(1, t / 1.4)
         const eased = easeOutCubic(introT)
         group.position.x = (-4) * (1 - eased)
         group.position.y = smoothSin(t, 0.3, 0.06)
@@ -343,7 +403,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
 
       // ── SLIDE FROM RIGHT ────────────────────────────
       case 'slideRight': {
-        const introT = Math.min(1, t / 1.8)
+        const introT = Math.min(1, t / 1.4)
         const eased = easeOutCubic(introT)
         group.position.x = 4 * (1 - eased)
         group.position.y = smoothSin(t, 0.3, 0.06)
@@ -353,7 +413,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
 
       // ── SLIDE DOWN (enters from top) ────────────────
       case 'slideDown': {
-        const introT = Math.min(1, t / 1.8)
+        const introT = Math.min(1, t / 1.4)
         const eased = easeOutCubic(introT)
         group.position.y = 4 * (1 - eased) + smoothSin(t, 0.3, 0.06)
         group.rotation.x = smoothSin(t, 0.2, 0.04)
@@ -362,7 +422,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
 
       // ── SLIDE UP (enters from bottom) ───────────────
       case 'slideUp': {
-        const introT = Math.min(1, t / 1.8)
+        const introT = Math.min(1, t / 1.4)
         const eased = easeOutCubic(introT)
         group.position.y = (-4) * (1 - eased) + smoothSin(t, 0.3, 0.06)
         group.rotation.x = smoothSin(t, 0.2, 0.04)
@@ -389,41 +449,65 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         break
       }
 
-      // ── ZOOM BOTTOM LEFT: Skew & zoom into bottom-left corner ─
+      // ── ZOOM BOTTOM LEFT: Skew & zoom, centered ─
       case 'zoomBottomLeft': {
         const introT = Math.min(1, t / 2.2)
         const eased = easeOutCubic(introT)
-        const isMacbook = showMacbook
-        const targetScale = isMacbook ? 2.1 : 1.8
+        const targetScale = 1.5
         const s = 1 + (targetScale - 1) * eased
         group.scale.set(s, s, s)
         group.rotation.x = -0.25 * eased + smoothSin(t, 0.15, 0.02)
         group.rotation.y = 0.35 * eased + smoothSin(t, 0.12, 0.03)
         group.rotation.z = -0.12 * eased
-        const extraY = isMacbook ? -0.6 : 0
-        group.position.x = 0.6 * eased + smoothSin(t, 0.18, 0.04)
-        group.position.y = 0.5 * eased + extraY * eased + smoothSin(t, 0.22, 0.03)
+        group.position.y = smoothSin(t, 0.22, 0.03)
         group.position.z = 0.3 * eased
         break
       }
 
-      // ── ZOOM TOP RIGHT: Skew & zoom into top-right corner ─
+      // ── ZOOM TOP RIGHT: Skew & zoom, centered ─
       case 'zoomTopRight': {
         const introT = Math.min(1, t / 2.2)
         const eased = easeOutCubic(introT)
-        const targetScale = 1.8
+        const targetScale = 1.5
         const s = 1 + (targetScale - 1) * eased
         group.scale.set(s, s, s)
         group.rotation.x = 0.25 * eased + smoothSin(t, 0.15, 0.02)
         group.rotation.y = -0.35 * eased + smoothSin(t, 0.12, 0.03)
         group.rotation.z = 0.12 * eased
-        group.position.x = -0.6 * eased + smoothSin(t, 0.18, 0.04)
-        group.position.y = -0.5 * eased + smoothSin(t, 0.22, 0.03)
+        group.position.y = smoothSin(t, 0.22, 0.03)
         group.position.z = 0.3 * eased
         break
       }
 
       // ── LAPTOP OPEN: lid opens from closed (folded down) to upright ─
+      // ── HERO RISE: hold initial pose, then rise to upright ─
+      case 'heroRise': {
+        const holdDur = 1.5
+        const riseDur = 2.4
+        const riseT = Math.max(0, t - holdDur)
+        const introT = Math.min(1, riseT / riseDur)
+        const eased = easeOutCubic(introT)
+
+        const startRotX = -0.7 + userRotRef.current.x
+        const startRotY = 0.15 + userRotRef.current.y
+        const startRotZ = 0.08
+        const startScale = 1.6
+        const startPosX = userPosRef.current.x
+        const startPosY = -0.6 + userPosRef.current.y
+        const startZ = 0.5
+
+        group.rotation.x = startRotX * (1 - eased) + smoothSin(t, 0.15, 0.02)
+        group.rotation.y = startRotY * (1 - eased) + smoothSin(t, 0.2, 0.06)
+        group.rotation.z = startRotZ * (1 - eased)
+        const s = startScale - (startScale - 1) * eased
+        group.scale.set(s, s, s)
+        group.position.x = startPosX * (1 - eased)
+        group.position.y = startPosY * (1 - eased) + smoothSin(t, 0.3, 0.06)
+        group.position.z = startZ * (1 - eased)
+        heroRiseActive.current = true
+        break
+      }
+
       case 'laptopOpen': {
         const introT = Math.min(1, t / 2.0)
         const eased = easeOutCubic(introT)
@@ -540,10 +624,17 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
     textOffsetRef.current.y += (targetOffY - textOffsetRef.current.y) * lerpSpeed
     group.position.x += textOffsetRef.current.x
     group.position.y += textOffsetRef.current.y
+
+    if (!heroRiseActive.current) {
+      group.rotation.x += userRotRef.current.x
+      group.rotation.y += userRotRef.current.y
+      group.position.x += userPosRef.current.x
+      group.position.y += userPosRef.current.y
+    }
   })
 
   return (
-    <group ref={groupRef} onPointerDown={(e) => { e.stopPropagation(); if (onDeviceClick) onDeviceClick() }}>
+    <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>
       {showIphone && (
         <group ref={iphoneRef} position={[isBoth ? -0.8 : 0, 0, 0]}>
           <DeviceFrame
@@ -551,9 +642,11 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             screenUrl={firstScreen?.url || null}
             screenFile={firstScreen?.file || null}
             isVideo={firstScreen?.isVideo || false}
+            isGif={firstScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
             scale={0.35}
+            showShadow={showDeviceShadow}
           />
         </group>
       )}
@@ -564,9 +657,11 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             screenUrl={secondScreen?.url || null}
             screenFile={secondScreen?.file || null}
             isVideo={secondScreen?.isVideo || false}
+            isGif={secondScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
             scale={0.35}
+            showShadow={showDeviceShadow}
           />
         </group>
       )}
@@ -577,9 +672,11 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             screenUrl={firstScreen?.url || null}
             screenFile={firstScreen?.file || null}
             isVideo={firstScreen?.isVideo || false}
+            isGif={firstScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
             scale={0.35}
+            showShadow={showDeviceShadow}
           />
         </group>
       )}
@@ -590,10 +687,12 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             screenUrl={firstScreen?.url || null}
             screenFile={firstScreen?.file || null}
             isVideo={firstScreen?.isVideo || false}
+            isGif={firstScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
             scale={0.38}
             lidAngleRef={lidAngleRef}
+            showShadow={showDeviceShadow}
           />
         </group>
       )}
@@ -608,9 +707,50 @@ const MULTI_DEVICE_ANIMS = new Set([
   'flatScatter7',
 ])
 
-function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, onDeviceClick }) {
+function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust }) {
   const groupRef = useRef()
   const devRefs = useRef({})
+  const userRotRef = useRef({ x: 0, y: 0 })
+  const dragRef = useRef({ active: false, startX: 0, startY: 0, moved: false })
+
+  useEffect(() => {
+    userRotRef.current = { x: 0, y: 0 }
+  }, [resetKey])
+
+  const handlePointerDown = useCallback((e) => {
+    e.stopPropagation()
+    dragRef.current = {
+      active: true, moved: false,
+      startX: e.clientX, startY: e.clientY,
+      origRotX: userRotRef.current.x, origRotY: userRotRef.current.y,
+    }
+    const onMove = (ev) => {
+      const dr = dragRef.current
+      if (!dr.active) return
+      const dx = ev.clientX - dr.startX
+      const dy = ev.clientY - dr.startY
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dr.moved = true
+      userRotRef.current.y = dr.origRotY + dx * 0.005
+      userRotRef.current.x = dr.origRotX + dy * 0.005
+    }
+    const onUp = () => {
+      const dr = dragRef.current
+      dr.active = false
+      if (!dr.moved && onDeviceClick) onDeviceClick()
+      const hasAdj = Math.abs(userRotRef.current.x) > 0.001 || Math.abs(userRotRef.current.y) > 0.001
+      if (onManualAdjust) onManualAdjust(hasAdj)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }, [onDeviceClick, onManualAdjust])
+
+  const handleDoubleClick = useCallback((e) => {
+    e.stopPropagation()
+    userRotRef.current = { x: 0, y: 0 }
+    if (onManualAdjust) onManualAdjust(false)
+  }, [onManualAdjust])
   const ctRef = useRef(0)
   ctRef.current = clipAnimationTime || 0
 
@@ -630,8 +770,10 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       screenUrl: scr?.url || null,
       screenFile: scr?.file || null,
       isVideo: scr?.isVideo || false,
+      isGif: scr?.isGif || false,
       videoSeekTime, timelinePlaying,
       scale: 0.3,
+      showShadow: showDeviceShadow,
     }
   }
 
@@ -833,9 +975,10 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
         break
       }
     }
-  })
 
-  const handleDevClick = (e) => { e.stopPropagation(); if (onDeviceClick) onDeviceClick() }
+    g.rotation.x += userRotRef.current.x
+    g.rotation.y += userRotRef.current.y
+  })
 
   const renderPhones = (count, scale = 0.3) => {
     if (animation === 'sideScroll10') {
@@ -863,34 +1006,36 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
   switch (animation) {
     case 'sideScroll10':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 10, 0.28)}</group>
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 10, 0.28)}</group>
     case 'angled3ZoomOut':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(3, 0.33)}</group>
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(3, 0.33)}</group>
     case 'circle4Rotate':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(4, 0.28)}</group>
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(4, 0.28)}</group>
     case 'angledZoom4':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 4, 0.32)}</group>
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 4, 0.32)}</group>
     case 'carousel6':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 6, 0.26)}</group>
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 6, 0.26)}</group>
     case 'offsetCircleRotate':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 6, 0.27)}</group>
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 6, 0.27)}</group>
     case 'flatScatter7':
-      return <group ref={groupRef} onPointerDown={handleDevClick}>{renderPhones(multiDeviceCount || 7, 0.30)}</group>
+      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 7, 0.30)}</group>
     case 'floatingPhoneLaptop':
     case 'phoneInFrontLaptop': {
       const phoneSrc = getSlotScreen(0)
       const laptopSrc = getSlotScreen(1)
       return (
-        <group ref={groupRef} onPointerDown={handleDevClick}>
+        <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>
           <group ref={setRef('phone')}>
             <DeviceFrame
               type="iphone"
               screenUrl={phoneSrc?.url || null}
               screenFile={phoneSrc?.file || null}
               isVideo={phoneSrc?.isVideo || false}
+              isGif={phoneSrc?.isGif || false}
               videoSeekTime={videoSeekTime}
               timelinePlaying={timelinePlaying}
               scale={0.32}
+              showShadow={showDeviceShadow}
             />
           </group>
           <group ref={setRef('laptop')}>
@@ -899,10 +1044,12 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
               screenUrl={laptopSrc?.url || null}
               screenFile={laptopSrc?.file || null}
               isVideo={laptopSrc?.isVideo || false}
+              isGif={laptopSrc?.isGif || false}
               videoSeekTime={videoSeekTime}
               timelinePlaying={timelinePlaying}
               scale={0.35}
               lidAngleRef={lidAngleRef}
+              showShadow={showDeviceShadow}
             />
           </group>
         </group>
@@ -1265,13 +1412,19 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, isVertica
 
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
-  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, isPlaying, canvasRef,
+  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef,
   textOverlays, currentTime, clipAnimationTime, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
   outroLogo, totalDuration, multiDeviceCount, onTextClick, onDeviceClick,
 }) {
   const tint = useTintedLights(bgColor)
   const containerRef = useRef(null)
   const [containerSize, setContainerSize] = useState({ w: 1, h: 1 })
+  const [hasManualAdjust, setHasManualAdjust] = useState(false)
+  const [resetKey, setResetKey] = useState(0)
+  const handleResetAdjust = useCallback(() => {
+    setResetKey(k => k + 1)
+    setHasManualAdjust(false)
+  }, [])
 
   useEffect(() => {
     const el = containerRef.current
@@ -1358,7 +1511,10 @@ export default function PreviewScene({
               clipDuration={clipDuration}
               slotScreens={slotScreens}
               multiDeviceCount={multiDeviceCount}
+              showDeviceShadow={showDeviceShadow}
               onDeviceClick={onDeviceClick}
+              resetKey={resetKey}
+              onManualAdjust={setHasManualAdjust}
             />
           ) : (
             <AnimatedDevices
@@ -1379,7 +1535,10 @@ export default function PreviewScene({
               textOnLeft={textOnLeft}
               isVerticalLayout={isVerticalLayout}
               textOnTop={textOnTop}
+              showDeviceShadow={showDeviceShadow}
               onDeviceClick={onDeviceClick}
+              resetKey={resetKey}
+              onManualAdjust={setHasManualAdjust}
             />
           )}
           {showBase && (
@@ -1405,6 +1564,15 @@ export default function PreviewScene({
         />
       </Canvas>
       <SplitDivider textSplit={textSplit} onSplitChange={onTextSplitChange} visible={showDivider} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onFlip={onFlipLayout} />
+      {hasManualAdjust && (
+        <button className="preview-reset-btn" onClick={handleResetAdjust} title="Reset manual adjustments">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="1 4 1 10 7 10" />
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+          </svg>
+          Reset
+        </button>
+      )}
       </div>
 
       {screens.length === 0 && (

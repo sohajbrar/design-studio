@@ -154,6 +154,42 @@
   transform: translateY(-50%);
 }
 
+/* ── Cursor for interactive 3D drag ────────── */
+.preview-canvas-wrap canvas {
+  cursor: grab;
+}
+.preview-canvas-wrap canvas:active {
+  cursor: grabbing;
+}
+
+/* ── Reset manual adjustments button ────────── */
+.preview-reset-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--overlay-border);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  z-index: 12;
+  transition: all 0.15s;
+  box-shadow: var(--shadow-sm);
+}
+
+.preview-reset-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+}
+
 .preview-empty {
   position: absolute;
   inset: 0;

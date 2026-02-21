@@ -1,6 +1,118 @@
 import { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { parseGIF, decompressFrames } from 'gifuct-js'
+
+const KEYBOARD_TEX = (() => {
+  const w = 680, h = 220
+  const c = document.createElement('canvas')
+  c.width = w; c.height = h
+  const ctx = c.getContext('2d')
+
+  ctx.fillStyle = '#1c1c1c'
+  ctx.fillRect(0, 0, w, h)
+
+  const gap = 3, rad = 4, pad = 10
+
+  function key(x, y, kw, kh) {
+    ctx.beginPath()
+    ctx.moveTo(x + rad, y)
+    ctx.lineTo(x + kw - rad, y)
+    ctx.quadraticCurveTo(x + kw, y, x + kw, y + rad)
+    ctx.lineTo(x + kw, y + kh - rad)
+    ctx.quadraticCurveTo(x + kw, y + kh, x + kw - rad, y + kh)
+    ctx.lineTo(x + rad, y + kh)
+    ctx.quadraticCurveTo(x, y + kh, x, y + kh - rad)
+    ctx.lineTo(x, y + rad)
+    ctx.quadraticCurveTo(x, y, x + rad, y)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  const usable = w - 2 * pad
+  const mainH = 30
+  let y = pad
+
+  ctx.fillStyle = '#2e2e2e'
+  const fnH = 16
+  const fnCount = 14
+  const fnW = (usable - (fnCount - 1) * gap) / fnCount
+  for (let i = 0; i < fnCount; i++) key(pad + i * (fnW + gap), y, fnW, fnH)
+
+  y += fnH + gap + 2
+  ctx.fillStyle = '#333333'
+
+  const stdCount = 14
+  const delW = fnW * 1.55
+  const numW = (usable - delW - (stdCount - 1) * gap) / (stdCount - 1)
+  for (let i = 0; i < stdCount - 1; i++) key(pad + i * (numW + gap), y, numW, mainH)
+  key(w - pad - delW, y, delW, mainH)
+
+  y += mainH + gap
+  const tabW = fnW * 1.55
+  key(pad, y, tabW, mainH)
+  const qCount = 13
+  const qW = (usable - tabW - gap - (qCount - 1) * gap) / qCount
+  for (let i = 0; i < qCount; i++) key(pad + tabW + gap + i * (qW + gap), y, qW, mainH)
+
+  y += mainH + gap
+  const capsW = fnW * 1.85
+  const retW = fnW * 1.85
+  key(pad, y, capsW, mainH)
+  const aCount = 11
+  const aW = (usable - capsW - retW - (aCount + 1) * gap) / aCount
+  for (let i = 0; i < aCount; i++) key(pad + capsW + gap + i * (aW + gap), y, aW, mainH)
+  key(w - pad - retW, y, retW, mainH)
+
+  y += mainH + gap
+  const shL = fnW * 2.35
+  const shR = fnW * 2.35
+  key(pad, y, shL, mainH)
+  const zCount = 10
+  const zW = (usable - shL - shR - (zCount + 1) * gap) / zCount
+  for (let i = 0; i < zCount; i++) key(pad + shL + gap + i * (zW + gap), y, zW, mainH)
+  key(w - pad - shR, y, shR, mainH)
+
+  y += mainH + gap
+  const modW = fnW * 1.05
+  const arrowW = fnW * 0.95
+  const arrowH = (mainH - gap) / 2
+  const spaceW = usable - 4 * modW - 2 * modW - 3 * arrowW - 9 * gap
+  let x = pad
+  for (let i = 0; i < 4; i++) { key(x, y, modW, mainH); x += modW + gap }
+  key(x, y, spaceW, mainH); x += spaceW + gap
+  key(x, y, modW, mainH); x += modW + gap
+  key(x, y, modW, mainH); x += modW + gap
+
+  key(x, y, arrowW, arrowH)
+  key(x, y + arrowH + gap, arrowW, arrowH)
+  x += arrowW + gap
+  key(x, y + arrowH + gap, arrowW, arrowH)
+  x += arrowW + gap
+  key(x, y, arrowW, arrowH)
+  key(x, y + arrowH + gap, arrowW, arrowH)
+
+  const tex = new THREE.CanvasTexture(c)
+  tex.needsUpdate = true
+  return tex
+})()
+
+const SHADOW_TEX = (() => {
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = s; c.height = s
+  const ctx = c.getContext('2d')
+  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
+  g.addColorStop(0, 'rgba(0,0,0,0.5)')
+  g.addColorStop(0.35, 'rgba(0,0,0,0.28)')
+  g.addColorStop(0.65, 'rgba(0,0,0,0.08)')
+  g.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, s, s)
+  const tex = new THREE.CanvasTexture(c)
+  tex.needsUpdate = true
+  return tex
+})()
 
 const IPHONE_ASPECT = 19.5 / 9
 const ANDROID_ASPECT = 19.5 / 9
@@ -76,23 +188,23 @@ function createRoundedRectShape(w, h, r) {
  * Uses a double-buffer strategy: the old texture stays visible until the new
  * one is fully loaded, eliminating any black-frame flash between clips.
  */
-function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
+function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif) {
   const textureRef = useRef(null)
   const loadedRef = useRef(false)
   const videoRef = useRef(null)
+  const gifRef = useRef(null)
   const prevTextureRef = useRef(null)
   const prevVideoRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
 
-    // Keep the old texture/video alive until the new one is ready
     prevTextureRef.current = textureRef.current
     prevVideoRef.current = videoRef.current
     videoRef.current = null
+    gifRef.current = null
 
     if (!screenFile && !screenUrl) {
-      // No new screen — dispose old and clear
       disposeOld()
       textureRef.current = null
       loadedRef.current = false
@@ -123,7 +235,89 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
       loadedRef.current = true
     }
 
-    if (isVideo && screenUrl) {
+    if (isGif && (screenFile || screenUrl)) {
+      const bufferPromise = screenFile
+        ? screenFile.arrayBuffer()
+        : fetch(screenUrl).then(r => r.arrayBuffer())
+
+      bufferPromise.then(buffer => {
+        if (cancelled) return
+        const gif = parseGIF(new Uint8Array(buffer).buffer)
+        const frames = decompressFrames(gif, true)
+        if (!frames.length) return
+
+        const gifW = gif.lsd.width
+        const gifH = gif.lsd.height
+
+        const targetW = 540
+        const targetH = Math.round(targetW / screenAspect)
+        const texCanvas = document.createElement('canvas')
+        texCanvas.width = targetW
+        texCanvas.height = targetH
+        const texCtx = texCanvas.getContext('2d')
+
+        const compCanvas = document.createElement('canvas')
+        compCanvas.width = gifW
+        compCanvas.height = gifH
+        const compCtx = compCanvas.getContext('2d')
+
+        const patchCanvas = document.createElement('canvas')
+        const patchCtx = patchCanvas.getContext('2d')
+
+        const frameDataList = frames.map(f => {
+          const imageData = new ImageData(
+            new Uint8ClampedArray(f.patch),
+            f.dims.width,
+            f.dims.height
+          )
+          return {
+            imageData,
+            dims: f.dims,
+            delay: f.delay <= 0 ? 100 : f.delay,
+            disposalType: f.disposalType,
+          }
+        })
+
+        const imgAspect = gifW / gifH
+        const canvasAspect = targetW / targetH
+        let sx, sy, sw, sh
+        if (imgAspect > canvasAspect) {
+          sh = gifH; sw = gifH * canvasAspect
+          sx = (gifW - sw) / 2; sy = 0
+        } else {
+          sw = gifW; sh = gifW / canvasAspect
+          sx = 0; sy = (gifH - sh) / 2
+        }
+
+        const first = frameDataList[0]
+        patchCanvas.width = first.dims.width
+        patchCanvas.height = first.dims.height
+        patchCtx.putImageData(first.imageData, 0, 0)
+        compCtx.drawImage(patchCanvas, first.dims.left, first.dims.top)
+        texCtx.drawImage(compCanvas, sx, sy, sw, sh, 0, 0, targetW, targetH)
+
+        gifRef.current = {
+          frames: frameDataList,
+          compCanvas, compCtx,
+          patchCanvas, patchCtx,
+          texCtx,
+          sx, sy, sw, sh, targetW, targetH,
+          currentFrame: 0,
+          lastFrameTime: performance.now(),
+          totalFrames: frameDataList.length,
+        }
+
+        const tex = new THREE.CanvasTexture(texCanvas)
+        tex.colorSpace = THREE.SRGBColorSpace
+        tex.minFilter = THREE.LinearFilter
+        tex.magFilter = THREE.LinearFilter
+        tex.generateMipmaps = false
+        tex.needsUpdate = true
+        commitTexture(tex, null)
+      }).catch(err => {
+        console.error('[DeviceFrame] GIF parsing failed:', err)
+      })
+    } else if (isVideo && screenUrl) {
       const video = document.createElement('video')
       video.src = screenUrl
       video.loop = false
@@ -183,6 +377,7 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
 
     return () => {
       cancelled = true
+      gifRef.current = null
       if (videoRef.current) {
         videoRef.current.pause()
         videoRef.current.src = ''
@@ -194,9 +389,9 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect) {
       }
       loadedRef.current = false
     }
-  }, [screenFile, screenUrl, isVideo])
+  }, [screenFile, screenUrl, isVideo, isGif])
 
-  return { textureRef, loadedRef, videoRef }
+  return { textureRef, loadedRef, videoRef, gifRef }
 }
 
 export default function DeviceFrame({
@@ -204,23 +399,24 @@ export default function DeviceFrame({
   screenUrl,
   screenFile,
   isVideo = false,
+  isGif = false,
   videoSeekTime = 0,
   timelinePlaying = false,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   scale = 1,
   lidAngleRef,
+  showShadow = false,
 }) {
   const config = DEVICE_CONFIGS[type]
   const screenW = config.width - config.screenInset * 2
   const screenH = config.height - config.screenInset * 2
 
-  // Refs for imperative texture application
   const screenMeshRef = useRef()
   const lastSeekRef = useRef(-1)
   const lidPivotRef = useRef()
   const screenAspect = screenW / screenH
-  const { textureRef, loadedRef, videoRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect)
+  const { textureRef, loadedRef, videoRef, gifRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif)
 
   // Rounded body geometry
   const bodyGeo = useMemo(() => {
@@ -276,9 +472,52 @@ export default function DeviceFrame({
         mat.color.set('#ffffff')
         mat.needsUpdate = true
       }
-      // Keep video textures updated
       if (isVideo && textureRef.current.isVideoTexture) {
         textureRef.current.needsUpdate = true
+      }
+      if (isGif && gifRef.current) {
+        const g = gifRef.current
+        if (timelinePlaying) {
+          g.paused = false
+          const now = performance.now()
+          const elapsed = now - g.lastFrameTime
+          if (elapsed >= g.frames[g.currentFrame].delay) {
+            const prev = g.frames[g.currentFrame]
+            if (prev.disposalType === 2) {
+              g.compCtx.clearRect(prev.dims.left, prev.dims.top, prev.dims.width, prev.dims.height)
+            } else if (prev.disposalType === 3 && g.savedState) {
+              g.compCtx.putImageData(g.savedState, 0, 0)
+            }
+            g.currentFrame = (g.currentFrame + 1) % g.totalFrames
+            if (g.currentFrame === 0) {
+              g.compCtx.clearRect(0, 0, g.compCanvas.width, g.compCanvas.height)
+            }
+            const frame = g.frames[g.currentFrame]
+            if (frame.disposalType === 3) {
+              g.savedState = g.compCtx.getImageData(0, 0, g.compCanvas.width, g.compCanvas.height)
+            }
+            g.patchCanvas.width = frame.dims.width
+            g.patchCanvas.height = frame.dims.height
+            g.patchCtx.putImageData(frame.imageData, 0, 0)
+            g.compCtx.drawImage(g.patchCanvas, frame.dims.left, frame.dims.top)
+            g.texCtx.clearRect(0, 0, g.targetW, g.targetH)
+            g.texCtx.drawImage(g.compCanvas, g.sx, g.sy, g.sw, g.sh, 0, 0, g.targetW, g.targetH)
+            g.lastFrameTime = now
+            textureRef.current.needsUpdate = true
+          }
+        } else if (!g.paused) {
+          g.paused = true
+          g.currentFrame = 0
+          g.compCtx.clearRect(0, 0, g.compCanvas.width, g.compCanvas.height)
+          const first = g.frames[0]
+          g.patchCanvas.width = first.dims.width
+          g.patchCanvas.height = first.dims.height
+          g.patchCtx.putImageData(first.imageData, 0, 0)
+          g.compCtx.drawImage(g.patchCanvas, first.dims.left, first.dims.top)
+          g.texCtx.clearRect(0, 0, g.targetW, g.targetH)
+          g.texCtx.drawImage(g.compCanvas, g.sx, g.sy, g.sw, g.sh, 0, 0, g.targetW, g.targetH)
+          textureRef.current.needsUpdate = true
+        }
       }
     }
 
@@ -347,8 +586,8 @@ export default function DeviceFrame({
             </mesh>
             {/* Keyboard area */}
             <mesh position={[0, config.height * 0.15, 0.025]}>
-              <shapeGeometry args={[createRoundedRectShape(config.width - 0.4, 0.7, 0.04)]} />
-              <meshStandardMaterial color="#333333" roughness={0.9} metalness={0.1} />
+              <planeGeometry args={[config.width - 0.4, 0.7]} />
+              <meshBasicMaterial map={KEYBOARD_TEX} toneMapped={false} />
             </mesh>
           </group>
 
@@ -465,6 +704,22 @@ export default function DeviceFrame({
             </>
           )}
         </>
+      )}
+
+      {showShadow && (
+        <mesh
+          position={[0, -config.height / 2 - 0.35, -config.depth / 2]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={-1}
+        >
+          <planeGeometry args={[config.width * 1.8, config.width * 0.7]} />
+          <meshBasicMaterial
+            map={SHADOW_TEX}
+            transparent
+            opacity={0.65}
+            depthWrite={false}
+          />
+        </mesh>
       )}
     </group>
   )

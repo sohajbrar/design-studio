@@ -602,6 +602,8 @@ export default function Timeline({
                 setCurrentTime(time)
                 setSelectedClipId(null)
                 setSelectedZoomId(null)
+                setSelectedTextId(null)
+                setSelectedAudioTrack(null)
               }
             }}
           >
@@ -624,6 +626,8 @@ export default function Timeline({
                     e.stopPropagation()
                     setSelectedClipId(clip.id)
                     setSelectedZoomId(null)
+                    setSelectedTextId(null)
+                    setSelectedAudioTrack(null)
                     if (setSidebarTab) setSidebarTab('animations')
                     const rect = e.currentTarget.getBoundingClientRect()
                     const localX = e.clientX - rect.left
@@ -718,6 +722,7 @@ export default function Timeline({
                     setSelectedTextId(overlay.id)
                     setSelectedClipId(null)
                     setSelectedZoomId(null)
+                    setSelectedAudioTrack(null)
                     if (setSidebarTab) setSidebarTab('text')
                     const rect = e.currentTarget.getBoundingClientRect()
                     const localX = e.clientX - rect.left
@@ -802,6 +807,8 @@ export default function Timeline({
                     e.stopPropagation()
                     setSelectedZoomId(effect.id)
                     setSelectedClipId(null)
+                    setSelectedTextId(null)
+                    setSelectedAudioTrack(null)
                     const rect = e.currentTarget.getBoundingClientRect()
                     const localX = e.clientX - rect.left
 

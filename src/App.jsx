@@ -29,6 +29,7 @@ const ANIMATION_PRESETS = [
   { id: 'slideLeftRotate', name: 'Left + Rotate' },
   { id: 'zoomBottomLeft', name: 'Zoom BL' },
   { id: 'zoomTopRight', name: 'Zoom TR' },
+  { id: 'heroRise', name: 'Hero Rise' },
   { id: 'laptopOpen', name: 'Laptop Open', macbookOnly: true },
   { id: 'laptopClose', name: 'Laptop Close', macbookOnly: true },
 ]
@@ -212,6 +213,14 @@ const ANIM_ICONS = {
       <path d="M16 32l-6 0" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.25"/>
     </svg>
   ),
+  heroRise: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="14" y="22" width="20" height="20" rx="3" stroke="currentColor" strokeWidth="1.5" opacity="0.25" strokeDasharray="2 2" transform="rotate(-50 24 32)"/>
+      <rect x="14" y="8" width="20" height="32" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M24 44v-4M20 42l4 4 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
+      <path d="M24 4v4M20 6l4-4 4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
+    </svg>
+  ),
   laptopOpen: (
     <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
       <rect x="8" y="30" width="32" height="3" rx="1" stroke="currentColor" strokeWidth="1.5" opacity="0.5"/>
@@ -307,6 +316,7 @@ function App() {
   const [bgColor, setBgColor] = useState(() => loadSaved('bgColor', '#161717'))
   const [bgGradient, setBgGradient] = useState(() => loadSaved('bgGradient', false))
   const [showBase, setShowBase] = useState(() => loadSaved('showBase', false))
+  const [showDeviceShadow, setShowDeviceShadow] = useState(() => loadSaved('showDeviceShadow', false))
   const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [showExport, setShowExport] = useState(false)
@@ -320,6 +330,7 @@ function App() {
   const hasUnsavedChanges = useRef(false)
   const [activeThemeId, setActiveThemeId] = useState(null)
   const [outroLogo, setOutroLogo] = useState(null)
+  const [globalBrandTheme, setGlobalBrandTheme] = useState('whatsapp')
   const [siteTheme, setSiteTheme] = useState(() => {
     return localStorage.getItem('ds_siteTheme') || 'dark'
   })
@@ -373,11 +384,12 @@ function App() {
     localStorage.setItem('ds_bgColor', JSON.stringify(bgColor))
     localStorage.setItem('ds_bgGradient', JSON.stringify(bgGradient))
     localStorage.setItem('ds_showBase', JSON.stringify(showBase))
+    localStorage.setItem('ds_showDeviceShadow', JSON.stringify(showDeviceShadow))
     localStorage.setItem('ds_deviceType', JSON.stringify(deviceType))
     localStorage.setItem('ds_quality', JSON.stringify(quality))
     localStorage.setItem('ds_exportFormat', JSON.stringify(exportFormat))
     localStorage.setItem('ds_aspectRatio', JSON.stringify(aspectRatio))
-  }, [bgColor, bgGradient, showBase, deviceType, quality, exportFormat, aspectRatio])
+  }, [bgColor, bgGradient, showBase, showDeviceShadow, deviceType, quality, exportFormat, aspectRatio])
 
   // ── Derived values ───────────────────────────────
   const totalDuration = useMemo(
@@ -563,12 +575,14 @@ function App() {
     const newScreens = Array.from(files).map((file) => {
       const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
       const isVideo = file.type.startsWith('video/') || VIDEO_EXTENSIONS.includes(ext)
+      const isGif = ext === '.gif' || file.type === 'image/gif'
       return {
         id: crypto.randomUUID(),
         file,
         url: URL.createObjectURL(file),
         name: file.name,
         isVideo,
+        isGif,
       }
     })
 
@@ -648,12 +662,14 @@ function App() {
     const newScreens = Array.from(files).map((file) => {
       const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
       const isVideo = file.type.startsWith('video/') || VIDEO_EXTENSIONS.includes(ext)
+      const isGif = ext === '.gif' || file.type === 'image/gif'
       return {
         id: crypto.randomUUID(),
         file,
         url: URL.createObjectURL(file),
         name: file.name,
         isVideo,
+        isGif,
       }
     })
 
@@ -1117,6 +1133,12 @@ function App() {
     templateClipDurRef.current = template.clipDuration || 3
     setSidebarTab('media')
 
+    if (template._themeVariantId) {
+      setActiveThemeId(template._themeVariantId)
+    } else {
+      setActiveThemeId(null)
+    }
+
     const clipDur = template.clipDuration || 3
     setTimelineClips((prev) =>
       recalcStartTimes(
@@ -1156,18 +1178,7 @@ function App() {
       }
     }
 
-    // Auto-add zoom effects for zoom-based animations
-    if (template.animation === 'zoomBottomLeft' || template.animation === 'zoomTopRight') {
-      const zoomDur = Math.min(2.2, clipDur)
-      setZoomEffects([{
-        id: crypto.randomUUID(),
-        startTime: 0,
-        endTime: zoomDur,
-        zoomLevel: 1.8,
-      }])
-    } else {
-      setZoomEffects([])
-    }
+    setZoomEffects([])
 
     if (template.screenSlots) {
       setActiveScreenSlots(template.screenSlots)
@@ -1203,6 +1214,7 @@ function App() {
     bgColor,
     bgGradient,
     showBase,
+    showDeviceShadow,
     whatsappTheme: activeThemeId,
     outroLogo,
     outroAnimation: templateOutroRef.current || 'none',
@@ -1226,7 +1238,7 @@ function App() {
     musicTrackName: musicTrack?.name || null,
     musicVolume: musicTrack?.volume ?? null,
     currentTime,
-  }), [activeTemplateId, deviceType, animation, bgColor, bgGradient, showBase, activeThemeId, outroLogo, textOverlays, textSplit, layoutFlipped, totalDuration, aspectRatio, quality, exportFormat, zoomEffects, musicTrack, currentTime])
+  }), [activeTemplateId, deviceType, animation, bgColor, bgGradient, showBase, showDeviceShadow, activeThemeId, outroLogo, textOverlays, textSplit, layoutFlipped, totalDuration, aspectRatio, quality, exportFormat, zoomEffects, musicTrack, currentTime])
 
   const applyConfigDelta = useCallback((delta) => {
     if (!delta) return
@@ -1255,6 +1267,7 @@ function App() {
     if (delta.bgColor) setBgColor(delta.bgColor)
     if (delta.bgGradient !== undefined) setBgGradient(delta.bgGradient)
     if (delta.showBase !== undefined) setShowBase(delta.showBase)
+    if (delta.showDeviceShadow !== undefined) setShowDeviceShadow(delta.showDeviceShadow)
     if (delta.whatsappTheme) {
       setActiveThemeId(delta.whatsappTheme)
       const themeColors = { 'wa-dark': '#0A1014', 'wa-light': '#E7FDE3', 'wa-beige': '#FEF4EB', 'wa-green': '#1DAA61' }
@@ -1449,16 +1462,7 @@ function App() {
       )
     )
 
-    if (config.animation === 'zoomBottomLeft' || config.animation === 'zoomTopRight') {
-      setZoomEffects([{
-        id: crypto.randomUUID(),
-        startTime: 0,
-        endTime: Math.min(2.2, clipDur),
-        zoomLevel: 1.8,
-      }])
-    } else {
-      setZoomEffects([])
-    }
+    setZoomEffects([])
 
     if (result?.recommendedMusicId) {
       setTimeout(() => {
@@ -1478,7 +1482,16 @@ function App() {
     hasUnsavedChanges.current = false
     setHasStarted(true)
     setSidebarTab('media')
-  }, [])
+    if (globalBrandTheme === 'whatsapp') {
+      const theme = WA_THEMES.find((t) => t.id === 'wa-light')
+      if (theme) {
+        setActiveThemeId(theme.id)
+        setBgColor(theme.bgColor)
+        setBgGradient(theme.bgGradient)
+        setShowBase(false)
+      }
+    }
+  }, [globalBrandTheme])
 
   const toggleSiteTheme = useCallback(() => {
     setSiteTheme(prev => prev === 'dark' ? 'light' : 'dark')
@@ -1515,6 +1528,7 @@ function App() {
     setBgColor(loadSaved('bgColor', '#161717'))
     setBgGradient(loadSaved('bgGradient', false))
     setShowBase(loadSaved('showBase', false))
+    setShowDeviceShadow(loadSaved('showDeviceShadow', false))
     setQuality(loadSaved('quality', '1080p'))
     setAspectRatio(loadSaved('aspectRatio', 'none'))
     setScreenSlotMap([])
@@ -1558,10 +1572,9 @@ function App() {
             className="btn btn-header btn-back"
             onClick={handleBackClick}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            Back
           </button>
         ) : null}
       >
@@ -1625,6 +1638,8 @@ function App() {
                 onStartBlank={handleStartBlank}
                 onAIGenerate={handleAIGenerate}
                 aiLoading={aiLoading}
+                globalBrandTheme={globalBrandTheme}
+                onBrandThemeChange={setGlobalBrandTheme}
               />
             </div>
           </div>
@@ -1633,6 +1648,11 @@ function App() {
             <aside className="sidebar">
               <nav className="sidebar-tabs">
                 {[
+                  { id: 'ai', label: 'AI', icon: (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+                    </svg>
+                  )},
                   { id: 'templates', icon: (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="3" width="7" height="7" rx="1.5" />
@@ -1693,20 +1713,30 @@ function App() {
                     key={tab.id}
                     className={`sidebar-tab ${sidebarTab === tab.id ? 'active' : ''}`}
                     onClick={() => setSidebarTab(tab.id)}
-                    title={tab.id.charAt(0).toUpperCase() + tab.id.slice(1)}
                   >
                     {tab.icon}
-                    <span className="sidebar-tab-label">{tab.id.charAt(0).toUpperCase() + tab.id.slice(1)}</span>
+                    <span className="sidebar-tab-label">{tab.label || tab.id.charAt(0).toUpperCase() + tab.id.slice(1)}</span>
                   </button>
                 ))}
               </nav>
               <div className="sidebar-content">
+                {sidebarTab === 'ai' && (
+                  <AIAssistant
+                    getCurrentConfig={getCurrentConfig}
+                    onApplyDelta={applyConfigDelta}
+                    inline
+                  />
+                )}
+
                 {sidebarTab === 'templates' && (
                   <TemplateGallery
                     onSelectTemplate={handleSelectTemplate}
                     activeTemplateId={activeTemplateId}
                     onAIGenerate={handleAIGenerate}
                     aiLoading={aiLoading}
+                    globalBrandTheme={globalBrandTheme}
+                    onBrandThemeChange={setGlobalBrandTheme}
+                    compact
                   />
                 )}
 
@@ -1726,7 +1756,7 @@ function App() {
                           <div className="screen-thumb-info">
                             <span className="screen-thumb-name">{screen.name}</span>
                             <span className="screen-thumb-index">
-                              {screen.isVideo ? 'Video' : `Screen ${index + 1}`}
+                              {screen.isVideo ? 'Video' : screen.isGif ? 'GIF' : `Screen ${index + 1}`}
                             </span>
                           </div>
                           <button
@@ -2161,20 +2191,6 @@ function App() {
                                   setCurrentTime(clip.startTime)
                                 }
                                 setAnimation(preset.id)
-                                if (preset.id === 'zoomBottomLeft' || preset.id === 'zoomTopRight') {
-                                  const dur = clip ? Math.min(2.2, clip.duration) : 2.2
-                                  const start = clip ? clip.startTime : 0
-                                  setZoomEffects((prev) => {
-                                    const hasOverlap = prev.some((e) => e.startTime < start + dur && e.endTime > start)
-                                    if (hasOverlap) return prev
-                                    return [...prev, {
-                                      id: crypto.randomUUID(),
-                                      startTime: start,
-                                      endTime: start + dur,
-                                      zoomLevel: 1.8,
-                                    }]
-                                  })
-                                }
                                 setIsPlaying(true)
                                 setIsTimelinePlaying(true)
                               }}
@@ -2520,6 +2536,15 @@ function App() {
                           <div className="toggle-thumb" />
                         </button>
                       </div>
+                      <div className="control-row">
+                        <label className="control-label">Device shadow</label>
+                        <button
+                          className={`toggle ${showDeviceShadow ? 'active' : ''}`}
+                          onClick={() => { markChanged(); setShowDeviceShadow(!showDeviceShadow) }}
+                        >
+                          <div className="toggle-thumb" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2539,6 +2564,7 @@ function App() {
                 bgColor={bgColor}
                 bgGradient={bgGradient}
                 showBase={showBase}
+                showDeviceShadow={showDeviceShadow}
                 isPlaying={isPlaying}
                 canvasRef={canvasRef}
                 textOverlays={textOverlays}
@@ -2598,13 +2624,6 @@ function App() {
           </>
         )}
       </main>
-
-      {hasStarted && (
-        <AIAssistant
-          getCurrentConfig={getCurrentConfig}
-          onApplyDelta={applyConfigDelta}
-        />
-      )}
 
       {showExport && (
         <ExportModal

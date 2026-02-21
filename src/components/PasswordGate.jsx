@@ -48,7 +48,7 @@ export default function PasswordGate({ children }) {
             <path d="M22 22l2 2 4-4" stroke="#21C063" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
-        <h1 className="pw-title">Design Studio</h1>
+        <h1 className="pw-title">AI Design Studio</h1>
         <p className="pw-subtitle">Enter the password to access this project</p>
 
         <div className={`pw-input-wrap ${error ? 'pw-error' : ''}`}>
