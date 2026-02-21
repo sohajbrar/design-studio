@@ -2058,11 +2058,34 @@ function App() {
     if (hasUnsavedChanges.current) {
       setShowBackConfirm(true)
     } else {
-      handleConfirmBack()
+      window.history.back()
     }
-  }, [handleConfirmBack])
+  }, [])
 
-  // Warn on browser back / refresh when there are unsaved changes
+  const handleConfirmBackFromModal = useCallback(() => {
+    hasUnsavedChanges.current = false
+    setShowBackConfirm(false)
+    window.history.back()
+  }, [])
+
+  // Push a history entry when entering the editor so browser back returns to home
+  useEffect(() => {
+    if (!hasStarted) return
+    window.history.pushState({ editor: true }, '')
+
+    const handlePopState = () => {
+      if (hasUnsavedChanges.current) {
+        window.history.pushState({ editor: true }, '')
+        setShowBackConfirm(true)
+      } else {
+        handleConfirmBack()
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [hasStarted, handleConfirmBack])
+
+  // Warn on browser refresh when there are unsaved changes
   useEffect(() => {
     if (!hasStarted || screens.length === 0) return
     const handleBeforeUnload = (e) => {
@@ -3206,7 +3229,7 @@ function App() {
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowBackConfirm(false)}>Cancel</button>
-              <button className="btn btn-danger" onClick={handleConfirmBack}>
+              <button className="btn btn-danger" onClick={handleConfirmBackFromModal}>
                 Yes, go back
               </button>
             </div>
