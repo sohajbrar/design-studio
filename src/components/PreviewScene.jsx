@@ -249,7 +249,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   // Transition blending between clips
   const transFromRef = useRef(null)
   const transTRef = useRef(1)
-  const TRANS_DUR = 0.4
+  const TRANS_DUR = 0.7
 
   useEffect(() => {
     userRotRef.current = { x: 0, y: 0 }
@@ -869,7 +869,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
   // Transition blending
   const transFromRef = useRef(null)
   const transTRef = useRef(1)
-  const TRANS_DUR = 0.4
+  const TRANS_DUR = 0.7
 
   useEffect(() => {
     userRotRef.current = { x: 0, y: 0 }
