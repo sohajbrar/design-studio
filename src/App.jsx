@@ -558,6 +558,8 @@ function App() {
     return currentTime - activeClip.startTime
   }, [activeClip, currentTime])
 
+  const activeClipId = activeClip?.id || null
+
   const activeTextAnim = useMemo(() => {
     if (!textOverlays || textOverlays.length === 0) return 'none'
     const timed = textOverlays.find(
@@ -3278,6 +3280,7 @@ function App() {
                 textOverlays={textOverlays}
                 currentTime={currentTime}
                 clipAnimationTime={clipAnimationTime}
+                activeClipId={activeClipId}
                 activeTextAnim={activeTextAnim}
                 aspectRatio={aspectRatio}
                 textSplit={textSplit}

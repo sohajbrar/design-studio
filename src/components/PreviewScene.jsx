@@ -203,7 +203,7 @@ function useVisibleHeight(zDepth) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeClipId, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -223,10 +223,53 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   const heroRiseActive = useRef(false)
   const dragRef = useRef({ active: false, mode: null, startX: 0, startY: 0, moved: false })
 
+  // Per-clip position/rotation storage
+  const clipAdjMap = useRef({})
+  const prevClipIdRef = useRef(activeClipId)
+
+  // Transition blending between clips
+  const transFromRef = useRef(null)
+  const transTRef = useRef(1)
+  const TRANS_DUR = 0.4
+
+  useEffect(() => {
+    if (activeClipId && prevClipIdRef.current && activeClipId !== prevClipIdRef.current) {
+      // Save adjustments for the outgoing clip
+      clipAdjMap.current[prevClipIdRef.current] = {
+        pos: { ...userPosRef.current },
+        rot: { ...userRotRef.current },
+      }
+      // Load adjustments for the incoming clip
+      const incoming = clipAdjMap.current[activeClipId]
+      if (incoming) {
+        userPosRef.current = { ...incoming.pos }
+        userRotRef.current = { ...incoming.rot }
+      } else {
+        userPosRef.current = { x: 0, y: 0 }
+        userRotRef.current = { x: 0, y: 0 }
+      }
+      // Start transition blend
+      if (groupRef.current) {
+        const g = groupRef.current
+        transFromRef.current = {
+          px: g.position.x, py: g.position.y, pz: g.position.z,
+          rx: g.rotation.x, ry: g.rotation.y, rz: g.rotation.z,
+          sx: g.scale.x, sy: g.scale.y, sz: g.scale.z,
+        }
+        transTRef.current = 0
+      }
+      const hasAdj = clipAdjMap.current[activeClipId] &&
+        (Math.abs(clipAdjMap.current[activeClipId].pos.x) > 0.001 || Math.abs(clipAdjMap.current[activeClipId].rot.x) > 0.001)
+      if (onManualAdjust) onManualAdjust(!!hasAdj)
+    }
+    prevClipIdRef.current = activeClipId
+  }, [activeClipId, onManualAdjust])
+
   useEffect(() => {
     userRotRef.current = { x: 0, y: 0 }
     userPosRef.current = { x: 0, y: 0 }
-  }, [resetKey])
+    if (activeClipId) clipAdjMap.current[activeClipId] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+  }, [resetKey, activeClipId])
 
   const isSingleDevice = deviceType !== 'both'
 
@@ -673,6 +716,24 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       group.position.x += userPosRef.current.x
       group.position.y += userPosRef.current.y
     }
+
+    // Smooth transition blending between clips
+    if (transFromRef.current && transTRef.current < TRANS_DUR) {
+      const p = easeOutCubic(transTRef.current / TRANS_DUR)
+      const f = transFromRef.current
+      group.position.x = f.px + (group.position.x - f.px) * p
+      group.position.y = f.py + (group.position.y - f.py) * p
+      group.position.z = f.pz + (group.position.z - f.pz) * p
+      group.rotation.x = f.rx + (group.rotation.x - f.rx) * p
+      group.rotation.y = f.ry + (group.rotation.y - f.ry) * p
+      group.rotation.z = f.rz + (group.rotation.z - f.rz) * p
+      group.scale.x = f.sx + (group.scale.x - f.sx) * p
+      group.scale.y = f.sy + (group.scale.y - f.sy) * p
+      group.scale.z = f.sz + (group.scale.z - f.sz) * p
+      transTRef.current += 1 / 60
+    } else if (transFromRef.current) {
+      transFromRef.current = null
+    }
   })
 
   return (
@@ -749,17 +810,57 @@ const MULTI_DEVICE_ANIMS = new Set([
   'flatScatter7',
 ])
 
-function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode }) {
+function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, activeClipId, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode }) {
   const groupRef = useRef()
   const devRefs = useRef({})
   const userRotRef = useRef({ x: 0, y: 0 })
   const userPosRef = useRef({ x: 0, y: 0 })
   const dragRef = useRef({ active: false, startX: 0, startY: 0, moved: false })
 
+  // Per-clip position/rotation storage
+  const clipAdjMap = useRef({})
+  const prevClipIdRef = useRef(activeClipId)
+
+  // Transition blending
+  const transFromRef = useRef(null)
+  const transTRef = useRef(1)
+  const TRANS_DUR = 0.4
+
+  useEffect(() => {
+    if (activeClipId && prevClipIdRef.current && activeClipId !== prevClipIdRef.current) {
+      clipAdjMap.current[prevClipIdRef.current] = {
+        pos: { ...userPosRef.current },
+        rot: { ...userRotRef.current },
+      }
+      const incoming = clipAdjMap.current[activeClipId]
+      if (incoming) {
+        userPosRef.current = { ...incoming.pos }
+        userRotRef.current = { ...incoming.rot }
+      } else {
+        userPosRef.current = { x: 0, y: 0 }
+        userRotRef.current = { x: 0, y: 0 }
+      }
+      if (groupRef.current) {
+        const g = groupRef.current
+        transFromRef.current = {
+          px: g.position.x, py: g.position.y, pz: g.position.z,
+          rx: g.rotation.x, ry: g.rotation.y, rz: g.rotation.z,
+          sx: g.scale.x, sy: g.scale.y, sz: g.scale.z,
+        }
+        transTRef.current = 0
+      }
+      const hasAdj = clipAdjMap.current[activeClipId] &&
+        (Math.abs(clipAdjMap.current[activeClipId].pos.x) > 0.001 || Math.abs(clipAdjMap.current[activeClipId].rot.x) > 0.001)
+      if (onManualAdjust) onManualAdjust(!!hasAdj)
+    }
+    prevClipIdRef.current = activeClipId
+  }, [activeClipId, onManualAdjust])
+
   useEffect(() => {
     userRotRef.current = { x: 0, y: 0 }
     userPosRef.current = { x: 0, y: 0 }
-  }, [resetKey])
+    if (activeClipId) clipAdjMap.current[activeClipId] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+  }, [resetKey, activeClipId])
 
   const handlePointerDown = useCallback((e) => {
     e.stopPropagation()
@@ -1091,6 +1192,24 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     g.rotation.y += userRotRef.current.y
     g.position.x += userPosRef.current.x
     g.position.y += userPosRef.current.y
+
+    // Smooth transition blending between clips
+    if (transFromRef.current && transTRef.current < TRANS_DUR) {
+      const p = easeOutCubic(transTRef.current / TRANS_DUR)
+      const f = transFromRef.current
+      g.position.x = f.px + (g.position.x - f.px) * p
+      g.position.y = f.py + (g.position.y - f.py) * p
+      g.position.z = f.pz + (g.position.z - f.pz) * p
+      g.rotation.x = f.rx + (g.rotation.x - f.rx) * p
+      g.rotation.y = f.ry + (g.rotation.y - f.ry) * p
+      g.rotation.z = f.rz + (g.rotation.z - f.rz) * p
+      g.scale.x = f.sx + (g.scale.x - f.sx) * p
+      g.scale.y = f.sy + (g.scale.y - f.sy) * p
+      g.scale.z = f.sz + (g.scale.z - f.sz) * p
+      transTRef.current += 1 / 60
+    } else if (transFromRef.current) {
+      transFromRef.current = null
+    }
   })
 
   const renderPhones = (count, scale = 0.3) => {
@@ -1606,7 +1725,7 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, isVertica
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef,
-  textOverlays, currentTime, clipAnimationTime, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
+  textOverlays, currentTime, clipAnimationTime, activeClipId, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
   outroLogo, totalDuration, multiDeviceCount, onTextClick, onTextDrag, onDeviceClick, onDrop,
 }) {
   const tint = useTintedLights(bgColor)
@@ -1751,6 +1870,7 @@ export default function PreviewScene({
               activeScreen={activeScreen}
               animation={animation}
               clipAnimationTime={clipAnimationTime}
+              activeClipId={activeClipId}
               videoSeekTime={videoSeekTime}
               timelinePlaying={timelinePlaying}
               outroAnimation={outroAnimation}
@@ -1777,6 +1897,7 @@ export default function PreviewScene({
               isPlaying={isPlaying}
               currentTime={currentTime}
               clipAnimationTime={clipAnimationTime}
+              activeClipId={activeClipId}
               activeTextAnim={activeTextAnim}
               textSplit={textSplit}
               textOnLeft={textOnLeft}
