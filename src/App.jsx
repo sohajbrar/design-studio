@@ -1221,6 +1221,8 @@ function App() {
   const [aiVoiceoverScript, setAiVoiceoverScript] = useState(null)
   const [aiFeatureContext, setAiFeatureContext] = useState(null)
   const [voiceoverScriptLoading, setVoiceoverScriptLoading] = useState(false)
+  const [shareToast, setShareToast] = useState(null)
+  const shareToastTimer = useRef(null)
 
   const getCurrentConfig = useCallback(() => ({
     activeTemplateId,
@@ -1390,6 +1392,146 @@ function App() {
 
     markChanged()
   }, [markChanged, currentTime, handleAddZoomEffect, handleAddText, handleSetMusic, handleSelectTemplate])
+
+  // ── Share link ─────────────────────────────────
+  const handleShare = useCallback(() => {
+    const config = getCurrentConfig()
+    const sharePayload = {
+      deviceType: config.deviceType,
+      animation: config.animation,
+      bgColor: config.bgColor,
+      bgGradient: config.bgGradient,
+      showBase: config.showBase,
+      showDeviceShadow: config.showDeviceShadow,
+      outroAnimation: config.outroAnimation,
+      aspectRatio: config.aspectRatio,
+      textSplit: config.textSplit,
+      layoutFlipped: config.layoutFlipped,
+      clipDuration: config.clipDuration,
+      outroLogo: config.outroLogo,
+    }
+    if (config.whatsappTheme) sharePayload.whatsappTheme = config.whatsappTheme
+    if (config.activeTemplateId) sharePayload.templateId = config.activeTemplateId
+    if (config.textOverlay) sharePayload.textOverlay = config.textOverlay
+    if (config.musicTrackName) {
+      const track = MUSIC_LIBRARY.find(t => t.name === config.musicTrackName)
+      if (track) sharePayload.musicId = track.id
+    }
+
+    const json = JSON.stringify(sharePayload)
+    const encoded = btoa(unescape(encodeURIComponent(json)))
+    const url = new URL(window.location.href)
+    url.searchParams.set('config', encoded)
+    url.hash = ''
+
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      setShareToast('Link copied to clipboard')
+    }).catch(() => {
+      setShareToast('Link ready — copy from address bar')
+      window.history.replaceState(null, '', url.toString())
+    })
+
+    if (shareToastTimer.current) clearTimeout(shareToastTimer.current)
+    shareToastTimer.current = setTimeout(() => setShareToast(null), 3000)
+  }, [getCurrentConfig])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const encoded = params.get('config')
+    if (!encoded) return
+
+    try {
+      const json = decodeURIComponent(escape(atob(encoded)))
+      const config = JSON.parse(json)
+
+      if (config.templateId) {
+        const tmpl = TEMPLATES.find(t => t.id === config.templateId)
+        if (tmpl) {
+          handleSelectTemplate(tmpl)
+          // Apply overrides on top of template
+          setTimeout(() => {
+            if (config.textOverlay) {
+              setTextOverlays(prev => {
+                if (prev.length === 0) {
+                  return [{
+                    id: crypto.randomUUID(),
+                    text: config.textOverlay.text || 'New Text',
+                    fontFamily: 'Inter',
+                    fontSize: config.textOverlay.fontSize || 48,
+                    color: config.textOverlay.color || '#FFFFFF',
+                    animation: config.textOverlay.animation || 'none',
+                    posY: config.textOverlay.posY ?? 0,
+                    startTime: config.textOverlay.startTime ?? 0,
+                    endTime: config.textOverlay.endTime ?? 2.5,
+                  }]
+                }
+                return prev.map((t, i) => i === 0 ? { ...t, ...config.textOverlay } : t)
+              })
+            }
+            if (config.textSplit !== undefined) setTextSplit(config.textSplit)
+            if (config.layoutFlipped !== undefined) setLayoutFlipped(config.layoutFlipped)
+          }, 200)
+        }
+      } else {
+        setHasStarted(true)
+        if (config.deviceType) setDeviceType(config.deviceType)
+        if (config.animation) {
+          setAnimation(config.animation)
+          const clipDur = config.clipDuration || 5
+          setTimelineClips(recalcStartTimes([{
+            id: crypto.randomUUID(),
+            screenId: null,
+            duration: clipDur,
+            trimStart: 0,
+            trimEnd: clipDur,
+            animation: config.animation,
+            outroAnimation: config.outroAnimation || 'none',
+          }]))
+          templateClipDurRef.current = clipDur
+        }
+        if (config.outroAnimation) templateOutroRef.current = config.outroAnimation
+        if (config.bgColor) setBgColor(config.bgColor)
+        if (config.bgGradient !== undefined) setBgGradient(config.bgGradient)
+        if (config.showBase !== undefined) setShowBase(config.showBase)
+        if (config.showDeviceShadow !== undefined) setShowDeviceShadow(config.showDeviceShadow)
+        if (config.aspectRatio) setAspectRatio(config.aspectRatio)
+        if (config.outroLogo !== undefined) setOutroLogo(config.outroLogo)
+        if (config.whatsappTheme) {
+          setActiveThemeId(config.whatsappTheme)
+          const themeColors = { 'wa-dark': '#0A1014', 'wa-light': '#E7FDE3', 'wa-beige': '#FEF4EB', 'wa-green': '#1DAA61' }
+          if (themeColors[config.whatsappTheme]) setBgColor(themeColors[config.whatsappTheme])
+        }
+        if (config.textOverlay) {
+          setTextOverlays([{
+            id: crypto.randomUUID(),
+            text: config.textOverlay.text || 'New Text',
+            fontFamily: 'Inter',
+            fontSize: config.textOverlay.fontSize || 48,
+            color: config.textOverlay.color || '#FFFFFF',
+            animation: config.textOverlay.animation || 'none',
+            posY: config.textOverlay.posY ?? 0,
+            startTime: config.textOverlay.startTime ?? 0,
+            endTime: config.textOverlay.endTime ?? 2.5,
+          }])
+        }
+        if (config.textSplit !== undefined) setTextSplit(config.textSplit)
+        if (config.layoutFlipped !== undefined) setLayoutFlipped(config.layoutFlipped)
+        if (config.musicId) {
+          const track = MUSIC_LIBRARY.find(t => t.id === config.musicId)
+          if (track) handleSetMusic({ libraryId: track.id, name: track.name })
+        }
+        setSidebarTab('media')
+        setTimeout(() => { setIsPlaying(true); setIsTimelinePlaying(true) }, 300)
+      }
+
+      const cleanUrl = new URL(window.location.href)
+      cleanUrl.searchParams.delete('config')
+      window.history.replaceState(null, '', cleanUrl.toString())
+    } catch (e) {
+      console.warn('Failed to restore shared config:', e)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleAIGenerate = useCallback((result) => {
     const config = result?.config || result
@@ -1618,6 +1760,20 @@ function App() {
       >
         {hasStarted && !convertingFormat && (
           <>
+            <button
+              className="btn btn-header btn-share"
+              onClick={handleShare}
+              title="Copy shareable link"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              Share
+            </button>
             <button
               className="btn btn-header btn-secondary"
               onClick={togglePlayback}
@@ -2715,6 +2871,15 @@ function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {shareToast && (
+        <div className="share-toast">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          {shareToast}
         </div>
       )}
     </div>
