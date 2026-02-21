@@ -638,7 +638,13 @@ function App() {
         outroAnimation: templateOutroRef.current,
       }))
 
-      setTimelineClips((prev) => recalcStartTimes([...prev, ...newClips]))
+      setTimelineClips((prev) => {
+        // Assign first uploaded screen to any existing clips with no media
+        const updated = prev.map((c) =>
+          c.screenId === null ? { ...c, screenId: newScreens[0].id } : c
+        )
+        return recalcStartTimes([...updated, ...newClips])
+      })
 
       // For videos, update duration asynchronously once metadata loads
       newScreens.forEach((screen, i) => {

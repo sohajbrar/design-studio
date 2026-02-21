@@ -196,13 +196,29 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
   const prevTextureRef = useRef(null)
   const prevVideoRef = useRef(null)
 
+  // Final cleanup on unmount only
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = '' }
+      if (prevVideoRef.current) { prevVideoRef.current.pause(); prevVideoRef.current.src = '' }
+      if (textureRef.current) textureRef.current.dispose()
+      if (prevTextureRef.current) prevTextureRef.current.dispose()
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
 
+    // Double-buffer: keep old texture alive so the screen isn't blank while loading
     prevTextureRef.current = textureRef.current
     prevVideoRef.current = videoRef.current
     videoRef.current = null
     gifRef.current = null
+
+    // Pause old video but keep its last frame visible via the texture
+    if (prevVideoRef.current) {
+      prevVideoRef.current.pause()
+    }
 
     if (!screenFile && !screenUrl) {
       disposeOld()
@@ -377,17 +393,6 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
 
     return () => {
       cancelled = true
-      gifRef.current = null
-      if (videoRef.current) {
-        videoRef.current.pause()
-        videoRef.current.src = ''
-        videoRef.current = null
-      }
-      if (textureRef.current) {
-        textureRef.current.dispose()
-        textureRef.current = null
-      }
-      loadedRef.current = false
     }
   }, [screenFile, screenUrl, isVideo, isGif])
 
