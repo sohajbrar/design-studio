@@ -85,6 +85,117 @@ const WA_THEMES = [
   },
 ]
 
+const GRADIENT_PRESETS = [
+  { id: 'aurora', name: 'Aurora', bg: '#1a0a2e', blobs: [
+    { cx: 0.15, cy: 0.65, r: 0.6, c: [224, 64, 160], a: 0.7 },
+    { cx: 0.75, cy: 0.25, r: 0.55, c: [96, 32, 176], a: 0.6 },
+    { cx: 0.35, cy: 0.9, r: 0.4, c: [255, 140, 64], a: 0.45 },
+  ]},
+  { id: 'midnight', name: 'Midnight', bg: '#0a1420', blobs: [
+    { cx: 0.45, cy: 0.5, r: 0.55, c: [20, 60, 110], a: 0.5 },
+    { cx: 0.55, cy: 0.55, r: 0.35, c: [30, 80, 130], a: 0.35 },
+  ]},
+  { id: 'ocean', name: 'Ocean', bg: '#0c1830', blobs: [
+    { cx: 0.3, cy: 0.35, r: 0.65, c: [25, 65, 140], a: 0.5 },
+    { cx: 0.7, cy: 0.65, r: 0.55, c: [15, 35, 90], a: 0.4 },
+    { cx: 0.5, cy: 0.3, r: 0.4, c: [50, 100, 190], a: 0.25 },
+  ]},
+  { id: 'nordic', name: 'Nordic', bg: '#0f1a30', blobs: [
+    { cx: 0.3, cy: 0.3, r: 0.55, c: [20, 60, 130], a: 0.5 },
+    { cx: 0.7, cy: 0.7, r: 0.5, c: [40, 30, 100], a: 0.4 },
+    { cx: 0.5, cy: 0.5, r: 0.35, c: [30, 80, 160], a: 0.25 },
+  ]},
+  { id: 'northern-lights', name: 'Northern Lights', bg: '#0a1828', blobs: [
+    { cx: 0.25, cy: 0.4, r: 0.55, c: [20, 180, 160], a: 0.5 },
+    { cx: 0.7, cy: 0.3, r: 0.5, c: [80, 40, 180], a: 0.45 },
+    { cx: 0.5, cy: 0.7, r: 0.45, c: [40, 120, 200], a: 0.35 },
+  ]},
+  { id: 'neon', name: 'Neon', bg: '#150820', blobs: [
+    { cx: 0.3, cy: 0.4, r: 0.55, c: [255, 50, 150], a: 0.6 },
+    { cx: 0.7, cy: 0.5, r: 0.55, c: [0, 200, 255], a: 0.5 },
+    { cx: 0.5, cy: 0.7, r: 0.4, c: [150, 0, 255], a: 0.3 },
+  ]},
+  { id: 'cloud', name: 'Cloud', bg: '#e8eef6', blobs: [
+    { cx: 0.3, cy: 0.4, r: 0.65, c: [185, 210, 245], a: 0.6 },
+    { cx: 0.7, cy: 0.6, r: 0.55, c: [200, 220, 248], a: 0.45 },
+    { cx: 0.5, cy: 0.25, r: 0.4, c: [220, 235, 255], a: 0.3 },
+  ]},
+  { id: 'rose-mist', name: 'Rose Mist', bg: '#f5e5ea', blobs: [
+    { cx: 0.4, cy: 0.45, r: 0.6, c: [240, 175, 200], a: 0.5 },
+    { cx: 0.65, cy: 0.55, r: 0.5, c: [248, 190, 215], a: 0.4 },
+    { cx: 0.25, cy: 0.7, r: 0.35, c: [252, 210, 225], a: 0.3 },
+  ]},
+  { id: 'peach', name: 'Peach', bg: '#fce8e0', blobs: [
+    { cx: 0.35, cy: 0.5, r: 0.6, c: [255, 195, 165], a: 0.5 },
+    { cx: 0.65, cy: 0.4, r: 0.5, c: [255, 180, 155], a: 0.4 },
+    { cx: 0.5, cy: 0.75, r: 0.35, c: [252, 215, 195], a: 0.35 },
+  ]},
+  { id: 'lavender', name: 'Lavender', bg: '#e8e0f5', blobs: [
+    { cx: 0.4, cy: 0.35, r: 0.6, c: [195, 165, 240], a: 0.5 },
+    { cx: 0.6, cy: 0.65, r: 0.55, c: [215, 190, 250], a: 0.4 },
+    { cx: 0.3, cy: 0.7, r: 0.35, c: [185, 155, 235], a: 0.3 },
+  ]},
+  { id: 'holographic', name: 'Holographic', bg: '#e8f0e5', blobs: [
+    { cx: 0.2, cy: 0.3, r: 0.55, c: [100, 230, 200], a: 0.5 },
+    { cx: 0.8, cy: 0.4, r: 0.5, c: [255, 155, 120], a: 0.45 },
+    { cx: 0.5, cy: 0.8, r: 0.45, c: [240, 230, 120], a: 0.35 },
+    { cx: 0.15, cy: 0.7, r: 0.35, c: [130, 210, 255], a: 0.3 },
+  ]},
+  { id: 'cotton-candy', name: 'Cotton Candy', bg: '#f0e5f5', blobs: [
+    { cx: 0.3, cy: 0.35, r: 0.6, c: [215, 145, 240], a: 0.45 },
+    { cx: 0.7, cy: 0.55, r: 0.55, c: [145, 195, 255], a: 0.4 },
+    { cx: 0.5, cy: 0.8, r: 0.4, c: [255, 175, 210], a: 0.35 },
+  ]},
+  { id: 'sunset', name: 'Sunset', bg: '#f8e0d8', blobs: [
+    { cx: 0.25, cy: 0.3, r: 0.6, c: [255, 135, 95], a: 0.5 },
+    { cx: 0.7, cy: 0.5, r: 0.55, c: [255, 95, 135], a: 0.45 },
+    { cx: 0.4, cy: 0.75, r: 0.45, c: [255, 175, 80], a: 0.35 },
+  ]},
+  { id: 'tropical', name: 'Tropical', bg: '#e0f0f5', blobs: [
+    { cx: 0.2, cy: 0.4, r: 0.55, c: [0, 210, 230], a: 0.5 },
+    { cx: 0.75, cy: 0.55, r: 0.55, c: [230, 60, 150], a: 0.4 },
+    { cx: 0.45, cy: 0.2, r: 0.4, c: [80, 180, 255], a: 0.3 },
+  ]},
+  { id: 'golden-hour', name: 'Golden Hour', bg: '#f8e8d0', blobs: [
+    { cx: 0.3, cy: 0.4, r: 0.6, c: [255, 195, 95], a: 0.5 },
+    { cx: 0.7, cy: 0.55, r: 0.5, c: [255, 145, 95], a: 0.45 },
+    { cx: 0.5, cy: 0.8, r: 0.4, c: [255, 215, 155], a: 0.3 },
+  ]},
+  { id: 'coral', name: 'Coral', bg: '#f5e0dc', blobs: [
+    { cx: 0.35, cy: 0.45, r: 0.6, c: [255, 125, 105], a: 0.45 },
+    { cx: 0.65, cy: 0.5, r: 0.5, c: [255, 155, 135], a: 0.4 },
+    { cx: 0.45, cy: 0.7, r: 0.4, c: [252, 175, 165], a: 0.35 },
+  ]},
+  { id: 'arctic', name: 'Arctic', bg: '#e0eef8', blobs: [
+    { cx: 0.3, cy: 0.3, r: 0.6, c: [95, 175, 255], a: 0.45 },
+    { cx: 0.7, cy: 0.6, r: 0.55, c: [55, 145, 230], a: 0.35 },
+    { cx: 0.5, cy: 0.5, r: 0.45, c: [145, 210, 255], a: 0.3 },
+  ]},
+  { id: 'iridescent', name: 'Iridescent', bg: '#f0e8f5', blobs: [
+    { cx: 0.2, cy: 0.3, r: 0.55, c: [175, 135, 255], a: 0.45 },
+    { cx: 0.8, cy: 0.4, r: 0.5, c: [255, 165, 195], a: 0.4 },
+    { cx: 0.5, cy: 0.8, r: 0.45, c: [255, 205, 135], a: 0.35 },
+    { cx: 0.35, cy: 0.6, r: 0.35, c: [135, 195, 255], a: 0.25 },
+  ]},
+  { id: 'azure-pink', name: 'Azure Pink', bg: '#e5e8f5', blobs: [
+    { cx: 0.4, cy: 0.3, r: 0.6, c: [75, 135, 255], a: 0.5 },
+    { cx: 0.6, cy: 0.7, r: 0.55, c: [255, 135, 175], a: 0.4 },
+    { cx: 0.3, cy: 0.6, r: 0.35, c: [115, 175, 255], a: 0.25 },
+  ]},
+  { id: 'mint', name: 'Mint', bg: '#e5f5f0', blobs: [
+    { cx: 0.35, cy: 0.4, r: 0.6, c: [125, 230, 195], a: 0.45 },
+    { cx: 0.65, cy: 0.6, r: 0.5, c: [155, 240, 215], a: 0.35 },
+    { cx: 0.5, cy: 0.3, r: 0.35, c: [95, 215, 185], a: 0.3 },
+  ]},
+]
+
+function gradientPresetCss(preset) {
+  const layers = preset.blobs.map(b =>
+    `radial-gradient(circle at ${b.cx * 100}% ${b.cy * 100}%, rgba(${b.c[0]},${b.c[1]},${b.c[2]},${b.a}) 0%, transparent ${Math.round(b.r * 100)}%)`
+  )
+  return [...layers, preset.bg].join(', ')
+}
+
 const ANIM_ICONS = {
   showcase: (
     <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
@@ -3068,6 +3179,35 @@ function App() {
                       )}
                     </div>
                     <div className="control-group">
+                      <h3 className="section-title">Gradients</h3>
+                      <div className="gradient-grid">
+                        <button
+                          className={`gradient-swatch ${!bgGradient && !activeThemeId ? 'active' : ''}`}
+                          onClick={() => { markChanged(); setBgGradient(false); setActiveThemeId(null) }}
+                          title="Solid color"
+                        >
+                          <div className="gradient-swatch-inner" style={{ background: bgGradient ? '#161717' : bgColor }} />
+                          <span className="gradient-swatch-label">None</span>
+                        </button>
+                        {GRADIENT_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            className={`gradient-swatch ${bgGradient === preset.id ? 'active' : ''}`}
+                            onClick={() => {
+                              markChanged()
+                              setBgGradient(preset.id)
+                              setBgColor(preset.bg)
+                              setActiveThemeId(null)
+                            }}
+                            title={preset.name}
+                          >
+                            <div className="gradient-swatch-inner" style={{ background: gradientPresetCss(preset) }} />
+                            <span className="gradient-swatch-label">{preset.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="control-group">
                       <h3 className="section-title">Custom</h3>
                       <div className="control-row">
                         <label className="control-label">Color</label>
@@ -3075,7 +3215,7 @@ function App() {
                           <input
                             type="color"
                             value={bgColor}
-                            onChange={(e) => { markChanged(); setBgColor(e.target.value); setActiveThemeId(null) }}
+                            onChange={(e) => { markChanged(); setBgColor(e.target.value); setBgGradient(false); setActiveThemeId(null) }}
                             className="color-input"
                           />
                           <input
@@ -3085,7 +3225,7 @@ function App() {
                             onChange={(e) => {
                               let v = e.target.value
                               if (!v.startsWith('#')) v = '#' + v
-                              if (/^#[0-9a-fA-F]{0,6}$/.test(v)) { markChanged(); setBgColor(v); setActiveThemeId(null) }
+                              if (/^#[0-9a-fA-F]{0,6}$/.test(v)) { markChanged(); setBgColor(v); setBgGradient(false); setActiveThemeId(null) }
                             }}
                             onBlur={(e) => {
                               let v = e.target.value
@@ -3094,15 +3234,6 @@ function App() {
                             spellCheck={false}
                           />
                         </div>
-                      </div>
-                      <div className="control-row">
-                        <label className="control-label">Gradient overlay</label>
-                        <button
-                          className={`toggle ${bgGradient ? 'active' : ''}`}
-                          onClick={() => setBgGradient(!bgGradient)}
-                        >
-                          <div className="toggle-thumb" />
-                        </button>
                       </div>
                       <div className="control-row">
                         <label className="control-label">Base shadow</label>
@@ -3139,7 +3270,7 @@ function App() {
                 outroAnimation={activeOutroAnimation}
                 clipDuration={activeClipDuration}
                 bgColor={bgColor}
-                bgGradient={bgGradient}
+                bgGradient={typeof bgGradient === 'string' ? (GRADIENT_PRESETS.find(g => g.id === bgGradient) || false) : bgGradient}
                 showBase={showBase}
                 showDeviceShadow={showDeviceShadow}
                 isPlaying={isPlaying}

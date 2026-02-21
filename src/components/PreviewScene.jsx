@@ -69,7 +69,28 @@ function SceneBackground({ bgColor, bgGradient }) {
   const { scene } = useThree()
 
   useEffect(() => {
-    if (bgGradient) {
+    if (bgGradient && typeof bgGradient === 'object' && bgGradient.blobs) {
+      const W = 1024, H = 1024
+      const canvas = document.createElement('canvas')
+      canvas.width = W
+      canvas.height = H
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = bgGradient.bg || bgColor
+      ctx.fillRect(0, 0, W, H)
+
+      for (const blob of bgGradient.blobs) {
+        const x = blob.cx * W, y = blob.cy * H, rad = blob.r * W
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, rad)
+        const [r, g, b] = blob.c
+        grad.addColorStop(0, `rgba(${r},${g},${b},${blob.a})`)
+        grad.addColorStop(0.4, `rgba(${r},${g},${b},${blob.a * 0.6})`)
+        grad.addColorStop(0.7, `rgba(${r},${g},${b},${blob.a * 0.2})`)
+        grad.addColorStop(1, `rgba(${r},${g},${b},0)`)
+        ctx.fillStyle = grad
+        ctx.fillRect(0, 0, W, H)
+      }
+      scene.background = new THREE.CanvasTexture(canvas)
+    } else if (bgGradient === true) {
       const canvas = document.createElement('canvas')
       canvas.width = 512
       canvas.height = 512

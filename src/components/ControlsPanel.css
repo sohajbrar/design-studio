@@ -952,3 +952,54 @@
   text-align: center;
   color: var(--text-primary);
 }
+
+/* Gradient preset grid */
+.gradient-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.gradient-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  color: var(--text-secondary);
+}
+
+.gradient-swatch:hover {
+  border-color: var(--border-hover);
+  background: var(--overlay-light);
+}
+
+.gradient-swatch.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  color: var(--text-primary);
+}
+
+.gradient-swatch-inner {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 6px;
+  border: 1px solid var(--overlay-light);
+}
+
+.gradient-swatch-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
