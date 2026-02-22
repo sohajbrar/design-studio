@@ -851,7 +851,7 @@ const MULTI_DEVICE_ANIMS = new Set([
   'flatScatter7',
 ])
 
-function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, activeClipId, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode }) {
+function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, activeClipId, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode, deviceType = 'iphone' }) {
   const groupRef = useRef()
   const devRefs = useRef({})
   const userRotRef = useRef({ x: 0, y: 0 })
@@ -941,10 +941,12 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     return s0
   }
 
+  const resolvedType = deviceType === 'both' ? 'iphone' : deviceType
+
   const phonePropsForSlot = (index) => {
     const scr = getSlotScreen(index)
     return {
-      type: 'iphone',
+      type: resolvedType,
       screenUrl: scr?.url || null,
       screenFile: scr?.file || null,
       isVideo: scr?.isVideo || false,
@@ -1323,7 +1325,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
         <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>
           <group ref={setRef('phone')}>
             <DeviceFrame
-              type="iphone"
+              type={resolvedType}
               screenUrl={phoneSrc?.url || null}
               screenFile={phoneSrc?.file || null}
               isVideo={phoneSrc?.isVideo || false}
@@ -1974,6 +1976,7 @@ export default function PreviewScene({
               resetKey={resetKey}
               onManualAdjust={setHasManualAdjust}
               interactionMode={interactionMode}
+              deviceType={deviceType}
             />
           ) : (
             <AnimatedDevices
