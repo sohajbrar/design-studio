@@ -937,7 +937,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
   const setRef = (k) => (el) => { if (el) devRefs.current[k] = el }
 
   const getSlotScreen = (index) => {
-    if (slotScreens && slotScreens[index]) return slotScreens[index]
+    if (slotScreens) return slotScreens[index] || null
     return s0
   }
 

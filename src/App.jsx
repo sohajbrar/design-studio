@@ -574,8 +574,8 @@ function App() {
   const slotScreens = useMemo(() => {
     if (!activeScreenSlots || screenSlotMap.length === 0) return null
     return screenSlotMap.map((screenId) => {
-      if (!screenId) return screens[0] || null
-      return screens.find((s) => s.id === screenId) || screens[0] || null
+      if (!screenId) return null
+      return screens.find((s) => s.id === screenId) || null
     })
   }, [activeScreenSlots, screenSlotMap, screens])
 
@@ -706,17 +706,18 @@ function App() {
 
     const slots = activeScreenSlotsRef.current
     if (slots && slots.length > 0) {
-      // Multi-device template: assign media to empty slots, don't create per-file clips
+      // Multi-device template: assign media to empty slots only, never overwrite user picks
       setScreenSlotMap((prev) => {
         const next = [...prev]
+        while (next.length < slots.length) next.push(null)
         let slotIdx = next.findIndex((id) => !id)
-        if (slotIdx === -1) slotIdx = 0
+        if (slotIdx === -1) return next
         for (const screen of newScreens) {
-          if (slotIdx < slots.length) {
-            next[slotIdx] = screen.id
-            slotIdx++
-            while (slotIdx < slots.length && next[slotIdx]) slotIdx++
-          }
+          if (slotIdx === -1 || slotIdx >= slots.length) break
+          next[slotIdx] = screen.id
+          slotIdx++
+          while (slotIdx < slots.length && next[slotIdx]) slotIdx++
+          if (slotIdx >= slots.length) slotIdx = -1
         }
         return next
       })
