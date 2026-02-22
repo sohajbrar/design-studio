@@ -326,7 +326,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
   const showMedia = deviceType === 'media'
   const isBoth = deviceType === 'both'
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!groupRef.current) return
 
     // Synchronous per-clip adjustment swap (runs in animation loop, no timing gap)
@@ -758,7 +758,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       group.scale.x = f.sx + (group.scale.x - f.sx) * p
       group.scale.y = f.sy + (group.scale.y - f.sy) * p
       group.scale.z = f.sz + (group.scale.z - f.sz) * p
-      transTRef.current += 1 / 60
+      transTRef.current += delta
     } else if (transFromRef.current) {
       transFromRef.current = null
     }
@@ -961,7 +961,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
   const lidAngleRef = useRef(Math.PI / 2)
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const g = groupRef.current
     if (!g) return
 
@@ -1259,7 +1259,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       g.scale.x = f.sx + (g.scale.x - f.sx) * p
       g.scale.y = f.sy + (g.scale.y - f.sy) * p
       g.scale.z = f.sz + (g.scale.z - f.sz) * p
-      transTRef.current += 1 / 60
+      transTRef.current += delta
     } else if (transFromRef.current) {
       transFromRef.current = null
     }
