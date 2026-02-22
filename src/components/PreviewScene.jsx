@@ -1371,7 +1371,7 @@ function GroundPlane() {
 // ── Canvas-texture text overlay (viewport-aware) ─────────────
 const TEXT_Z_FRONT = 1.0
 const TEXT_Z_BEHIND = -0.5
-function CanvasTextOverlay({ overlay, currentTime, duration, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
+function CanvasTextOverlay({ overlay, currentTime, duration, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag, disableAnimation }) {
   const meshRef = useRef()
   const ctRef = useRef(currentTime)
   ctRef.current = currentTime
@@ -1399,7 +1399,16 @@ function CanvasTextOverlay({ overlay, currentTime, duration, textSplit, textOnLe
     ? visibleHeight * split * (1 - margin * 2)
     : visibleHeight * (1 - margin * 2)
 
-  const isDraggable = overlay.animation === 'none'
+  const isDraggable = overlay.animation === 'none' || disableAnimation
+
+  const meshW = textAreaWidth
+  const meshH = textAreaWidth * (TEX_H / TEX_W)
+  const clampedH = Math.min(meshH, textAreaHeight)
+  const finalW = clampedH < meshH ? clampedH * (TEX_W / TEX_H) : meshW
+
+  // Compensate font pixel size so text looks the same visual size at any aspect ratio.
+  // visibleHeight is constant (camera uses vertical FOV), so use it as stable reference.
+  const fontCompensation = Math.max(1, (visibleHeight * 0.75) / Math.max(0.01, finalW))
 
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
@@ -1413,7 +1422,7 @@ function CanvasTextOverlay({ overlay, currentTime, duration, textSplit, textOnLe
 
   useEffect(() => {
     let cancelled = false
-    const pxSize = Math.max(24, Math.min(200, overlay.fontSize * 1.8))
+    const pxSize = Math.max(24, Math.min(TEX_W * 0.65, overlay.fontSize * 1.8 * fontCompensation))
     const weight = overlay.fontWeight || 600
     const fontSpec = `${weight} ${pxSize}px "${overlay.fontFamily}"`
     const align = overlay.textAlign || 'center'
@@ -1460,12 +1469,7 @@ function CanvasTextOverlay({ overlay, currentTime, duration, textSplit, textOnLe
     document.fonts.load(fontSpec).then(draw).catch(draw)
 
     return () => { cancelled = true }
-  }, [overlay.text, overlay.fontFamily, overlay.fontSize, overlay.fontWeight, overlay.textAlign, overlay.color, texture])
-
-  const meshW = textAreaWidth
-  const meshH = textAreaWidth * (TEX_H / TEX_W)
-  const clampedH = Math.min(meshH, textAreaHeight)
-  const finalW = clampedH < meshH ? clampedH * (TEX_W / TEX_H) : meshW
+  }, [overlay.text, overlay.fontFamily, overlay.fontSize, overlay.fontWeight, overlay.textAlign, overlay.color, texture, fontCompensation])
 
   let textCenterX, textCenterY
   if (isVerticalLayout) {
@@ -1491,7 +1495,7 @@ function CanvasTextOverlay({ overlay, currentTime, duration, textSplit, textOnLe
     const progress = easeOutCubic(Math.min(1, Math.max(0, t) / animDuration))
 
     let x, y
-    const anim = overlay.animation
+    const anim = disableAnimation ? 'none' : overlay.animation
     if (anim === 'slideFromRight') {
       x = visibleWidth * 0.8 + (textCenterX - visibleWidth * 0.8) * progress
       y = textCenterY
@@ -1598,6 +1602,7 @@ const TEXT_FADE_DUR = 0.35
 
 function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
   if (!textOverlays || textOverlays.length === 0) return null
+  const disableAnimation = textOverlays.length > 1
 
   return (
     <group>
@@ -1610,7 +1615,7 @@ function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVert
           const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
           const duration = overlay.endTime != null && overlay.startTime != null ? overlay.endTime - overlay.startTime : 999
           return (
-            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} duration={duration} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} onTextDrag={onTextDrag} />
+            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} duration={duration} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} onTextDrag={onTextDrag} disableAnimation={disableAnimation} />
           )
         })}
     </group>

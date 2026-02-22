@@ -562,6 +562,7 @@ function App() {
 
   const activeTextAnim = useMemo(() => {
     if (!textOverlays || textOverlays.length === 0) return 'none'
+    if (textOverlays.length > 1) return 'none'
     const timed = textOverlays.find(
       (t) => t.startTime != null && t.endTime != null && currentTime >= t.startTime && currentTime <= t.endTime
     )
@@ -2290,7 +2291,7 @@ function App() {
                       <line x1="12" y1="18" x2="12" y2="18" />
                     </svg>
                   )},
-                  { id: 'background', icon: (
+                  { id: 'background', label: 'Themes', icon: (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="5" />
                       <line x1="12" y1="1" x2="12" y2="3" />
@@ -2657,6 +2658,7 @@ function App() {
                                 </button>
                               </div>
                             </div>
+                            {textOverlays.length <= 1 && (
                             <div className="te-row-col">
                               <label className="control-label">Animation</label>
                               <div className="text-anim-options">
@@ -2695,6 +2697,7 @@ function App() {
                                 ))}
                               </div>
                             </div>
+                            )}
                           </div>
                         </div>
                       )}

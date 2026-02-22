@@ -44,7 +44,7 @@ function MiniPhone({ position, rotation, scale: s = 1, opacity = 1 }) {
         <meshPhysicalMaterial color="#78716a" roughness={0.2} metalness={0.6} clearcoat={1.0} clearcoatRoughness={0.15} emissive="#78716a" emissiveIntensity={0.08} transparent opacity={opacity} />
       </mesh>
       <mesh position={[0, 0, 0.021]} geometry={PHONE_SCREEN_GEO}>
-        <meshBasicMaterial color="#1a1a1e" transparent opacity={opacity * 0.9} />
+        <meshBasicMaterial color="#050508" transparent opacity={opacity * 0.95} />
       </mesh>
     </group>
   )

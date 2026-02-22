@@ -314,7 +314,7 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
     return () => {
       cancelled = true
     }
-  }, [screenFile, screenUrl, isVideo, isGif])
+  }, [screenFile, screenUrl, isVideo, isGif, screenAspect])
 
   return { textureRef, loadedRef, videoRef, gifRef }
 }
@@ -540,8 +540,10 @@ export default function DeviceFrame({
     return geo
   }, [screenW, screenH, config])
 
-  // Imperatively apply texture every frame — bypasses React reconciler entirely
+  // Imperatively apply texture every frame — bypasses React reconciler entirely.
+  // MacBookGLB owns its own useFrame for texture/GIF/video, so skip for macbook.
   useFrame(() => {
+    if (type === 'macbook') return
     if (!screenMeshRef.current) return
     const mat = screenMeshRef.current.material
 
