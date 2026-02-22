@@ -71,6 +71,9 @@ export default class AudioEngine {
         el.currentTime = offset
       }
       if (this._playing && el.paused) {
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+          this.audioCtx.resume().catch(() => {})
+        }
         el.play().catch(() => {})
       }
     } else {
@@ -93,8 +96,11 @@ export default class AudioEngine {
    * Used during export to combine with the canvas video stream.
    */
   getAudioStream() {
-    if (!this.audioCtx) {
+    if (!this.audioCtx || this.audioCtx.state === 'closed') {
       this.audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+      this.musicSource = null
+      this.voiceoverSource = null
+      this.destination = null
     }
     const ctx = this.audioCtx
 
@@ -111,8 +117,13 @@ export default class AudioEngine {
         this.musicGain.connect(this.destination)
         this.musicGain.connect(ctx.destination)
       } catch (e) {
-        // Source already created for this element
+        if (this.musicGain) {
+          try { this.musicGain.connect(this.destination) } catch (_) {}
+          try { this.musicGain.connect(ctx.destination) } catch (_) {}
+        }
       }
+    } else if (this.musicGain && this.musicMeta?.url) {
+      this.musicGain.gain.value = this.musicMeta.volume ?? 1
     }
 
     if (!this.voiceoverSource && this.voiceoverMeta?.url) {
@@ -124,8 +135,13 @@ export default class AudioEngine {
         this.voiceoverGain.connect(this.destination)
         this.voiceoverGain.connect(ctx.destination)
       } catch (e) {
-        // Source already created for this element
+        if (this.voiceoverGain) {
+          try { this.voiceoverGain.connect(this.destination) } catch (_) {}
+          try { this.voiceoverGain.connect(ctx.destination) } catch (_) {}
+        }
       }
+    } else if (this.voiceoverGain && this.voiceoverMeta?.url) {
+      this.voiceoverGain.gain.value = this.voiceoverMeta.volume ?? 1
     }
 
     return this.destination.stream

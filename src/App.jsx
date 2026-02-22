@@ -1174,32 +1174,42 @@ function App() {
     }
 
     const recordDuration = totalDuration > 0 ? totalDuration : 6
-    if (totalDuration > 0) {
-      setCurrentTime(0)
-      setIsTimelinePlaying(true)
-    }
+
+    setCurrentTime(0)
+    setIsTimelinePlaying(true)
 
     const videoStream = canvas.captureStream(60)
     let stream = videoStream
+    let hasAudioTracks = false
 
     const ae = audioEngineRef.current
     const hasAudio = ae && (musicTrack || voiceoverTrack)
     if (hasAudio) {
       try {
         const audioStream = ae.getAudioStream()
-        stream = new MediaStream([
-          ...videoStream.getTracks(),
-          ...audioStream.getTracks(),
-        ])
+        if (ae.audioCtx && ae.audioCtx.state === 'suspended') {
+          await ae.audioCtx.resume()
+        }
+        ae.play()
+        ae.sync(0)
+        hasAudioTracks = audioStream.getAudioTracks().length > 0
+        if (hasAudioTracks) {
+          stream = new MediaStream([
+            ...videoStream.getTracks(),
+            ...audioStream.getTracks(),
+          ])
+        }
       } catch (err) {
         console.warn('Could not attach audio to recording:', err)
       }
     }
 
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'video/webm;codecs=vp9',
-      videoBitsPerSecond: quality === '4k' ? 20000000 : quality === '1080p' ? 8000000 : 4000000,
-    })
+    const mimeType = hasAudioTracks
+      ? 'video/webm;codecs=vp9,opus'
+      : 'video/webm;codecs=vp9'
+    const videoBitsPerSecond = quality === '4k' ? 20000000 : quality === '1080p' ? 8000000 : 4000000
+
+    const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond })
 
     const chunks = []
     mediaRecorder.ondataavailable = (e) => {
@@ -1213,6 +1223,7 @@ function App() {
       setIsRecording(false)
       setIsPlaying(false)
       setIsTimelinePlaying(false)
+      if (ae) ae.pause()
 
       if (chosenFormat === 'webm') {
         const url = URL.createObjectURL(webmBlob)
@@ -1229,14 +1240,19 @@ function App() {
     recorderRef.current = mediaRecorder
     setIsRecording(true)
     setIsPlaying(true)
+
+    // Small delay to let audio elements begin playing before capture starts
+    await new Promise(r => setTimeout(r, 150))
+    if (ae && hasAudio) ae.sync(0)
+
     mediaRecorder.start()
 
     setTimeout(() => {
       if (mediaRecorder.state === 'recording') {
         mediaRecorder.stop()
       }
-    }, recordDuration * 1000)
-  }, [quality, exportFormat, convertWebmTo, totalDuration])
+    }, (recordDuration + 0.3) * 1000)
+  }, [quality, exportFormat, convertWebmTo, totalDuration, musicTrack, voiceoverTrack])
 
   const stopRecording = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state === 'recording') {
@@ -1345,9 +1361,6 @@ function App() {
   const [voiceoverScriptLoading, setVoiceoverScriptLoading] = useState(false)
   const [shareToast, setShareToast] = useState(null)
   const shareToastTimer = useRef(null)
-  const projectIdRef = useRef(null)
-  const mediaBlobUrlMap = useRef({})
-  const autoSaveTimer = useRef(null)
   const [isSaving, setIsSaving] = useState(false)
 
   const getCurrentConfig = useCallback(() => ({
@@ -1519,213 +1532,258 @@ function App() {
     markChanged()
   }, [markChanged, currentTime, handleAddZoomEffect, handleAddText, handleSetMusic, handleSelectTemplate])
 
-  // ── Cloud share: upload media, save full project ─────────────────────────────────
+  // ── Client-side sharing via compressed URL ─────────────────────────────────
 
-  const uploadMediaForProject = useCallback(async (projectId, screensToUpload) => {
-    const urlMap = { ...mediaBlobUrlMap.current }
-    const uploads = screensToUpload.filter(s => s.file && !urlMap[s.id])
-    await Promise.all(uploads.map(async (screen) => {
-      try {
-        const resp = await fetch('/api/projects/upload', {
-          method: 'POST',
-          headers: {
-            'Content-Type': screen.file.type || 'application/octet-stream',
-            'x-project-id': projectId,
-            'x-filename': screen.name || 'file',
-          },
-          body: screen.file,
-        })
-        if (resp.ok) {
-          const { url } = await resp.json()
-          urlMap[screen.id] = url
-        }
-      } catch (err) {
-        console.warn('Failed to upload media:', screen.name, err)
-      }
-    }))
-    mediaBlobUrlMap.current = urlMap
-    return urlMap
-  }, [])
-
-  const buildFullProjectConfig = useCallback((urlMap) => {
+  const buildShareableConfig = useCallback(() => {
     const musicLib = musicTrack?.isLibrary
       ? MUSIC_LIBRARY.find(t => t.name === musicTrack.name)
       : null
 
     return {
-      version: Date.now(),
-      activeTemplateId,
-      deviceType,
-      animation,
-      bgColor,
-      bgGradient,
-      showBase,
-      showDeviceShadow,
-      whatsappTheme: activeThemeId,
-      outroLogo,
-      outroAnimation: templateOutroRef.current || 'none',
-      textSplit,
-      layoutFlipped,
-      aspectRatio,
-      quality,
-      exportFormat,
-      clipDuration: templateClipDurRef.current || 5,
+      v: 2,
+      tid: activeTemplateId || null,
+      dt: deviceType,
+      anim: animation,
+      bg: bgColor,
+      bgG: bgGradient || null,
+      base: showBase,
+      shd: showDeviceShadow,
+      theme: activeThemeId || null,
+      logo: outroLogo,
+      outro: templateOutroRef.current || 'none',
+      split: textSplit,
+      flip: layoutFlipped,
+      ar: aspectRatio,
+      q: quality,
+      fmt: exportFormat,
+      cdur: templateClipDurRef.current || 5,
+      mdc: multiDeviceCount,
 
-      screens: screens.map(s => ({
+      sc: screens.map(s => ({
         id: s.id,
-        name: s.name,
-        isVideo: s.isVideo,
-        isGif: s.isGif,
-        blobUrl: urlMap[s.id] || null,
+        n: s.name,
+        vid: s.isVideo || false,
+        gif: s.isGif || false,
       })),
-      timelineClips: timelineClips.map(c => ({
+      tc: timelineClips.map(c => ({
         id: c.id,
-        screenId: c.screenId,
-        startTime: c.startTime,
-        duration: c.duration,
-        trimStart: c.trimStart,
-        trimEnd: c.trimEnd,
-        animation: c.animation,
-        outroAnimation: c.outroAnimation,
+        sid: c.screenId,
+        st: c.startTime,
+        d: c.duration,
+        ts: c.trimStart,
+        te: c.trimEnd,
+        a: c.animation,
+        oa: c.outroAnimation,
       })),
-      textOverlays: textOverlays.map(t => ({
+      tx: textOverlays.map(t => ({
         id: t.id,
-        text: t.text,
-        fontFamily: t.fontFamily,
-        fontSize: t.fontSize,
-        color: t.color,
-        animation: t.animation,
-        posY: t.posY,
-        startTime: t.startTime,
-        endTime: t.endTime,
+        t: t.text,
+        ff: t.fontFamily,
+        fs: t.fontSize,
+        c: t.color,
+        a: t.animation,
+        py: t.posY,
+        fw: t.fontWeight,
+        ta: t.textAlign,
+        s: t.startTime,
+        e: t.endTime,
       })),
-      zoomEffects: zoomEffects.map(z => ({
+      zx: zoomEffects.map(z => ({
         id: z.id,
-        startTime: z.startTime,
-        endTime: z.endTime,
-        zoomLevel: z.zoomLevel,
+        s: z.startTime,
+        e: z.endTime,
+        z: z.zoomLevel,
       })),
-      musicTrack: musicTrack ? {
-        name: musicTrack.name,
-        libraryId: musicLib?.id || null,
-        startTime: musicTrack.startTime,
-        endTime: musicTrack.endTime,
-        volume: musicTrack.volume,
-        isLibrary: !!musicTrack.isLibrary,
-        blobUrl: !musicTrack.isLibrary && musicTrack.file ? (urlMap['__music__'] || null) : null,
+      mt: musicTrack ? {
+        n: musicTrack.name,
+        lib: musicLib?.id || null,
+        s: musicTrack.startTime,
+        e: musicTrack.endTime,
+        vol: musicTrack.volume,
+        isLib: !!musicTrack.isLibrary,
       } : null,
-      voiceoverTrack: voiceoverTrack ? {
-        name: voiceoverTrack.name,
-        startTime: voiceoverTrack.startTime,
-        endTime: voiceoverTrack.endTime,
-        volume: voiceoverTrack.volume,
-        blobUrl: urlMap['__voiceover__'] || null,
+      vo: voiceoverTrack ? {
+        n: voiceoverTrack.name,
+        s: voiceoverTrack.startTime,
+        e: voiceoverTrack.endTime,
+        vol: voiceoverTrack.volume,
       } : null,
-      screenSlotMap: screenSlotMap.length > 0 ? screenSlotMap : null,
-      activeScreenSlots: activeScreenSlotsRef.current,
-      multiDeviceCount,
+      ssm: screenSlotMap.length > 0 ? screenSlotMap : null,
+      ass: activeScreenSlotsRef.current,
     }
   }, [activeTemplateId, deviceType, animation, bgColor, bgGradient, showBase, showDeviceShadow, activeThemeId, outroLogo, textSplit, layoutFlipped, aspectRatio, quality, exportFormat, screens, timelineClips, textOverlays, zoomEffects, musicTrack, voiceoverTrack, screenSlotMap, multiDeviceCount])
 
-  const saveProjectToCloud = useCallback(async (isAutoSave = false) => {
-    if (!isAutoSave) setIsSaving(true)
-    try {
-      const pid = projectIdRef.current || crypto.randomUUID().slice(0, 8)
-
-      const urlMap = await uploadMediaForProject(pid, screens)
-
-      if (musicTrack?.file && !musicTrack.isLibrary && !mediaBlobUrlMap.current['__music__']) {
-        try {
-          const resp = await fetch('/api/projects/upload', {
-            method: 'POST',
-            headers: {
-              'Content-Type': musicTrack.file.type || 'audio/mpeg',
-              'x-project-id': pid,
-              'x-filename': musicTrack.name || 'music',
-            },
-            body: musicTrack.file,
-          })
-          if (resp.ok) {
-            const { url } = await resp.json()
-            urlMap['__music__'] = url
-            mediaBlobUrlMap.current = urlMap
-          }
-        } catch (err) { console.warn('Music upload failed:', err) }
-      }
-
-      if (voiceoverTrack?.file && !mediaBlobUrlMap.current['__voiceover__']) {
-        try {
-          const resp = await fetch('/api/projects/upload', {
-            method: 'POST',
-            headers: {
-              'Content-Type': voiceoverTrack.file.type || 'audio/mpeg',
-              'x-project-id': pid,
-              'x-filename': voiceoverTrack.name || 'voiceover',
-            },
-            body: voiceoverTrack.file,
-          })
-          if (resp.ok) {
-            const { url } = await resp.json()
-            urlMap['__voiceover__'] = url
-            mediaBlobUrlMap.current = urlMap
-          }
-        } catch (err) { console.warn('Voiceover upload failed:', err) }
-      }
-
-      const config = buildFullProjectConfig(urlMap)
-      const resp = await fetch('/api/projects/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: pid, config }),
-      })
-      if (!resp.ok) throw new Error('Save failed')
-      const { projectId } = await resp.json()
-      projectIdRef.current = projectId
-      return projectId
-    } finally {
-      if (!isAutoSave) setIsSaving(false)
+  const compressConfig = useCallback(async (config) => {
+    const json = JSON.stringify(config)
+    const blob = new Blob([json])
+    const cs = new CompressionStream('deflate')
+    const compressed = blob.stream().pipeThrough(cs)
+    const reader = compressed.getReader()
+    const chunks = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
     }
-  }, [screens, musicTrack, voiceoverTrack, uploadMediaForProject, buildFullProjectConfig])
+    const totalLen = chunks.reduce((s, c) => s + c.length, 0)
+    const result = new Uint8Array(totalLen)
+    let offset = 0
+    for (const chunk of chunks) {
+      result.set(chunk, offset)
+      offset += chunk.length
+    }
+    let binary = ''
+    for (let i = 0; i < result.length; i++) binary += String.fromCharCode(result[i])
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  }, [])
 
   const handleShare = useCallback(async () => {
+    setIsSaving(true)
     try {
-      const pid = await saveProjectToCloud(false)
+      const config = buildShareableConfig()
+      const encoded = await compressConfig(config)
+
       const url = new URL(window.location.href)
       url.searchParams.delete('config')
-      url.searchParams.set('project', pid)
+      url.searchParams.delete('project')
+      url.search = ''
       url.hash = ''
+      url.searchParams.set('s', encoded)
 
-      navigator.clipboard.writeText(url.toString()).then(() => {
-        setShareToast('Link copied — includes all media & effects')
+      const shareUrl = url.toString()
+
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setShareToast('Link copied — settings & effects included')
       }).catch(() => {
         setShareToast('Link ready — copy from address bar')
-        window.history.replaceState(null, '', url.toString())
+        window.history.replaceState(null, '', shareUrl)
       })
     } catch (err) {
       console.error('Share failed:', err)
-      setShareToast('Share failed — check connection')
+      setShareToast('Share failed — could not encode config')
     }
+    setIsSaving(false)
 
     if (shareToastTimer.current) clearTimeout(shareToastTimer.current)
     shareToastTimer.current = setTimeout(() => setShareToast(null), 3000)
-  }, [saveProjectToCloud])
+  }, [buildShareableConfig, compressConfig])
 
-  // Auto-save whenever the project changes (debounced, only if already shared)
-  useEffect(() => {
-    if (!projectIdRef.current) return
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
-    autoSaveTimer.current = setTimeout(() => {
-      saveProjectToCloud(true).catch(err => console.warn('Auto-save failed:', err))
-    }, 3000)
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screens, timelineClips, textOverlays, zoomEffects, musicTrack, voiceoverTrack,
-      deviceType, animation, bgColor, bgGradient, showBase, showDeviceShadow,
-      activeThemeId, outroLogo, textSplit, layoutFlipped, aspectRatio, screenSlotMap])
-
-  // ── Load shared project from ?project=<id> ─────────────────────────────────
+  // ── Load shared project from ?s=<compressed> or legacy ?config= ─────────────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+
+    // Decompress a ?s= parameter (v2 compressed sharing)
+    const compressed = params.get('s')
+    if (compressed) {
+      ;(async () => {
+        try {
+          const padded = compressed.replace(/-/g, '+').replace(/_/g, '/') + '=='.slice(0, (4 - compressed.length % 4) % 4)
+          const binary = atob(padded)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+          const blob = new Blob([bytes])
+          const ds = new DecompressionStream('deflate')
+          const decompressed = blob.stream().pipeThrough(ds)
+          const text = await new Response(decompressed).text()
+          const c = JSON.parse(text)
+
+          setHasStarted(true)
+
+          if (c.tid) setActiveTemplateId(c.tid)
+          if (c.dt) setDeviceType(c.dt)
+          if (c.anim) setAnimation(c.anim)
+          if (c.bg) setBgColor(c.bg)
+          if (c.bgG !== undefined) setBgGradient(c.bgG)
+          if (c.base !== undefined) setShowBase(c.base)
+          if (c.shd !== undefined) setShowDeviceShadow(c.shd)
+          if (c.ar) setAspectRatio(c.ar)
+          if (c.q) setQuality(c.q)
+          if (c.fmt) setExportFormat(c.fmt)
+          if (c.logo !== undefined) setOutroLogo(c.logo)
+          if (c.outro) templateOutroRef.current = c.outro
+          if (c.cdur) templateClipDurRef.current = c.cdur
+          if (c.split !== undefined) setTextSplit(c.split)
+          if (c.flip !== undefined) setLayoutFlipped(c.flip)
+          if (c.mdc) setMultiDeviceCount(c.mdc)
+          if (c.theme) {
+            setActiveThemeId(c.theme)
+            const themeColors = { 'wa-dark': '#0A1014', 'wa-light': '#E7FDE3', 'wa-beige': '#FEF4EB', 'wa-green': '#1DAA61' }
+            if (themeColors[c.theme]) setBgColor(themeColors[c.theme])
+          }
+
+          if (c.sc?.length) {
+            setScreens(c.sc.map(s => ({
+              id: s.id,
+              file: null,
+              url: '',
+              name: s.n,
+              isVideo: s.vid || false,
+              isGif: s.gif || false,
+            })))
+          }
+
+          if (c.tc?.length) {
+            setTimelineClips(recalcStartTimes(c.tc.map(cl => ({
+              id: cl.id || crypto.randomUUID(),
+              screenId: cl.sid,
+              startTime: cl.st || 0,
+              duration: cl.d || 5,
+              trimStart: cl.ts || 0,
+              trimEnd: cl.te || cl.d || 5,
+              animation: cl.a || c.anim || 'showcase',
+              outroAnimation: cl.oa || 'none',
+            }))))
+          }
+
+          if (c.tx?.length) {
+            setTextOverlays(c.tx.map(t => ({
+              id: t.id || crypto.randomUUID(),
+              text: t.t || '',
+              fontFamily: t.ff || 'Inter',
+              fontSize: t.fs || 48,
+              color: t.c || '#FFFFFF',
+              animation: t.a || 'none',
+              posY: t.py ?? 0,
+              fontWeight: t.fw ?? 600,
+              textAlign: t.ta || 'center',
+              startTime: t.s ?? 0,
+              endTime: t.e ?? 2.5,
+            })))
+          }
+
+          if (c.zx?.length) {
+            setZoomEffects(c.zx.map(z => ({
+              id: z.id || crypto.randomUUID(),
+              startTime: z.s,
+              endTime: z.e,
+              zoomLevel: z.z || 2,
+            })))
+          }
+
+          if (c.ssm) setScreenSlotMap(c.ssm)
+          if (c.ass) {
+            setActiveScreenSlots(c.ass)
+            activeScreenSlotsRef.current = c.ass
+          }
+
+          if (c.mt) {
+            if (c.mt.isLib && c.mt.lib) {
+              const libTrack = MUSIC_LIBRARY.find(t => t.id === c.mt.lib)
+              if (libTrack) handleSetMusic({ libraryId: libTrack.id, name: libTrack.name })
+            }
+          }
+
+          setSidebarTab('media')
+          hasUnsavedChanges.current = false
+          setTimeout(() => { setIsPlaying(true); setIsTimelinePlaying(true) }, 400)
+
+          const cleanUrl = new URL(window.location.href)
+          cleanUrl.searchParams.delete('s')
+          window.history.replaceState(null, '', cleanUrl.toString())
+        } catch (e) { console.warn('Failed to restore shared config:', e) }
+      })()
+      return
+    }
 
     // Legacy: handle old ?config= base64 links
     const encoded = params.get('config')
@@ -1789,182 +1847,6 @@ function App() {
       } catch (e) { console.warn('Failed to restore shared config:', e) }
       return
     }
-
-    // New: load full cloud project
-    const pid = params.get('project')
-    if (!pid) return
-
-    let cancelled = false
-    ;(async () => {
-      try {
-        const resp = await fetch('/api/projects/load', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId: pid }),
-        })
-        if (!resp.ok || cancelled) return
-        const { config } = await resp.json()
-        if (!config || cancelled) return
-
-        projectIdRef.current = pid
-
-        // Restore screens by downloading media from blob URLs
-        const restoredScreens = []
-        const urlMap = {}
-        if (config.screens?.length) {
-          await Promise.all(config.screens.map(async (s) => {
-            if (!s.blobUrl) {
-              restoredScreens.push({ id: s.id, file: null, url: '', name: s.name, isVideo: s.isVideo, isGif: s.isGif })
-              return
-            }
-            try {
-              const mediaResp = await fetch(s.blobUrl)
-              const blob = await mediaResp.blob()
-              const file = new File([blob], s.name, { type: blob.type })
-              const localUrl = URL.createObjectURL(file)
-              restoredScreens.push({ id: s.id, file, url: localUrl, name: s.name, isVideo: s.isVideo, isGif: s.isGif })
-              urlMap[s.id] = s.blobUrl
-            } catch (err) {
-              console.warn('Failed to download media:', s.name, err)
-              restoredScreens.push({ id: s.id, file: null, url: '', name: s.name, isVideo: s.isVideo, isGif: s.isGif })
-            }
-          }))
-        }
-        mediaBlobUrlMap.current = urlMap
-
-        if (cancelled) return
-
-        setHasStarted(true)
-
-        // Restore basic settings
-        if (config.activeTemplateId) setActiveTemplateId(config.activeTemplateId)
-        if (config.deviceType) setDeviceType(config.deviceType)
-        if (config.animation) setAnimation(config.animation)
-        if (config.bgColor) setBgColor(config.bgColor)
-        if (config.bgGradient !== undefined) setBgGradient(config.bgGradient)
-        if (config.showBase !== undefined) setShowBase(config.showBase)
-        if (config.showDeviceShadow !== undefined) setShowDeviceShadow(config.showDeviceShadow)
-        if (config.aspectRatio) setAspectRatio(config.aspectRatio)
-        if (config.quality) setQuality(config.quality)
-        if (config.exportFormat) setExportFormat(config.exportFormat)
-        if (config.outroLogo !== undefined) setOutroLogo(config.outroLogo)
-        if (config.outroAnimation) templateOutroRef.current = config.outroAnimation
-        if (config.clipDuration) templateClipDurRef.current = config.clipDuration
-        if (config.textSplit !== undefined) setTextSplit(config.textSplit)
-        if (config.layoutFlipped !== undefined) setLayoutFlipped(config.layoutFlipped)
-        if (config.multiDeviceCount) setMultiDeviceCount(config.multiDeviceCount)
-        if (config.whatsappTheme) {
-          setActiveThemeId(config.whatsappTheme)
-          const themeColors = { 'wa-dark': '#0A1014', 'wa-light': '#E7FDE3', 'wa-beige': '#FEF4EB', 'wa-green': '#1DAA61' }
-          if (themeColors[config.whatsappTheme]) setBgColor(themeColors[config.whatsappTheme])
-        }
-
-        // Restore screens
-        if (restoredScreens.length > 0) setScreens(restoredScreens)
-
-        // Restore timeline clips
-        if (config.timelineClips?.length) {
-          setTimelineClips(recalcStartTimes(config.timelineClips.map(c => ({
-            id: c.id || crypto.randomUUID(),
-            screenId: c.screenId,
-            startTime: c.startTime || 0,
-            duration: c.duration || 5,
-            trimStart: c.trimStart || 0,
-            trimEnd: c.trimEnd || c.duration || 5,
-            animation: c.animation || config.animation || 'showcase',
-            outroAnimation: c.outroAnimation || 'none',
-          }))))
-        }
-
-        // Restore text overlays
-        if (config.textOverlays?.length) {
-          setTextOverlays(config.textOverlays.map(t => ({
-            id: t.id || crypto.randomUUID(),
-            text: t.text || '',
-            fontFamily: t.fontFamily || 'Inter',
-            fontSize: t.fontSize || 48,
-            color: t.color || '#FFFFFF',
-            animation: t.animation || 'none',
-            posY: t.posY ?? 0,
-            startTime: t.startTime ?? 0,
-            endTime: t.endTime ?? 2.5,
-          })))
-        }
-
-        // Restore zoom effects
-        if (config.zoomEffects?.length) {
-          setZoomEffects(config.zoomEffects.map(z => ({
-            id: z.id || crypto.randomUUID(),
-            startTime: z.startTime,
-            endTime: z.endTime,
-            zoomLevel: z.zoomLevel || 2,
-          })))
-        }
-
-        // Restore screen slot map for multi-device
-        if (config.screenSlotMap) setScreenSlotMap(config.screenSlotMap)
-        if (config.activeScreenSlots) {
-          setActiveScreenSlots(config.activeScreenSlots)
-          activeScreenSlotsRef.current = config.activeScreenSlots
-        }
-
-        // Restore music
-        if (config.musicTrack) {
-          if (config.musicTrack.isLibrary && config.musicTrack.libraryId) {
-            const libTrack = MUSIC_LIBRARY.find(t => t.id === config.musicTrack.libraryId)
-            if (libTrack) {
-              handleSetMusic({ libraryId: libTrack.id, name: libTrack.name })
-            }
-          } else if (config.musicTrack.blobUrl) {
-            try {
-              const musicResp = await fetch(config.musicTrack.blobUrl)
-              const blob = await musicResp.blob()
-              const file = new File([blob], config.musicTrack.name || 'music', { type: blob.type })
-              const localUrl = URL.createObjectURL(file)
-              mediaBlobUrlMap.current['__music__'] = config.musicTrack.blobUrl
-              setMusicTrack({
-                id: crypto.randomUUID(),
-                name: config.musicTrack.name,
-                url: localUrl,
-                file,
-                startTime: config.musicTrack.startTime || 0,
-                endTime: config.musicTrack.endTime || 30,
-                volume: config.musicTrack.volume ?? 0.5,
-                isLibrary: false,
-              })
-            } catch (err) { console.warn('Failed to restore music:', err) }
-          }
-        }
-
-        // Restore voiceover
-        if (config.voiceoverTrack?.blobUrl) {
-          try {
-            const voResp = await fetch(config.voiceoverTrack.blobUrl)
-            const blob = await voResp.blob()
-            const file = new File([blob], config.voiceoverTrack.name || 'voiceover', { type: blob.type })
-            const localUrl = URL.createObjectURL(file)
-            mediaBlobUrlMap.current['__voiceover__'] = config.voiceoverTrack.blobUrl
-            setVoiceoverTrack({
-              id: crypto.randomUUID(),
-              name: config.voiceoverTrack.name,
-              url: localUrl,
-              file,
-              startTime: config.voiceoverTrack.startTime || 0,
-              endTime: config.voiceoverTrack.endTime || 30,
-              volume: config.voiceoverTrack.volume ?? 0.8,
-              isLibrary: false,
-            })
-          } catch (err) { console.warn('Failed to restore voiceover:', err) }
-        }
-
-        setSidebarTab('media')
-        hasUnsavedChanges.current = false
-        setTimeout(() => { setIsPlaying(true); setIsTimelinePlaying(true) }, 500)
-      } catch (err) {
-        console.error('Failed to load shared project:', err)
-      }
-    })()
-    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -2158,12 +2040,10 @@ function App() {
     setSidebarTab('templates')
     setShowBackConfirm(false)
     setHasStarted(false)
-    projectIdRef.current = null
-    mediaBlobUrlMap.current = {}
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
     hasUnsavedChanges.current = false
 
     const cleanUrl = new URL(window.location.href)
+    cleanUrl.searchParams.delete('s')
     cleanUrl.searchParams.delete('project')
     cleanUrl.searchParams.delete('config')
     window.history.replaceState(null, '', cleanUrl.toString())
