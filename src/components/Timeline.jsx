@@ -38,11 +38,13 @@ export default function Timeline({
   onAddZoomEffect,
   onUpdateZoomEffect,
   onRemoveZoomEffect,
+  onSplitZoom,
   onUpload,
   textOverlays,
   onAddText,
   onUpdateText,
   onRemoveText,
+  onSplitText,
   selectedTextId,
   setSelectedTextId,
   setSidebarTab,
@@ -293,16 +295,27 @@ export default function Timeline({
   }, [selectedClipId, selectedZoomId, selectedTextId, selectedAudioTrack, onRemoveClip, onRemoveZoomEffect, onRemoveText, onRemoveMusic, onRemoveVoiceover, setSelectedTextId, setSelectedAudioTrack])
 
   const handleSplit = useCallback(() => {
-    if (!selectedClipId) return
-    const clip = clips.find((c) => c.id === selectedClipId)
-    if (!clip) return
-    if (
-      currentTime > clip.startTime &&
-      currentTime < clip.startTime + clip.duration
-    ) {
-      onSplitClip(selectedClipId, currentTime)
+    if (selectedClipId) {
+      const clip = clips.find((c) => c.id === selectedClipId)
+      if (clip && currentTime > clip.startTime && currentTime < clip.startTime + clip.duration) {
+        onSplitClip(selectedClipId, currentTime)
+      }
+      return
     }
-  }, [selectedClipId, clips, currentTime, onSplitClip])
+    if (selectedTextId && onSplitText) {
+      const overlay = textOverlays?.find((t) => t.id === selectedTextId)
+      if (overlay && currentTime > overlay.startTime + 0.1 && currentTime < overlay.endTime - 0.1) {
+        onSplitText(selectedTextId, currentTime)
+      }
+      return
+    }
+    if (selectedZoomId && onSplitZoom) {
+      const effect = zoomEffects?.find((e) => e.id === selectedZoomId)
+      if (effect && currentTime > effect.startTime + 0.1 && currentTime < effect.endTime - 0.1) {
+        onSplitZoom(selectedZoomId, currentTime)
+      }
+    }
+  }, [selectedClipId, clips, currentTime, onSplitClip, selectedTextId, textOverlays, onSplitText, selectedZoomId, zoomEffects, onSplitZoom])
 
   const handleAddZoom = useCallback(() => {
     onAddZoomEffect()
@@ -424,10 +437,20 @@ export default function Timeline({
 
   const selectedClip =
     clips.find((c) => c.id === selectedClipId) || null
+  const selectedText =
+    selectedTextId && textOverlays ? textOverlays.find((t) => t.id === selectedTextId) : null
+  const selectedZoom =
+    selectedZoomId && zoomEffects ? zoomEffects.find((e) => e.id === selectedZoomId) : null
   const canSplit =
-    selectedClip &&
-    currentTime > selectedClip.startTime + 0.1 &&
-    currentTime < selectedClip.startTime + selectedClip.duration - 0.1
+    (selectedClip &&
+      currentTime > selectedClip.startTime + 0.1 &&
+      currentTime < selectedClip.startTime + selectedClip.duration - 0.1) ||
+    (selectedText &&
+      currentTime > selectedText.startTime + 0.1 &&
+      currentTime < selectedText.endTime - 0.1) ||
+    (selectedZoom &&
+      currentTime > selectedZoom.startTime + 0.1 &&
+      currentTime < selectedZoom.endTime - 0.1)
 
   return (
     <div
@@ -522,7 +545,7 @@ export default function Timeline({
                 className="transport-action-btn"
                 onClick={handleSplit}
                 disabled={!canSplit}
-                title="Split clip at playhead"
+                title="Split at playhead"
               >
                 <svg
                   width="14"

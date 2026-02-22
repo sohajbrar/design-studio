@@ -895,6 +895,41 @@ function App() {
     })
   }, [])
 
+  const handleSplitText = useCallback((textId, splitTime) => {
+    markChanged()
+    setTextOverlays((prev) => {
+      const idx = prev.findIndex((t) => t.id === textId)
+      if (idx === -1) return prev
+      const overlay = prev[idx]
+      const dur = (overlay.endTime || 0) - (overlay.startTime || 0)
+      const offset = splitTime - (overlay.startTime || 0)
+      if (offset <= 0.1 || offset >= dur - 0.1) return prev
+
+      const left = { ...overlay, id: crypto.randomUUID(), endTime: splitTime }
+      const right = { ...overlay, id: crypto.randomUUID(), startTime: splitTime }
+      const updated = [...prev]
+      updated.splice(idx, 1, left, right)
+      return updated
+    })
+  }, [])
+
+  const handleSplitZoom = useCallback((effectId, splitTime) => {
+    setZoomEffects((prev) => {
+      const idx = prev.findIndex((e) => e.id === effectId)
+      if (idx === -1) return prev
+      const effect = prev[idx]
+      const dur = effect.endTime - effect.startTime
+      const offset = splitTime - effect.startTime
+      if (offset <= 0.1 || offset >= dur - 0.1) return prev
+
+      const left = { ...effect, id: crypto.randomUUID(), endTime: splitTime }
+      const right = { ...effect, id: crypto.randomUUID(), startTime: splitTime }
+      const updated = [...prev]
+      updated.splice(idx, 1, left, right)
+      return updated
+    })
+  }, [])
+
   const handleAddZoomEffect = useCallback((atTime) => {
     const t = typeof atTime === 'number' && isFinite(atTime) ? atTime : currentTime
     setZoomEffects((prev) => {
@@ -3301,11 +3336,13 @@ function App() {
                   onAddZoomEffect={handleAddZoomEffect}
                   onUpdateZoomEffect={handleUpdateZoomEffect}
                   onRemoveZoomEffect={handleRemoveZoomEffect}
+                  onSplitZoom={handleSplitZoom}
                   onUpload={handleTimelineDrop}
                   textOverlays={textOverlays}
                   onAddText={handleAddText}
                   onUpdateText={handleUpdateText}
                   onRemoveText={handleRemoveText}
+                  onSplitText={handleSplitText}
                   selectedTextId={selectedTextId}
                   setSelectedTextId={setSelectedTextId}
                   setSidebarTab={setSidebarTab}
