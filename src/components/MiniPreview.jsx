@@ -41,10 +41,10 @@ function MiniPhone({ position, rotation, scale: s = 1, opacity = 1 }) {
   return (
     <group position={position} rotation={rotation} scale={[s, s, s]}>
       <mesh geometry={PHONE_BODY_GEO}>
-        <meshStandardMaterial color="#1a1a1a" roughness={0.25} metalness={0.6} transparent opacity={opacity} />
+        <meshPhysicalMaterial color="#78716a" roughness={0.2} metalness={0.6} clearcoat={1.0} clearcoatRoughness={0.15} emissive="#78716a" emissiveIntensity={0.08} transparent opacity={opacity} />
       </mesh>
       <mesh position={[0, 0, 0.021]} geometry={PHONE_SCREEN_GEO}>
-        <meshBasicMaterial color="#444" transparent opacity={opacity * 0.9} />
+        <meshBasicMaterial color="#1a1a1e" transparent opacity={opacity * 0.9} />
       </mesh>
     </group>
   )
@@ -54,10 +54,10 @@ function MiniLaptop({ position, rotation, scale: s = 1 }) {
   return (
     <group position={position} rotation={rotation} scale={[s, s, s]}>
       <mesh geometry={LAPTOP_BODY_GEO}>
-        <meshStandardMaterial color="#888" roughness={0.25} metalness={0.5} />
+        <meshPhysicalMaterial color="#a0a0a0" roughness={0.2} metalness={0.5} clearcoat={0.8} clearcoatRoughness={0.15} emissive="#a0a0a0" emissiveIntensity={0.06} />
       </mesh>
       <mesh position={[0, 0, 0.016]} geometry={LAPTOP_SCREEN_GEO}>
-        <meshBasicMaterial color="#222" />
+        <meshBasicMaterial color="#0a0a0a" />
       </mesh>
     </group>
   )
