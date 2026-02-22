@@ -1,116 +1,11 @@
 import { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useGLTF } from '@react-three/drei'
 import { parseGIF, decompressFrames } from 'gifuct-js'
 
-const KEYBOARD_TEX = (() => {
-  const w = 1024, h = 380
-  const c = document.createElement('canvas')
-  c.width = w; c.height = h
-  const ctx = c.getContext('2d')
-
-  ctx.fillStyle = '#1a1a1a'
-  ctx.fillRect(0, 0, w, h)
-
-  const gap = 4, rad = 5, pad = 14
-
-  function key(x, y, kw, kh, label, labelSize) {
-    const g = ctx.createLinearGradient(x, y, x, y + kh)
-    g.addColorStop(0, '#3d3d3d')
-    g.addColorStop(1, '#2a2a2a')
-    ctx.fillStyle = g
-    ctx.beginPath()
-    ctx.moveTo(x + rad, y)
-    ctx.lineTo(x + kw - rad, y)
-    ctx.quadraticCurveTo(x + kw, y, x + kw, y + rad)
-    ctx.lineTo(x + kw, y + kh - rad)
-    ctx.quadraticCurveTo(x + kw, y + kh, x + kw - rad, y + kh)
-    ctx.lineTo(x + rad, y + kh)
-    ctx.quadraticCurveTo(x, y + kh, x, y + kh - rad)
-    ctx.lineTo(x, y + rad)
-    ctx.quadraticCurveTo(x, y, x + rad, y)
-    ctx.closePath()
-    ctx.fill()
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
-    ctx.lineWidth = 0.8
-    ctx.stroke()
-
-    if (label) {
-      ctx.fillStyle = 'rgba(255,255,255,0.55)'
-      ctx.font = `${labelSize || 11}px -apple-system, "Helvetica Neue", sans-serif`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(label, x + kw / 2, y + kh / 2 + 1)
-    }
-  }
-
-  const usable = w - 2 * pad
-  const mainH = 46
-  let y = pad
-
-  const fnLabels = ['esc', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', '⏏']
-  const fnH = 26
-  const fnCount = 14
-  const fnW = (usable - (fnCount - 1) * gap) / fnCount
-  for (let i = 0; i < fnCount; i++) key(pad + i * (fnW + gap), y, fnW, fnH, fnLabels[i], 9)
-
-  y += fnH + gap + 3
-  const numLabels = ['`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '⌫']
-  const delW = fnW * 1.55
-  const numW = (usable - delW - 13 * gap) / 13
-  for (let i = 0; i < 13; i++) key(pad + i * (numW + gap), y, numW, mainH, numLabels[i], 14)
-  key(w - pad - delW, y, delW, mainH, numLabels[13], 14)
-
-  y += mainH + gap
-  const tabW = fnW * 1.55
-  const qLabels = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', '\\']
-  key(pad, y, tabW, mainH, '⇥', 12)
-  const qW = (usable - tabW - gap - 12 * gap) / 13
-  for (let i = 0; i < 13; i++) key(pad + tabW + gap + i * (qW + gap), y, qW, mainH, qLabels[i], 14)
-
-  y += mainH + gap
-  const capsW = fnW * 1.85
-  const retW = fnW * 1.85
-  const aLabels = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', "'"]
-  key(pad, y, capsW, mainH, '⇪', 12)
-  const aW = (usable - capsW - retW - 12 * gap) / 11
-  for (let i = 0; i < 11; i++) key(pad + capsW + gap + i * (aW + gap), y, aW, mainH, aLabels[i], 14)
-  key(w - pad - retW, y, retW, mainH, '↵', 16)
-
-  y += mainH + gap
-  const shL = fnW * 2.35
-  const shR = fnW * 2.35
-  const zLabels = ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/']
-  key(pad, y, shL, mainH, '⇧', 16)
-  const zW = (usable - shL - shR - 11 * gap) / 10
-  for (let i = 0; i < 10; i++) key(pad + shL + gap + i * (zW + gap), y, zW, mainH, zLabels[i], 14)
-  key(w - pad - shR, y, shR, mainH, '⇧', 16)
-
-  y += mainH + gap
-  const modW = fnW * 1.1
-  const arrowW = fnW * 0.95
-  const arrowH = (mainH - gap) / 2
-  const spaceW = usable - 4 * modW - 2 * modW - 3 * arrowW - 9 * gap
-  const modLabels = ['fn', '⌃', '⌥', '⌘']
-  let x = pad
-  for (let i = 0; i < 4; i++) { key(x, y, modW, mainH, modLabels[i], 12); x += modW + gap }
-  key(x, y, spaceW, mainH, '', 0); x += spaceW + gap
-  key(x, y, modW, mainH, '⌘', 12); x += modW + gap
-  key(x, y, modW, mainH, '⌥', 12); x += modW + gap
-
-  key(x, y, arrowW, arrowH, '▲', 8)
-  key(x, y + arrowH + gap, arrowW, arrowH, '▼', 8)
-  x += arrowW + gap
-  key(x, y + arrowH + gap, arrowW, arrowH, '◀', 8)
-  x += arrowW + gap
-  key(x, y, arrowW, arrowH, '', 0)
-  key(x, y + arrowH + gap, arrowW, arrowH, '▶', 8)
-
-  const tex = new THREE.CanvasTexture(c)
-  tex.needsUpdate = true
-  return tex
-})()
+const MACBOOK_GLB = `${import.meta.env.BASE_URL}models/macbook_pro_m3_16_inch_2024.glb`
+useGLTF.preload(MACBOOK_GLB)
 
 const SHADOW_TEX = (() => {
   const s = 128
@@ -424,6 +319,161 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
   return { textureRef, loadedRef, videoRef, gifRef }
 }
 
+/**
+ * Renders the GLB MacBook Pro model with screen texture replacement
+ * and lid pivot animation. The model's screen mesh (material 'sfCQkHOWyrsLmor')
+ * has its material swapped at clone time; the lid group ('VCQqxpxkUlzqcJI_62')
+ * is reparented under a pivot at the hinge for open/close rotation.
+ */
+function MacBookGLB({
+  textureRef, loadedRef, videoRef, gifRef, isVideo, isGif,
+  videoSeekTime, timelinePlaying, lidAngleRef, screenMeshRef,
+}) {
+  const { scene } = useGLTF(MACBOOK_GLB)
+  const screenNodeRef = useRef()
+  const lidPivotRef = useRef()
+  const lastSeekRef = useRef(-1)
+  const modelOpenAngleRef = useRef(0)
+
+  const processedScene = useMemo(() => {
+    const clone = scene.clone(true)
+
+    // Deep-clone materials so instances don't share state
+    clone.traverse((node) => {
+      if (node.isMesh && node.material) {
+        node.material = node.material.clone()
+      }
+    })
+
+    let lidGroup = null
+    let screenMesh = null
+
+    clone.traverse((node) => {
+      if (node.name === 'VCQqxpxkUlzqcJI_62') lidGroup = node
+      if (node.isMesh && node.material?.name === 'sfCQkHOWyrsLmor') screenMesh = node
+    })
+
+    // Replace screen material
+    if (screenMesh) {
+      screenMesh.material = new THREE.MeshBasicMaterial({ color: '#111122', toneMapped: false })
+      screenNodeRef.current = screenMesh
+    }
+
+    // Measure the model's current lid angle from the hinge so we can map
+    // lidAngleRef (PI/2 = open, PI = closed) correctly.
+    // Hinge at Y ≈ -12 in model space. Screen center ≈ (-17, -12).
+    // Direction from hinge: ΔY ≈ -5, ΔZ ≈ -12 → angle from -Z axis ≈ 0.39 rad
+    const HINGE_Y = -12
+
+    if (lidGroup && lidGroup.parent) {
+      const parent = lidGroup.parent
+      const pivot = new THREE.Group()
+      pivot.name = 'lid_pivot'
+      pivot.position.set(0, HINGE_Y, 0)
+
+      parent.remove(lidGroup)
+      lidGroup.position.y -= HINGE_Y
+      pivot.add(lidGroup)
+      parent.add(pivot)
+      lidPivotRef.current = pivot
+
+      // The model's resting lid angle from vertical (measured from mesh bounds)
+      // Screen bottom near hinge: Y≈-13.2, Z≈-1.3 → offset from hinge (0, HINGE_Y, 0):
+      //   ΔY = -1.2, ΔZ = -1.3  Screen top: ΔY = -8.8, ΔZ = -22.2
+      // Average direction ≈ ΔY = -5, ΔZ = -11.7 → angle from -Z axis ≈ atan2(5, 11.7) ≈ 0.41 rad
+      modelOpenAngleRef.current = 0.41
+    }
+
+    return clone
+  }, [scene])
+
+  useFrame(() => {
+    const mesh = screenNodeRef.current
+    if (mesh) {
+      const mat = mesh.material
+      if (loadedRef.current && textureRef.current) {
+        if (mat.map !== textureRef.current) {
+          mat.map = textureRef.current
+          mat.color.set('#ffffff')
+          mat.needsUpdate = true
+        }
+        if (isVideo && textureRef.current.isVideoTexture) {
+          textureRef.current.needsUpdate = true
+        }
+        if (isGif && gifRef.current) {
+          const g = gifRef.current
+          if (timelinePlaying) {
+            g.paused = false
+            const now = performance.now()
+            const elapsed = now - g.lastFrameTime
+            if (elapsed >= g.frames[g.currentFrame].delay) {
+              const prev = g.frames[g.currentFrame]
+              if (prev.disposalType === 2) g.compCtx.clearRect(prev.dims.left, prev.dims.top, prev.dims.width, prev.dims.height)
+              else if (prev.disposalType === 3 && g.savedState) g.compCtx.putImageData(g.savedState, 0, 0)
+              g.currentFrame = (g.currentFrame + 1) % g.totalFrames
+              if (g.currentFrame === 0) g.compCtx.clearRect(0, 0, g.compCanvas.width, g.compCanvas.height)
+              const frame = g.frames[g.currentFrame]
+              if (frame.disposalType === 3) g.savedState = g.compCtx.getImageData(0, 0, g.compCanvas.width, g.compCanvas.height)
+              g.patchCanvas.width = frame.dims.width
+              g.patchCanvas.height = frame.dims.height
+              g.patchCtx.putImageData(frame.imageData, 0, 0)
+              g.compCtx.drawImage(g.patchCanvas, frame.dims.left, frame.dims.top)
+              g.texCtx.clearRect(0, 0, g.targetW, g.targetH)
+              g.texCtx.drawImage(g.compCanvas, g.sx, g.sy, g.sw, g.sh, 0, 0, g.targetW, g.targetH)
+              g.lastFrameTime = now
+              textureRef.current.needsUpdate = true
+            }
+          } else if (!g.paused) {
+            g.paused = true
+            g.currentFrame = 0
+            g.compCtx.clearRect(0, 0, g.compCanvas.width, g.compCanvas.height)
+            const first = g.frames[0]
+            g.patchCanvas.width = first.dims.width
+            g.patchCanvas.height = first.dims.height
+            g.patchCtx.putImageData(first.imageData, 0, 0)
+            g.compCtx.drawImage(g.patchCanvas, first.dims.left, first.dims.top)
+            g.texCtx.clearRect(0, 0, g.targetW, g.targetH)
+            g.texCtx.drawImage(g.compCanvas, g.sx, g.sy, g.sw, g.sh, 0, 0, g.targetW, g.targetH)
+            textureRef.current.needsUpdate = true
+          }
+        }
+      }
+      if (screenMeshRef) screenMeshRef.current = mesh
+    }
+
+    // Video sync
+    const video = videoRef.current
+    if (video && isVideo && loadedRef.current) {
+      if (timelinePlaying) {
+        if (video.paused) { video.currentTime = videoSeekTime || 0; video.play().catch(() => {}); lastSeekRef.current = -1 }
+      } else {
+        if (!video.paused) video.pause()
+        const seekTo = videoSeekTime || 0
+        if (Math.abs(lastSeekRef.current - seekTo) > 0.03) { video.currentTime = seekTo; lastSeekRef.current = seekTo }
+      }
+    }
+
+    // Lid rotation: lidAngleRef PI/2 = open (model default), PI = closed.
+    // The GLB lid is tilted ~23° past vertical, so it needs ~2.05 rad total
+    // rotation to close (vs PI/2 ≈ 1.57 for a perfectly vertical lid).
+    if (lidPivotRef.current && lidAngleRef) {
+      const angle = lidAngleRef.current != null ? lidAngleRef.current : Math.PI / 2
+      lidPivotRef.current.rotation.x = (angle - Math.PI / 2) * 1.3
+    }
+  })
+
+  // Scale: model width ≈ 35.4 units, target ≈ 5.6 → 0.158
+  // Center: model center ≈ (0, -4.5, -10.8), shift to origin
+  const MODEL_SCALE = 5.6 / 35.4
+  return (
+    <primitive
+      object={processedScene}
+      scale={MODEL_SCALE}
+      position={[0, 4.5 * MODEL_SCALE, 10.8 * MODEL_SCALE]}
+    />
+  )
+}
+
 export default function DeviceFrame({
   type = 'iphone',
   screenUrl,
@@ -444,7 +494,6 @@ export default function DeviceFrame({
 
   const screenMeshRef = useRef()
   const lastSeekRef = useRef(-1)
-  const lidPivotRef = useRef()
   const screenAspect = screenW / screenH
   const { textureRef, loadedRef, videoRef, gifRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif)
 
@@ -570,93 +619,28 @@ export default function DeviceFrame({
       }
     }
 
-    // Animate MacBook lid angle from AnimatedDevices
-    if (lidPivotRef.current && lidAngleRef) {
-      const angle = lidAngleRef.current != null ? lidAngleRef.current : Math.PI / 2
-      lidPivotRef.current.rotation.x = angle - Math.PI / 2
-    }
   })
 
   // Body front face is at z = depth/2 in group space
   // Tiny offset prevents z-fighting with the body
   const frontZ = config.depth / 2 + 0.023
 
-  // MacBook needs a base/keyboard section — same size as lid so they align when closed
-  const macbookBaseGeo = useMemo(() => {
-    if (type !== 'macbook') return null
-    const shape = createRoundedRectShape(config.width, config.height, config.cornerRadius)
-    return new THREE.ExtrudeGeometry(shape, {
-      depth: 0.04,
-      bevelEnabled: true,
-      bevelThickness: 0.01,
-      bevelSize: 0.01,
-      bevelSegments: 2,
-    })
-  }, [type, config])
-
-  const macbookHingeGeo = useMemo(() => {
-    if (type !== 'macbook') return null
-    return new THREE.CylinderGeometry(0.03, 0.03, config.width + 0.1, 16)
-  }, [type, config])
-
   return (
     <group position={position} rotation={rotation} scale={scale}>
-      {/* ── MacBook Pro: base + hinge + upright lid ── */}
+      {/* ── MacBook Pro: GLB 3D model ── */}
       {type === 'macbook' ? (
-        <group>
-          {/* Keyboard base - flat, same size as lid, extending forward from the hinge */}
-          <group position={[0, -config.height / 2, config.height / 2]} rotation={[-Math.PI / 2, 0, 0]}>
-            <mesh geometry={macbookBaseGeo} position={[0, 0, -0.02]}>
-              <meshPhysicalMaterial color={config.frameColor} metalness={0.88} roughness={0.12} clearcoat={0.6} clearcoatRoughness={0.3} />
-            </mesh>
-            {/* Trackpad */}
-            <mesh position={[0, -config.height * 0.22, 0.025]}>
-              <shapeGeometry args={[createRoundedRectShape(1.6, 1.05, 0.08)]} />
-              <meshStandardMaterial color="#8a8a8a" metalness={0.55} roughness={0.35} />
-            </mesh>
-            {/* Keyboard area */}
-            <mesh position={[0, config.height * 0.14, 0.025]}>
-              <planeGeometry args={[config.width - 0.3, config.height * 0.52]} />
-              <meshBasicMaterial map={KEYBOARD_TEX} toneMapped={false} />
-            </mesh>
-            {/* Speaker grills — left */}
-            <mesh position={[-config.width * 0.37, config.height * 0.14, 0.024]}>
-              <planeGeometry args={[0.35, config.height * 0.42]} />
-              <meshBasicMaterial color="#252525" transparent opacity={0.6} />
-            </mesh>
-            {/* Speaker grills — right */}
-            <mesh position={[config.width * 0.37, config.height * 0.14, 0.024]}>
-              <planeGeometry args={[0.35, config.height * 0.42]} />
-              <meshBasicMaterial color="#252525" transparent opacity={0.6} />
-            </mesh>
-          </group>
-
-          {/* Hinge cylinder at the junction */}
-          <mesh geometry={macbookHingeGeo} position={[0, -config.height / 2, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <meshPhysicalMaterial color={config.sideColor} metalness={0.9} roughness={0.1} />
-          </mesh>
-
-          {/* Screen lid - pivots at hinge for open/close animations */}
-          <group ref={lidPivotRef} position={[0, -config.height / 2, 0]}>
-            <group position={[0, config.height / 2, 0]}>
-              <mesh geometry={bodyGeo} position={[0, 0, -config.depth / 2]}>
-                <meshPhysicalMaterial color={config.frameColor} metalness={0.88} roughness={0.12} clearcoat={0.6} clearcoatRoughness={0.3} />
-              </mesh>
-              <mesh position={[0, 0, frontZ - 0.002]}>
-                <shapeGeometry args={[createRoundedRectShape(screenW + 0.02, screenH + 0.02, Math.max(0.08, config.cornerRadius - config.screenInset + 0.005))]} />
-                <meshStandardMaterial color={config.bezelColor} roughness={0.9} metalness={0.1} />
-              </mesh>
-              <mesh ref={screenMeshRef} geometry={screenGeo} position={[0, 0, frontZ]}>
-                <meshBasicMaterial color="#111122" toneMapped={false} />
-              </mesh>
-              {/* Webcam notch */}
-              <mesh position={[0, screenH / 2 + 0.02, frontZ + 0.001]}>
-                <circleGeometry args={[0.03, 24]} />
-                <meshBasicMaterial color="#1a1a1a" />
-              </mesh>
-            </group>
-          </group>
-        </group>
+        <MacBookGLB
+          textureRef={textureRef}
+          loadedRef={loadedRef}
+          videoRef={videoRef}
+          gifRef={gifRef}
+          isVideo={isVideo}
+          isGif={isGif}
+          videoSeekTime={videoSeekTime}
+          timelinePlaying={timelinePlaying}
+          lidAngleRef={lidAngleRef}
+          screenMeshRef={screenMeshRef}
+        />
       ) : type === 'media' ? (
         <>
           {/* ── Media-only: slim slab with shiny edges, no bezel ── */}
