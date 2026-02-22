@@ -1625,14 +1625,28 @@ function OutroLogo({ logoId, currentTime, totalDuration }) {
   durRef.current = totalDuration
   const texLoadedRef = useRef(false)
 
-  const logoUrl = logoId === 'whatsapp' ? '/logos/whatsapp.png' : '/logos/whatsapp-business.png'
+  const logoUrl = logoId === 'whatsapp' ? '/logos/whatsapp.svg' : '/logos/whatsapp-business.svg'
 
   const texture = useMemo(() => {
     texLoadedRef.current = false
-    const tex = new THREE.TextureLoader().load(logoUrl, () => { texLoadedRef.current = true })
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    const SIZE = 512
+    const canvas = document.createElement('canvas')
+    canvas.width = SIZE
+    canvas.height = SIZE
+    const tex = new THREE.CanvasTexture(canvas)
     tex.colorSpace = THREE.SRGBColorSpace
     tex.minFilter = THREE.LinearFilter
     tex.magFilter = THREE.LinearFilter
+    img.onload = () => {
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, SIZE, SIZE)
+      ctx.drawImage(img, 0, 0, SIZE, SIZE)
+      tex.needsUpdate = true
+      texLoadedRef.current = true
+    }
+    img.src = logoUrl
     return tex
   }, [logoUrl])
 

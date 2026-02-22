@@ -3225,14 +3225,14 @@ function App() {
                               className={`logo-pick-btn ${outroLogo === 'whatsapp' ? 'active' : ''}`}
                               onClick={() => { markChanged(); setOutroLogo(prev => prev === 'whatsapp' ? null : 'whatsapp') }}
                             >
-                              <img src="/logos/whatsapp.png" alt="WhatsApp" />
+                              <img src="/logos/whatsapp.svg" alt="WhatsApp" />
                               <span>WhatsApp</span>
                             </button>
                             <button
                               className={`logo-pick-btn ${outroLogo === 'whatsapp-business' ? 'active' : ''}`}
                               onClick={() => { markChanged(); setOutroLogo(prev => prev === 'whatsapp-business' ? null : 'whatsapp-business') }}
                             >
-                              <img src="/logos/whatsapp-business.png" alt="WA Business" />
+                              <img src="/logos/whatsapp-business.svg" alt="WA Business" />
                               <span>Business</span>
                             </button>
                           </div>
