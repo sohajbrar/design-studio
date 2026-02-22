@@ -810,7 +810,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         </group>
       )}
       {showMacbook && (
-        <group ref={macbookRef} position={[0, 0.1, 0]}>
+        <group ref={macbookRef} position={[0, -0.4, 0]}>
           <DeviceFrame
             type="macbook"
             screenUrl={firstScreen?.url || null}

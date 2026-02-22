@@ -463,13 +463,13 @@ function MacBookGLB({
   })
 
   // Scale: model width ≈ 35.4 units, target ≈ 5.6 → 0.158
-  // Center: model center ≈ (0, -4.5, -10.8), shift to origin
+  // Shift model so the visual center (base+screen midpoint) aligns with origin
   const MODEL_SCALE = 5.6 / 35.4
   return (
     <primitive
       object={processedScene}
       scale={MODEL_SCALE}
-      position={[0, 4.5 * MODEL_SCALE, 10.8 * MODEL_SCALE]}
+      position={[0, 2.0 * MODEL_SCALE, 10.8 * MODEL_SCALE]}
     />
   )
 }
