@@ -1532,15 +1532,63 @@ function App() {
     markChanged()
   }, [markChanged, currentTime, handleAddZoomEffect, handleAddText, handleSetMusic, handleSelectTemplate])
 
-  // ── Client-side sharing via compressed URL ─────────────────────────────────
+  // ── Sharing via jsonblob.com (config + base64 media) ─────────────────────────
 
-  const buildShareableConfig = useCallback(() => {
+  const fileToDataUrl = useCallback((file) => {
+    return new Promise((resolve) => {
+      if (!file) { resolve(null); return }
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(file)
+    })
+  }, [])
+
+  const videoToThumbnail = useCallback((file) => {
+    return new Promise((resolve) => {
+      if (!file) { resolve(null); return }
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.muted = true
+      video.playsInline = true
+      const url = URL.createObjectURL(file)
+      video.src = url
+      video.onloadeddata = () => {
+        video.currentTime = 0.1
+      }
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.min(video.videoWidth, 1280)
+        canvas.height = Math.round(canvas.width * (video.videoHeight / video.videoWidth))
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+        URL.revokeObjectURL(url)
+        resolve(dataUrl)
+      }
+      video.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+      setTimeout(() => { URL.revokeObjectURL(url); resolve(null) }, 5000)
+    })
+  }, [])
+
+  const buildShareableConfig = useCallback(async () => {
     const musicLib = musicTrack?.isLibrary
       ? MUSIC_LIBRARY.find(t => t.name === musicTrack.name)
       : null
 
+    const mediaEntries = await Promise.all(screens.map(async (s) => {
+      if (!s.file) return { id: s.id, n: s.name, vid: s.isVideo || false, gif: s.isGif || false, data: null }
+      let data = null
+      if (s.isVideo) {
+        data = await videoToThumbnail(s.file)
+      } else {
+        data = await fileToDataUrl(s.file)
+      }
+      return { id: s.id, n: s.name, vid: s.isVideo || false, gif: s.isGif || false, data }
+    }))
+
     return {
-      v: 2,
+      v: 3,
       tid: activeTemplateId || null,
       dt: deviceType,
       anim: animation,
@@ -1559,12 +1607,7 @@ function App() {
       cdur: templateClipDurRef.current || 5,
       mdc: multiDeviceCount,
 
-      sc: screens.map(s => ({
-        id: s.id,
-        n: s.name,
-        vid: s.isVideo || false,
-        gif: s.isGif || false,
-      })),
+      sc: mediaEntries,
       tc: timelineClips.map(c => ({
         id: c.id,
         sid: c.screenId,
@@ -1611,82 +1654,76 @@ function App() {
       ssm: screenSlotMap.length > 0 ? screenSlotMap : null,
       ass: activeScreenSlotsRef.current,
     }
-  }, [activeTemplateId, deviceType, animation, bgColor, bgGradient, showBase, showDeviceShadow, activeThemeId, outroLogo, textSplit, layoutFlipped, aspectRatio, quality, exportFormat, screens, timelineClips, textOverlays, zoomEffects, musicTrack, voiceoverTrack, screenSlotMap, multiDeviceCount])
+  }, [activeTemplateId, deviceType, animation, bgColor, bgGradient, showBase, showDeviceShadow, activeThemeId, outroLogo, textSplit, layoutFlipped, aspectRatio, quality, exportFormat, screens, timelineClips, textOverlays, zoomEffects, musicTrack, voiceoverTrack, screenSlotMap, multiDeviceCount, fileToDataUrl, videoToThumbnail])
 
-  const compressConfig = useCallback(async (config) => {
-    const json = JSON.stringify(config)
-    const blob = new Blob([json])
-    const cs = new CompressionStream('deflate')
-    const compressed = blob.stream().pipeThrough(cs)
-    const reader = compressed.getReader()
-    const chunks = []
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-    }
-    const totalLen = chunks.reduce((s, c) => s + c.length, 0)
-    const result = new Uint8Array(totalLen)
-    let offset = 0
-    for (const chunk of chunks) {
-      result.set(chunk, offset)
-      offset += chunk.length
-    }
-    let binary = ''
-    for (let i = 0; i < result.length; i++) binary += String.fromCharCode(result[i])
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-  }, [])
+  const shareBlobIdRef = useRef(null)
 
   const handleShare = useCallback(async () => {
     setIsSaving(true)
     try {
-      const config = buildShareableConfig()
-      const encoded = await compressConfig(config)
+      const config = await buildShareableConfig()
+
+      let blobId = shareBlobIdRef.current
+      let resp
+      if (blobId) {
+        resp = await fetch(`https://jsonblob.com/api/jsonBlob/${blobId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(config),
+        })
+        if (!resp.ok) blobId = null
+      }
+      if (!blobId) {
+        resp = await fetch('https://jsonblob.com/api/jsonBlob', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(config),
+        })
+        if (!resp.ok) throw new Error('Failed to save project')
+        blobId = resp.headers.get('X-jsonblob-id') || resp.headers.get('location')?.split('/').pop()
+      }
+      if (!blobId) throw new Error('No blob ID returned')
+      shareBlobIdRef.current = blobId
 
       const url = new URL(window.location.href)
-      url.searchParams.delete('config')
-      url.searchParams.delete('project')
       url.search = ''
       url.hash = ''
-      url.searchParams.set('s', encoded)
+      url.searchParams.set('p', blobId)
 
       const shareUrl = url.toString()
 
       navigator.clipboard.writeText(shareUrl).then(() => {
-        setShareToast('Link copied — settings & effects included')
+        setShareToast('Link copied — includes media & effects')
       }).catch(() => {
         setShareToast('Link ready — copy from address bar')
         window.history.replaceState(null, '', shareUrl)
       })
     } catch (err) {
       console.error('Share failed:', err)
-      setShareToast('Share failed — could not encode config')
+      setShareToast('Share failed — please try again')
     }
     setIsSaving(false)
 
     if (shareToastTimer.current) clearTimeout(shareToastTimer.current)
     shareToastTimer.current = setTimeout(() => setShareToast(null), 3000)
-  }, [buildShareableConfig, compressConfig])
+  }, [buildShareableConfig])
 
-  // ── Load shared project from ?s=<compressed> or legacy ?config= ─────────────
+  // ── Load shared project from ?p=<blobId> or legacy ?config= ─────────────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
 
-    // Decompress a ?s= parameter (v2 compressed sharing)
-    const compressed = params.get('s')
-    if (compressed) {
+    // v3: load from jsonblob.com
+    const blobId = params.get('p')
+    if (blobId) {
       ;(async () => {
         try {
-          const padded = compressed.replace(/-/g, '+').replace(/_/g, '/') + '=='.slice(0, (4 - compressed.length % 4) % 4)
-          const binary = atob(padded)
-          const bytes = new Uint8Array(binary.length)
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-          const blob = new Blob([bytes])
-          const ds = new DecompressionStream('deflate')
-          const decompressed = blob.stream().pipeThrough(ds)
-          const text = await new Response(decompressed).text()
-          const c = JSON.parse(text)
+          const resp = await fetch(`https://jsonblob.com/api/jsonBlob/${blobId}`, {
+            headers: { Accept: 'application/json' },
+          })
+          if (!resp.ok) throw new Error('Project not found')
+          const c = await resp.json()
 
+          shareBlobIdRef.current = blobId
           setHasStarted(true)
 
           if (c.tid) setActiveTemplateId(c.tid)
@@ -1711,15 +1748,21 @@ function App() {
             if (themeColors[c.theme]) setBgColor(themeColors[c.theme])
           }
 
+          // Restore screens from base64 data URLs
           if (c.sc?.length) {
-            setScreens(c.sc.map(s => ({
-              id: s.id,
-              file: null,
-              url: '',
-              name: s.n,
-              isVideo: s.vid || false,
-              isGif: s.gif || false,
-            })))
+            const restoredScreens = await Promise.all(c.sc.map(async (s) => {
+              if (!s.data) return { id: s.id, file: null, url: '', name: s.n, isVideo: s.vid || false, isGif: s.gif || false }
+              try {
+                const mediaResp = await fetch(s.data)
+                const blob = await mediaResp.blob()
+                const file = new File([blob], s.n, { type: blob.type })
+                const localUrl = URL.createObjectURL(file)
+                return { id: s.id, file, url: localUrl, name: s.n, isVideo: false, isGif: false }
+              } catch {
+                return { id: s.id, file: null, url: '', name: s.n, isVideo: s.vid || false, isGif: s.gif || false }
+              }
+            }))
+            setScreens(restoredScreens)
           }
 
           if (c.tc?.length) {
@@ -1775,12 +1818,8 @@ function App() {
 
           setSidebarTab('media')
           hasUnsavedChanges.current = false
-          setTimeout(() => { setIsPlaying(true); setIsTimelinePlaying(true) }, 400)
-
-          const cleanUrl = new URL(window.location.href)
-          cleanUrl.searchParams.delete('s')
-          window.history.replaceState(null, '', cleanUrl.toString())
-        } catch (e) { console.warn('Failed to restore shared config:', e) }
+          setTimeout(() => { setIsPlaying(true); setIsTimelinePlaying(true) }, 500)
+        } catch (e) { console.warn('Failed to load shared project:', e) }
       })()
       return
     }
@@ -2042,7 +2081,10 @@ function App() {
     setHasStarted(false)
     hasUnsavedChanges.current = false
 
+    shareBlobIdRef.current = null
+
     const cleanUrl = new URL(window.location.href)
+    cleanUrl.searchParams.delete('p')
     cleanUrl.searchParams.delete('s')
     cleanUrl.searchParams.delete('project')
     cleanUrl.searchParams.delete('config')
