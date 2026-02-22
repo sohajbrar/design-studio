@@ -950,6 +950,8 @@ function App() {
         text: 'Your text here',
         fontFamily: globalBrandTheme === 'instagram' ? 'Instagram Sans' : 'Inter',
         fontSize: 48,
+        fontWeight: 600,
+        textAlign: 'center',
         color: '#ffffff',
         animation: 'none',
         posX: 0,
@@ -2618,6 +2620,57 @@ function App() {
                                   className="te-slider"
                                 />
                                 <span className="te-size-val">{selectedText.fontSize}px</span>
+                              </div>
+                            </div>
+                            <div className="te-row">
+                              <label className="control-label">Weight</label>
+                              <div className="control-chips">
+                                {[
+                                  { val: 300, label: 'Light' },
+                                  { val: 400, label: 'Regular' },
+                                  { val: 600, label: 'Semi' },
+                                  { val: 700, label: 'Bold' },
+                                  { val: 900, label: 'Black' },
+                                ].map((w) => (
+                                  <button
+                                    key={w.val}
+                                    className={`chip small ${(selectedText.fontWeight || 600) === w.val ? 'active' : ''}`}
+                                    onClick={() => handleUpdateText(selectedText.id, { fontWeight: w.val })}
+                                  >
+                                    {w.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="te-row">
+                              <label className="control-label">Align</label>
+                              <div className="control-chips">
+                                {[
+                                  { val: 'left', icon: (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="18" y2="18" />
+                                    </svg>
+                                  )},
+                                  { val: 'center', icon: (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                      <line x1="3" y1="6" x2="21" y2="6" /><line x1="6" y1="12" x2="18" y2="12" /><line x1="4" y1="18" x2="20" y2="18" />
+                                    </svg>
+                                  )},
+                                  { val: 'right', icon: (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                      <line x1="3" y1="6" x2="21" y2="6" /><line x1="9" y1="12" x2="21" y2="12" /><line x1="6" y1="18" x2="21" y2="18" />
+                                    </svg>
+                                  )},
+                                ].map((a) => (
+                                  <button
+                                    key={a.val}
+                                    className={`chip small ${(selectedText.textAlign || 'center') === a.val ? 'active' : ''}`}
+                                    onClick={() => handleUpdateText(selectedText.id, { textAlign: a.val })}
+                                    title={a.val.charAt(0).toUpperCase() + a.val.slice(1)}
+                                  >
+                                    {a.icon}
+                                  </button>
+                                ))}
                               </div>
                             </div>
                             <div className="te-row">

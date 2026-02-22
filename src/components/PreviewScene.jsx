@@ -729,10 +729,8 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       }
     }
 
-    const animChanged = prevTextAnim.current !== activeTextAnim
     prevTextAnim.current = activeTextAnim
-    const snap = animChanged && activeTextAnim !== 'none'
-    const lerpSpeed = snap ? 1 : 0.08
+    const lerpSpeed = 0.06
     textOffsetRef.current.x += (targetOffX - textOffsetRef.current.x) * lerpSpeed
     textOffsetRef.current.y += (targetOffY - textOffsetRef.current.y) * lerpSpeed
     group.position.x += textOffsetRef.current.x
@@ -1371,10 +1369,12 @@ function GroundPlane() {
 // ── Canvas-texture text overlay (viewport-aware) ─────────────
 const TEXT_Z_FRONT = 1.0
 const TEXT_Z_BEHIND = -0.5
-function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
+function CanvasTextOverlay({ overlay, currentTime, duration, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
   const meshRef = useRef()
   const ctRef = useRef(currentTime)
   ctRef.current = currentTime
+  const durRef = useRef(duration || 999)
+  durRef.current = duration || 999
   const dragRef = useRef({ active: false, startX: 0, startY: 0, origPosX: 0, origPosY: 0 })
 
   const TEX_W = 1024
@@ -1412,7 +1412,9 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
   useEffect(() => {
     let cancelled = false
     const pxSize = Math.max(24, Math.min(200, overlay.fontSize * 1.8))
-    const fontSpec = `600 ${pxSize}px "${overlay.fontFamily}"`
+    const weight = overlay.fontWeight || 600
+    const fontSpec = `${weight} ${pxSize}px "${overlay.fontFamily}"`
+    const align = overlay.textAlign || 'center'
 
     const draw = () => {
       if (cancelled) return
@@ -1442,10 +1444,12 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
       const lineH = pxSize * 1.25
       const totalH = lines.length * lineH
       const startY = (TEX_H - totalH) / 2 + lineH * 0.5
-      ctx.textAlign = 'center'
+      ctx.textAlign = align
       ctx.textBaseline = 'middle'
+      const padX = TEX_W * 0.06
+      const drawX = align === 'left' ? padX : align === 'right' ? TEX_W - padX : TEX_W / 2
       lines.forEach((l, i) => {
-        ctx.fillText(l, TEX_W / 2, startY + i * lineH)
+        ctx.fillText(l, drawX, startY + i * lineH)
       })
 
       texture.needsUpdate = true
@@ -1454,7 +1458,7 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
     document.fonts.load(fontSpec).then(draw).catch(draw)
 
     return () => { cancelled = true }
-  }, [overlay.text, overlay.fontFamily, overlay.fontSize, overlay.color, texture])
+  }, [overlay.text, overlay.fontFamily, overlay.fontSize, overlay.fontWeight, overlay.textAlign, overlay.color, texture])
 
   const meshW = textAreaWidth
   const meshH = textAreaWidth * (TEX_H / TEX_W)
@@ -1480,8 +1484,9 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
   useFrame(() => {
     if (!meshRef.current || dragRef.current.active) return
     const t = ctRef.current
+    const dur = durRef.current
     const animDuration = 1.2
-    const progress = easeOutCubic(Math.min(1, t / animDuration))
+    const progress = easeOutCubic(Math.min(1, Math.max(0, t) / animDuration))
 
     let x, y
     const anim = overlay.animation
@@ -1504,7 +1509,24 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
       y = textCenterY
     }
 
+    // Smooth fade in/out
+    let opacity = 1
+    const fadeIn = TEXT_FADE_DUR
+    const fadeOut = TEXT_FADE_DUR
+    if (t < 0) {
+      opacity = 0
+    } else if (t < fadeIn) {
+      opacity = easeOutCubic(t / fadeIn)
+    }
+    const timeLeft = dur - t
+    if (timeLeft < 0) {
+      opacity = 0
+    } else if (timeLeft < fadeOut) {
+      opacity = Math.min(opacity, easeOutCubic(timeLeft / fadeOut))
+    }
+
     meshRef.current.position.set(x, y, zDepth)
+    meshRef.current.material.opacity = opacity
   })
 
   const handlePointerDown = useCallback((e) => {
@@ -1570,6 +1592,8 @@ function CanvasTextOverlay({ overlay, currentTime, textSplit, textOnLeft, isVert
   )
 }
 
+const TEXT_FADE_DUR = 0.35
+
 function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
   if (!textOverlays || textOverlays.length === 0) return null
 
@@ -1578,12 +1602,13 @@ function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVert
       {textOverlays
         .filter((overlay) => {
           if (overlay.startTime == null || overlay.endTime == null) return true
-          return currentTime >= overlay.startTime && currentTime <= overlay.endTime
+          return currentTime >= overlay.startTime - TEXT_FADE_DUR && currentTime <= overlay.endTime + TEXT_FADE_DUR
         })
         .map((overlay) => {
           const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
+          const duration = overlay.endTime != null && overlay.startTime != null ? overlay.endTime - overlay.startTime : 999
           return (
-            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} onTextDrag={onTextDrag} />
+            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} duration={duration} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} onTextDrag={onTextDrag} />
           )
         })}
     </group>
