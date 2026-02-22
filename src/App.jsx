@@ -2006,6 +2006,7 @@ function App() {
   const handleStartBlank = useCallback(() => {
     hasUnsavedChanges.current = false
     setHasStarted(true)
+    setDeviceType('iphone')
     setSidebarTab('media')
     setTimelineClips((prev) => {
       if (prev.length > 0) return prev

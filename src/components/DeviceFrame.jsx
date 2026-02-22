@@ -36,9 +36,9 @@ const DEVICE_CONFIGS = {
     depth: 0.2,
     cornerRadius: 0.42,
     screenInset: 0.045,
-    bezelColor: '#0a0a0a',
-    frameColor: '#8a8078',
-    sideColor: '#9a9088',
+    bezelColor: '#1e1e22',
+    frameColor: '#b0a89e',
+    sideColor: '#c0b8ae',
     dynamicIsland: true,
   },
   android: {
@@ -47,9 +47,9 @@ const DEVICE_CONFIGS = {
     depth: 0.18,
     cornerRadius: 0.30,
     screenInset: 0.05,
-    bezelColor: '#0a0a0a',
-    frameColor: '#2a2a2a',
-    sideColor: '#444444',
+    bezelColor: '#1e1e22',
+    frameColor: '#6a6a70',
+    sideColor: '#7a7a80',
     punchHole: true,
   },
   ipad: {
@@ -58,9 +58,9 @@ const DEVICE_CONFIGS = {
     depth: 0.14,
     cornerRadius: 0.36,
     screenInset: 0.06,
-    bezelColor: '#0a0a0a',
-    frameColor: '#8a8078',
-    sideColor: '#9a9088',
+    bezelColor: '#1e1e22',
+    frameColor: '#b0a89e',
+    sideColor: '#c0b8ae',
   },
   macbook: {
     width: 5.6,
@@ -670,17 +670,19 @@ export default function DeviceFrame({
           <mesh geometry={bodyGeo} position={[0, 0, -config.depth / 2]}>
             <meshPhysicalMaterial
               color={config.frameColor}
-              metalness={0.85}
-              roughness={0.15}
-              clearcoat={0.8}
-              clearcoatRoughness={0.2}
+              metalness={0.6}
+              roughness={0.2}
+              clearcoat={1.0}
+              clearcoatRoughness={0.15}
+              emissive={config.frameColor}
+              emissiveIntensity={0.08}
             />
           </mesh>
 
           {/* Screen bezel */}
           <mesh position={[0, 0, frontZ - 0.002]}>
             <shapeGeometry args={[createRoundedRectShape(screenW + 0.02, screenH + 0.02, Math.max(0.08, config.cornerRadius - config.screenInset + 0.005))]} />
-            <meshStandardMaterial color={config.bezelColor} roughness={0.9} metalness={0.1} />
+            <meshStandardMaterial color={config.bezelColor} roughness={0.9} metalness={0.1} emissive="#ffffff" emissiveIntensity={0.03} />
           </mesh>
 
           {/* Screen */}
