@@ -4,17 +4,21 @@ import * as THREE from 'three'
 import { parseGIF, decompressFrames } from 'gifuct-js'
 
 const KEYBOARD_TEX = (() => {
-  const w = 680, h = 220
+  const w = 1024, h = 380
   const c = document.createElement('canvas')
   c.width = w; c.height = h
   const ctx = c.getContext('2d')
 
-  ctx.fillStyle = '#1c1c1c'
+  ctx.fillStyle = '#1a1a1a'
   ctx.fillRect(0, 0, w, h)
 
-  const gap = 3, rad = 4, pad = 10
+  const gap = 4, rad = 5, pad = 14
 
-  function key(x, y, kw, kh) {
+  function key(x, y, kw, kh, label, labelSize) {
+    const g = ctx.createLinearGradient(x, y, x, y + kh)
+    g.addColorStop(0, '#3d3d3d')
+    g.addColorStop(1, '#2a2a2a')
+    ctx.fillStyle = g
     ctx.beginPath()
     ctx.moveTo(x + rad, y)
     ctx.lineTo(x + kw - rad, y)
@@ -27,70 +31,81 @@ const KEYBOARD_TEX = (() => {
     ctx.quadraticCurveTo(x, y, x + rad, y)
     ctx.closePath()
     ctx.fill()
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+    ctx.lineWidth = 0.8
+    ctx.stroke()
+
+    if (label) {
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'
+      ctx.font = `${labelSize || 11}px -apple-system, "Helvetica Neue", sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, x + kw / 2, y + kh / 2 + 1)
+    }
   }
 
   const usable = w - 2 * pad
-  const mainH = 30
+  const mainH = 46
   let y = pad
 
-  ctx.fillStyle = '#2e2e2e'
-  const fnH = 16
+  const fnLabels = ['esc', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', '⏏']
+  const fnH = 26
   const fnCount = 14
   const fnW = (usable - (fnCount - 1) * gap) / fnCount
-  for (let i = 0; i < fnCount; i++) key(pad + i * (fnW + gap), y, fnW, fnH)
+  for (let i = 0; i < fnCount; i++) key(pad + i * (fnW + gap), y, fnW, fnH, fnLabels[i], 9)
 
-  y += fnH + gap + 2
-  ctx.fillStyle = '#333333'
-
-  const stdCount = 14
+  y += fnH + gap + 3
+  const numLabels = ['`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '⌫']
   const delW = fnW * 1.55
-  const numW = (usable - delW - (stdCount - 1) * gap) / (stdCount - 1)
-  for (let i = 0; i < stdCount - 1; i++) key(pad + i * (numW + gap), y, numW, mainH)
-  key(w - pad - delW, y, delW, mainH)
+  const numW = (usable - delW - 13 * gap) / 13
+  for (let i = 0; i < 13; i++) key(pad + i * (numW + gap), y, numW, mainH, numLabels[i], 14)
+  key(w - pad - delW, y, delW, mainH, numLabels[13], 14)
 
   y += mainH + gap
   const tabW = fnW * 1.55
-  key(pad, y, tabW, mainH)
-  const qCount = 13
-  const qW = (usable - tabW - gap - (qCount - 1) * gap) / qCount
-  for (let i = 0; i < qCount; i++) key(pad + tabW + gap + i * (qW + gap), y, qW, mainH)
+  const qLabels = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', '\\']
+  key(pad, y, tabW, mainH, '⇥', 12)
+  const qW = (usable - tabW - gap - 12 * gap) / 13
+  for (let i = 0; i < 13; i++) key(pad + tabW + gap + i * (qW + gap), y, qW, mainH, qLabels[i], 14)
 
   y += mainH + gap
   const capsW = fnW * 1.85
   const retW = fnW * 1.85
-  key(pad, y, capsW, mainH)
-  const aCount = 11
-  const aW = (usable - capsW - retW - (aCount + 1) * gap) / aCount
-  for (let i = 0; i < aCount; i++) key(pad + capsW + gap + i * (aW + gap), y, aW, mainH)
-  key(w - pad - retW, y, retW, mainH)
+  const aLabels = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', "'"]
+  key(pad, y, capsW, mainH, '⇪', 12)
+  const aW = (usable - capsW - retW - 12 * gap) / 11
+  for (let i = 0; i < 11; i++) key(pad + capsW + gap + i * (aW + gap), y, aW, mainH, aLabels[i], 14)
+  key(w - pad - retW, y, retW, mainH, '↵', 16)
 
   y += mainH + gap
   const shL = fnW * 2.35
   const shR = fnW * 2.35
-  key(pad, y, shL, mainH)
-  const zCount = 10
-  const zW = (usable - shL - shR - (zCount + 1) * gap) / zCount
-  for (let i = 0; i < zCount; i++) key(pad + shL + gap + i * (zW + gap), y, zW, mainH)
-  key(w - pad - shR, y, shR, mainH)
+  const zLabels = ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/']
+  key(pad, y, shL, mainH, '⇧', 16)
+  const zW = (usable - shL - shR - 11 * gap) / 10
+  for (let i = 0; i < 10; i++) key(pad + shL + gap + i * (zW + gap), y, zW, mainH, zLabels[i], 14)
+  key(w - pad - shR, y, shR, mainH, '⇧', 16)
 
   y += mainH + gap
-  const modW = fnW * 1.05
+  const modW = fnW * 1.1
   const arrowW = fnW * 0.95
   const arrowH = (mainH - gap) / 2
   const spaceW = usable - 4 * modW - 2 * modW - 3 * arrowW - 9 * gap
+  const modLabels = ['fn', '⌃', '⌥', '⌘']
   let x = pad
-  for (let i = 0; i < 4; i++) { key(x, y, modW, mainH); x += modW + gap }
-  key(x, y, spaceW, mainH); x += spaceW + gap
-  key(x, y, modW, mainH); x += modW + gap
-  key(x, y, modW, mainH); x += modW + gap
+  for (let i = 0; i < 4; i++) { key(x, y, modW, mainH, modLabels[i], 12); x += modW + gap }
+  key(x, y, spaceW, mainH, '', 0); x += spaceW + gap
+  key(x, y, modW, mainH, '⌘', 12); x += modW + gap
+  key(x, y, modW, mainH, '⌥', 12); x += modW + gap
 
-  key(x, y, arrowW, arrowH)
-  key(x, y + arrowH + gap, arrowW, arrowH)
+  key(x, y, arrowW, arrowH, '▲', 8)
+  key(x, y + arrowH + gap, arrowW, arrowH, '▼', 8)
   x += arrowW + gap
-  key(x, y + arrowH + gap, arrowW, arrowH)
+  key(x, y + arrowH + gap, arrowW, arrowH, '◀', 8)
   x += arrowW + gap
-  key(x, y, arrowW, arrowH)
-  key(x, y + arrowH + gap, arrowW, arrowH)
+  key(x, y, arrowW, arrowH, '', 0)
+  key(x, y + arrowH + gap, arrowW, arrowH, '▶', 8)
 
   const tex = new THREE.CanvasTexture(c)
   tex.needsUpdate = true
@@ -595,14 +610,24 @@ export default function DeviceFrame({
               <meshPhysicalMaterial color={config.frameColor} metalness={0.88} roughness={0.12} clearcoat={0.6} clearcoatRoughness={0.3} />
             </mesh>
             {/* Trackpad */}
-            <mesh position={[0, -config.height * 0.12, 0.025]}>
-              <shapeGeometry args={[createRoundedRectShape(1.4, 0.9, 0.08)]} />
-              <meshStandardMaterial color="#888888" metalness={0.5} roughness={0.4} />
+            <mesh position={[0, -config.height * 0.22, 0.025]}>
+              <shapeGeometry args={[createRoundedRectShape(1.6, 1.05, 0.08)]} />
+              <meshStandardMaterial color="#8a8a8a" metalness={0.55} roughness={0.35} />
             </mesh>
             {/* Keyboard area */}
-            <mesh position={[0, config.height * 0.15, 0.025]}>
-              <planeGeometry args={[config.width - 0.4, 0.7]} />
+            <mesh position={[0, config.height * 0.14, 0.025]}>
+              <planeGeometry args={[config.width - 0.3, config.height * 0.52]} />
               <meshBasicMaterial map={KEYBOARD_TEX} toneMapped={false} />
+            </mesh>
+            {/* Speaker grills — left */}
+            <mesh position={[-config.width * 0.37, config.height * 0.14, 0.024]}>
+              <planeGeometry args={[0.35, config.height * 0.42]} />
+              <meshBasicMaterial color="#252525" transparent opacity={0.6} />
+            </mesh>
+            {/* Speaker grills — right */}
+            <mesh position={[config.width * 0.37, config.height * 0.14, 0.024]}>
+              <planeGeometry args={[0.35, config.height * 0.42]} />
+              <meshBasicMaterial color="#252525" transparent opacity={0.6} />
             </mesh>
           </group>
 
