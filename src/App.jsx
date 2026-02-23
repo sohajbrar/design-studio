@@ -15,23 +15,33 @@ import AudioEngine from './utils/audioEngine'
 import { MUSIC_LIBRARY, generateTrack } from './utils/musicLibrary'
 
 const ANIMATION_PRESETS = [
-  { id: 'showcase', name: 'Showcase' },
-  { id: 'orbit', name: 'Orbit' },
-  { id: 'flip', name: 'Flip' },
-  { id: 'scroll', name: 'Scroll' },
+  { id: 'showcase', name: 'Showcase', singleDevice: true },
+  { id: 'orbit', name: 'Orbit', singleDevice: true },
+  { id: 'flip', name: 'Flip', singleDevice: true },
+  { id: 'scroll', name: 'Scroll', singleDevice: true },
   { id: 'sideBySide', name: 'Side by Side', bothOnly: true },
-  { id: 'single', name: 'Single' },
-  { id: 'slideLeft', name: 'Slide Left' },
-  { id: 'slideRight', name: 'Slide Right' },
-  { id: 'slideDown', name: 'Slide Down' },
-  { id: 'slideUp', name: 'Slide Up' },
-  { id: 'slideRightRotate', name: 'Right + Rotate' },
-  { id: 'slideLeftRotate', name: 'Left + Rotate' },
-  { id: 'zoomBottomLeft', name: 'Zoom BL' },
-  { id: 'zoomTopRight', name: 'Zoom TR' },
-  { id: 'heroRise', name: 'Hero Rise' },
+  { id: 'single', name: 'Single', singleDevice: true },
+  { id: 'slideLeft', name: 'Slide Left', singleDevice: true },
+  { id: 'slideRight', name: 'Slide Right', singleDevice: true },
+  { id: 'slideDown', name: 'Slide Down', singleDevice: true },
+  { id: 'slideUp', name: 'Slide Up', singleDevice: true },
+  { id: 'slideRightRotate', name: 'Right + Rotate', singleDevice: true },
+  { id: 'slideLeftRotate', name: 'Left + Rotate', singleDevice: true },
+  { id: 'zoomBottomLeft', name: 'Zoom BL', singleDevice: true },
+  { id: 'zoomTopRight', name: 'Zoom TR', singleDevice: true },
+  { id: 'heroRise', name: 'Hero Rise', singleDevice: true },
   { id: 'laptopOpen', name: 'Laptop Open', macbookOnly: true },
   { id: 'laptopClose', name: 'Laptop Close', macbookOnly: true },
+  { id: 'floatingPhoneLaptop', name: 'Floating', phoneLaptop: true },
+  { id: 'phoneInFrontLaptop', name: 'Sweep', phoneLaptop: true },
+  { id: 'phoneOnKeyboard', name: 'On Keyboard', phoneLaptop: true },
+  { id: 'sideScroll10', name: 'Side Scroll', multiPhone: true },
+  { id: 'angled3ZoomOut', name: 'Angled Zoom', multiPhone: true },
+  { id: 'circle4Rotate', name: 'Circle Spin', multiPhone: true },
+  { id: 'angledZoom4', name: 'Angled Grid', multiPhone: true },
+  { id: 'carousel6', name: 'Carousel', multiPhone: true },
+  { id: 'offsetCircleRotate', name: 'Offset Ring', multiPhone: true },
+  { id: 'flatScatter7', name: 'Flat Grid', multiPhone: true },
 ]
 
 const OUTRO_PRESETS = [
@@ -348,6 +358,97 @@ const ANIM_ICONS = {
       <rect x="10" y="8" width="28" height="20" rx="2" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 2" opacity="0.25" transform="rotate(-70 24 28)"/>
       <path d="M28 18l-4 3v-6l4 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
       <path d="M14 12a6 6 0 0 0 0 10" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.3"/>
+    </svg>
+  ),
+  floatingPhoneLaptop: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="6" y="14" width="24" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="6" y="30" width="24" height="2" rx="0.5" stroke="currentColor" strokeWidth="1" opacity="0.4"/>
+      <rect x="34" y="10" width="10" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M16 38c0-2 4-4 8-2s6 0 8-2" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.3"/>
+    </svg>
+  ),
+  phoneInFrontLaptop: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="6" y="14" width="24" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.4"/>
+      <rect x="6" y="30" width="24" height="2" rx="0.5" stroke="currentColor" strokeWidth="1" opacity="0.3"/>
+      <rect x="34" y="10" width="10" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M44 19h-14" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.3"/>
+      <path d="M36 19l-4 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
+      <path d="M34 17l-3 2 3 2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
+    </svg>
+  ),
+  phoneOnKeyboard: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="6" y="10" width="36" height="22" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="6" y="32" width="36" height="3" rx="0.5" stroke="currentColor" strokeWidth="1" opacity="0.4"/>
+      <rect x="24" y="24" width="8" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" transform="rotate(-10 28 31)"/>
+      <path d="M24 8v-4M20 6l4-4 4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.4"/>
+    </svg>
+  ),
+  sideScroll10: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="4" y="12" width="10" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/>
+      <rect x="19" y="12" width="10" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="34" y="12" width="10" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/>
+      <path d="M6 36h36" stroke="currentColor" strokeWidth="1" strokeDasharray="3 2" opacity="0.3"/>
+      <path d="M40 34l3 2-3 2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.4"/>
+    </svg>
+  ),
+  angled3ZoomOut: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="4" y="14" width="10" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" transform="rotate(-10 9 23)"/>
+      <rect x="19" y="12" width="10" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="34" y="14" width="10" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" transform="rotate(10 39 23)"/>
+      <path d="M12 8l-4-4M36 8l4-4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.3"/>
+    </svg>
+  ),
+  circle4Rotate: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <circle cx="24" cy="24" r="14" stroke="currentColor" strokeWidth="1" strokeDasharray="3 2" opacity="0.3"/>
+      <rect x="19" y="8" width="10" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="19" y="26" width="10" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/>
+      <rect x="32" y="17" width="10" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/>
+      <rect x="6" y="17" width="10" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/>
+      <path d="M36 12a14 14 0 0 1 0 24" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.25"/>
+    </svg>
+  ),
+  angledZoom4: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="6" y="10" width="8" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" transform="rotate(-8 10 17)"/>
+      <rect x="17" y="10" width="8" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="28" y="10" width="8" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" transform="rotate(8 32 17)"/>
+      <rect x="39" y="10" width="8" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" transform="rotate(15 43 17)"/>
+      <path d="M10 32l-4 4M38 32l4 4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.3"/>
+    </svg>
+  ),
+  carousel6: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="17" y="10" width="14" height="22" rx="2.5" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="4" y="14" width="10" height="16" rx="2" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
+      <rect x="34" y="14" width="10" height="16" rx="2" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
+      <path d="M6 36h36" stroke="currentColor" strokeWidth="1" strokeDasharray="3 2" opacity="0.25"/>
+      <path d="M40 34l3 2-3 2M8 34l-3 2 3 2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.35"/>
+    </svg>
+  ),
+  offsetCircleRotate: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <circle cx="24" cy="24" r="16" stroke="currentColor" strokeWidth="1" strokeDasharray="3 2" opacity="0.25"/>
+      <rect x="20" y="6" width="8" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="34" y="15" width="8" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" opacity="0.4"/>
+      <rect x="6" y="15" width="8" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" opacity="0.4"/>
+      <rect x="20" y="30" width="8" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" opacity="0.25"/>
+    </svg>
+  ),
+  flatScatter7: (
+    <svg viewBox="0 0 48 48" fill="none" className="anim-icon">
+      <rect x="4" y="8" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+      <rect x="18" y="8" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+      <rect x="32" y="8" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+      <rect x="4" y="20" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" opacity="0.5"/>
+      <rect x="18" y="20" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" opacity="0.5"/>
+      <rect x="32" y="20" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" opacity="0.5"/>
+      <rect x="11" y="32" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
     </svg>
   ),
 }
@@ -2192,7 +2293,7 @@ function App() {
         {hasStarted && !convertingFormat && (
           <>
             <button
-              className="btn btn-header btn-share"
+              className="btn btn-header btn-secondary"
               onClick={handleShare}
               disabled={isSaving}
               title="Copy shareable link"
@@ -2887,6 +2988,13 @@ function App() {
                         )}
                         <div className="animation-grid">
                           {ANIMATION_PRESETS.filter((preset) => {
+                            const hasSlots = activeScreenSlots && activeScreenSlots.length > 0
+                            const isPhoneLaptopTemplate = hasSlots && activeScreenSlots.some(s => s.device === 'MacBook')
+                            const isMultiPhoneTemplate = hasSlots && !isPhoneLaptopTemplate
+
+                            if (isPhoneLaptopTemplate) return !!preset.phoneLaptop
+                            if (isMultiPhoneTemplate) return !!preset.multiPhone
+                            if (preset.phoneLaptop || preset.multiPhone) return false
                             if (preset.macbookOnly) return deviceType === 'macbook'
                             if (preset.bothOnly) return deviceType === 'both'
                             return !preset.macbookOnly

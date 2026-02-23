@@ -12,7 +12,7 @@ ANIMATIONS (single-device): "showcase", "orbit", "flip", "scroll", "single", "sl
 ANIMATIONS (dual-device, requires deviceType "both"): "sideBySide"
 ANIMATIONS (laptop only): "laptopOpen", "laptopClose"
 ANIMATIONS (multi-device): "sideScroll10", "angled3ZoomOut", "circle4Rotate", "angledZoom4", "carousel6", "flatScatter7", "offsetCircleRotate"
-ANIMATIONS (phone+laptop combo): "floatingPhoneLaptop", "phoneInFrontLaptop"
+ANIMATIONS (phone+laptop combo): "floatingPhoneLaptop", "phoneInFrontLaptop", "phoneOnKeyboard"
 
 EXIT ANIMATIONS: "none", "slideLeft", "slideRight", "slideDown", "slideUp", "slideLeftRotate", "slideRightRotate", "zoomOut", "flip"
 

@@ -847,7 +847,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
 // ── Multi-device animations ──────────────────────────────────
 const MULTI_DEVICE_ANIMS = new Set([
   'sideScroll10', 'angled3ZoomOut', 'circle4Rotate', 'angledZoom4',
-  'carousel6', 'floatingPhoneLaptop', 'phoneInFrontLaptop', 'offsetCircleRotate',
+  'carousel6', 'floatingPhoneLaptop', 'phoneInFrontLaptop', 'phoneOnKeyboard', 'offsetCircleRotate',
   'flatScatter7',
 ])
 
@@ -858,8 +858,19 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
   const userPosRef = useRef({ x: 0, y: 0 })
   const dragRef = useRef({ active: false, startX: 0, startY: 0, moved: false })
 
+  const hasLaptopSlot = slotScreens && slotScreens.length === 2
+  const isPhoneLaptop = animation === 'floatingPhoneLaptop' || animation === 'phoneInFrontLaptop' || animation === 'phoneOnKeyboard' || hasLaptopSlot
+
+  // Per-device adjustments for phone+laptop templates
+  const deviceAdjRef = useRef({
+    phone: { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } },
+    laptop: { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } },
+  })
+  const deviceDragRef = useRef({ active: false, device: null, startX: 0, startY: 0, moved: false })
+
   // Per-clip position/rotation storage
   const clipAdjMap = useRef({})
+  const clipDeviceAdjMap = useRef({})
   const prevClipIdRef = useRef(activeClipId)
   const activeClipIdRef = useRef(activeClipId)
   activeClipIdRef.current = activeClipId
@@ -872,7 +883,17 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
   useEffect(() => {
     userRotRef.current = { x: 0, y: 0 }
     userPosRef.current = { x: 0, y: 0 }
-    if (activeClipId) clipAdjMap.current[activeClipId] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+    deviceAdjRef.current = {
+      phone: { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } },
+      laptop: { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } },
+    }
+    if (activeClipId) {
+      clipAdjMap.current[activeClipId] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+      clipDeviceAdjMap.current[activeClipId] = {
+        phone: { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } },
+        laptop: { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } },
+      }
+    }
   }, [resetKey])
 
   const handlePointerDown = useCallback((e) => {
@@ -929,6 +950,75 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     }
     if (onManualAdjust) onManualAdjust(false)
   }, [onManualAdjust])
+
+  const makeDevicePointerDown = useCallback((deviceKey) => (e) => {
+    e.stopPropagation()
+    const adj = deviceAdjRef.current[deviceKey]
+    const mode = interactionMode === 'move' ? 'translate' : 'rotate'
+    deviceDragRef.current = {
+      active: true, device: deviceKey, mode, moved: false,
+      startX: e.clientX, startY: e.clientY,
+      origRotX: adj.rot.x, origRotY: adj.rot.y,
+      origPosX: adj.pos.x, origPosY: adj.pos.y,
+    }
+    const onMove = (ev) => {
+      const dr = deviceDragRef.current
+      if (!dr.active) return
+      const dx = ev.clientX - dr.startX
+      const dy = ev.clientY - dr.startY
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dr.moved = true
+      const a = deviceAdjRef.current[dr.device]
+      if (dr.mode === 'rotate') {
+        a.rot.y = dr.origRotY + dx * 0.005
+        a.rot.x = dr.origRotX + dy * 0.005
+      } else {
+        a.pos.x = dr.origPosX + dx * 0.004
+        a.pos.y = dr.origPosY - dy * 0.004
+      }
+    }
+    const onUp = () => {
+      const dr = deviceDragRef.current
+      dr.active = false
+      if (!dr.moved && onDeviceClick) onDeviceClick()
+      const pa = deviceAdjRef.current.phone
+      const la = deviceAdjRef.current.laptop
+      const hasAdj = Math.abs(pa.pos.x) > 0.001 || Math.abs(pa.pos.y) > 0.001 ||
+                     Math.abs(pa.rot.x) > 0.001 || Math.abs(pa.rot.y) > 0.001 ||
+                     Math.abs(la.pos.x) > 0.001 || Math.abs(la.pos.y) > 0.001 ||
+                     Math.abs(la.rot.x) > 0.001 || Math.abs(la.rot.y) > 0.001
+      if (onManualAdjust) onManualAdjust(hasAdj)
+      const cid = activeClipIdRef.current
+      if (cid) {
+        clipDeviceAdjMap.current[cid] = {
+          phone: { pos: { ...pa.pos }, rot: { ...pa.rot } },
+          laptop: { pos: { ...la.pos }, rot: { ...la.rot } },
+        }
+      }
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }, [onDeviceClick, onManualAdjust, interactionMode])
+
+  const makeDeviceDoubleClick = useCallback((deviceKey) => (e) => {
+    e.stopPropagation()
+    deviceAdjRef.current[deviceKey] = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+    const cid = activeClipIdRef.current
+    if (cid) {
+      clipDeviceAdjMap.current[cid] = {
+        phone: { pos: { ...deviceAdjRef.current.phone.pos }, rot: { ...deviceAdjRef.current.phone.rot } },
+        laptop: { pos: { ...deviceAdjRef.current.laptop.pos }, rot: { ...deviceAdjRef.current.laptop.rot } },
+      }
+    }
+    const pa = deviceAdjRef.current.phone
+    const la = deviceAdjRef.current.laptop
+    const hasAdj = Math.abs(pa.pos.x) > 0.001 || Math.abs(pa.pos.y) > 0.001 ||
+                   Math.abs(pa.rot.x) > 0.001 || Math.abs(pa.rot.y) > 0.001 ||
+                   Math.abs(la.pos.x) > 0.001 || Math.abs(la.pos.y) > 0.001 ||
+                   Math.abs(la.rot.x) > 0.001 || Math.abs(la.rot.y) > 0.001
+    if (onManualAdjust) onManualAdjust(hasAdj)
+  }, [onManualAdjust])
   const ctRef = useRef(0)
   ctRef.current = clipAnimationTime || 0
 
@@ -973,6 +1063,12 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
           pos: { ...userPosRef.current },
           rot: { ...userRotRef.current },
         }
+        if (isPhoneLaptop) {
+          clipDeviceAdjMap.current[prevClipIdRef.current] = {
+            phone: { pos: { ...deviceAdjRef.current.phone.pos }, rot: { ...deviceAdjRef.current.phone.rot } },
+            laptop: { pos: { ...deviceAdjRef.current.laptop.pos }, rot: { ...deviceAdjRef.current.laptop.rot } },
+          }
+        }
       }
       const incoming = clipAdjMap.current[curClipId]
       if (incoming) {
@@ -981,6 +1077,16 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       } else {
         userPosRef.current = { x: 0, y: 0 }
         userRotRef.current = { x: 0, y: 0 }
+      }
+      if (isPhoneLaptop) {
+        const devIncoming = clipDeviceAdjMap.current[curClipId]
+        if (devIncoming) {
+          deviceAdjRef.current.phone = { pos: { ...devIncoming.phone.pos }, rot: { ...devIncoming.phone.rot } }
+          deviceAdjRef.current.laptop = { pos: { ...devIncoming.laptop.pos }, rot: { ...devIncoming.laptop.rot } }
+        } else {
+          deviceAdjRef.current.phone = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+          deviceAdjRef.current.laptop = { pos: { x: 0, y: 0 }, rot: { x: 0, y: 0 } }
+        }
       }
       transFromRef.current = {
         px: g.position.x, py: g.position.y, pz: g.position.z,
@@ -1099,37 +1205,110 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
 
       // ── 6. Floating Phone + Laptop ─────────────────
       case 'floatingPhoneLaptop': {
-        g.rotation.y = smoothSin(t, 0.15, 0.12)
-        g.position.y = smoothSin(t, 0.2, 0.04)
-        if (d.phone) {
-          d.phone.position.set(-1.4 + smoothSin(t, 0.18, 0.08), smoothSin(t + 1, 0.25, 0.12), 0.3)
-          d.phone.rotation.set(smoothSin(t, 0.2, 0.04), 0.2 + smoothSin(t, 0.15, 0.06), smoothSin(t + 0.5, 0.18, 0.03))
-        }
+        g.rotation.x = 0.15 + smoothSin(t, 0.06, 0.01)
+        g.rotation.y = smoothSin(t, 0.12, 0.08)
+        g.position.y = 0.1 + smoothSin(t, 0.18, 0.03)
         if (d.laptop) {
-          d.laptop.position.set(1.1 + smoothSin(t + 0.5, 0.12, 0.06), 0.1 + smoothSin(t, 0.3, 0.08), -0.3)
-          d.laptop.rotation.set(-0.15 + smoothSin(t + 1, 0.15, 0.03), -0.25 + smoothSin(t, 0.12, 0.05), smoothSin(t + 0.3, 0.15, 0.02))
+          d.laptop.position.set(
+            -0.1 + smoothSin(t + 0.5, 0.1, 0.04),
+            -0.55 + smoothSin(t, 0.2, 0.05),
+            -0.2
+          )
+          d.laptop.rotation.set(
+            0.1 + smoothSin(t + 1, 0.08, 0.02),
+            -0.15 + smoothSin(t, 0.1, 0.04),
+            smoothSin(t + 0.3, 0.1, 0.015)
+          )
+        }
+        if (d.phone) {
+          d.phone.position.set(
+            1.05 + smoothSin(t, 0.12, 0.05),
+            -0.1 + smoothSin(t + 1, 0.18, 0.06),
+            0.9
+          )
+          d.phone.rotation.set(
+            -0.08 + smoothSin(t, 0.12, 0.025),
+            -0.15 + smoothSin(t, 0.1, 0.03),
+            0.04 + smoothSin(t + 0.5, 0.1, 0.015)
+          )
         }
         break
       }
 
       // ── 7. Phone in Front of Laptop ────────────────
       case 'phoneInFrontLaptop': {
-        const slideP = easeOutCubic(Math.min(1, t / 2.0))
-        g.rotation.y = smoothSin(t, 0.12, 0.06)
-        g.position.y = smoothSin(t, 0.2, 0.04)
+        const sweepDur = 5.0
+        const sweepP = easeInOutCubic(Math.min(1, t / sweepDur))
+        // Rotation: start from phone side (-100deg), sweep to front view (0)
+        const startAngle = -Math.PI * 0.55
+        const endAngle = 0
+        g.rotation.y = startAngle + (endAngle - startAngle) * sweepP + smoothSin(t, 0.05, 0.012)
+        // Slight tilt eases from steeper to gentle
+        g.rotation.x = 0.22 - 0.07 * sweepP + smoothSin(t, 0.05, 0.008)
+        g.position.y = 0.1 + smoothSin(t, 0.1, 0.018)
+        // Zoom: start zoomed in on phone (1.5x), zoom out to normal (1.0x)
+        const startScale = 1.5
+        const endScale = 1.0
+        const sc = startScale + (endScale - startScale) * sweepP
+        g.scale.set(sc, sc, sc)
+        // Devices in their final resting positions (matching Floating end state)
         if (d.laptop) {
-          d.laptop.position.set(0, 0.15, -0.5)
-          d.laptop.rotation.set(-0.12 + smoothSin(t, 0.1, 0.02), smoothSin(t, 0.08, 0.03), 0)
+          d.laptop.position.set(-0.1, -0.55, -0.2)
+          d.laptop.rotation.set(
+            0.1 + smoothSin(t, 0.05, 0.01),
+            -0.15 + smoothSin(t, 0.04, 0.01),
+            smoothSin(t + 0.3, 0.06, 0.01)
+          )
         }
         if (d.phone) {
-          const startX = 3.5
-          const endX = 0.9
-          d.phone.position.set(
-            startX + (endX - startX) * slideP + smoothSin(t, 0.15, 0.03),
-            -0.3 + smoothSin(t + 0.5, 0.2, 0.06),
-            0.8
+          d.phone.position.set(1.05, -0.1 + smoothSin(t + 0.5, 0.1, 0.02), 0.9)
+          d.phone.rotation.set(
+            -0.08 + smoothSin(t, 0.06, 0.01),
+            -0.15 + smoothSin(t, 0.05, 0.012),
+            0.04 + smoothSin(t + 1, 0.06, 0.008)
           )
-          d.phone.rotation.set(smoothSin(t, 0.12, 0.02), -0.1 + smoothSin(t, 0.1, 0.04), smoothSin(t + 1, 0.15, 0.02))
+        }
+        break
+      }
+
+      // ── 7b. Phone on Keyboard — phone rests on laptop, camera pulls back ──
+      case 'phoneOnKeyboard': {
+        const panDur = 5.0
+        const panP = easeInOutCubic(Math.min(1, t / panDur))
+        // Camera starts zoomed in and tilted down on the phone/keyboard area,
+        // then pulls back and tilts up to reveal the full laptop screen
+        const startRotX = 0.7
+        const endRotX = 0.18
+        g.rotation.x = startRotX + (endRotX - startRotX) * panP + smoothSin(t, 0.04, 0.006)
+        g.rotation.y = smoothSin(t, 0.05, 0.01)
+        // Vertical pan: start low (looking at keyboard), rise to show screen
+        const startY = -0.6
+        const endY = 0.15
+        g.position.y = startY + (endY - startY) * panP + smoothSin(t, 0.08, 0.015)
+        // Zoom: start very close (2.0x), pull back to normal (1.0x)
+        const sc = 2.0 + (1.0 - 2.0) * panP
+        g.scale.set(sc, sc, sc)
+        // Laptop: centered, flat
+        if (d.laptop) {
+          d.laptop.position.set(0, -0.55, 0)
+          d.laptop.rotation.set(
+            0.08 + smoothSin(t, 0.03, 0.006),
+            smoothSin(t, 0.03, 0.008),
+            0
+          )
+        }
+        // Phone: resting on the keyboard area, tilted slightly face-up
+        if (d.phone) {
+          d.phone.position.set(
+            0.35 + smoothSin(t, 0.04, 0.005),
+            -0.18,
+            0.55
+          )
+          d.phone.rotation.set(
+            -1.2,
+            0.15 + smoothSin(t, 0.03, 0.006),
+            0.1
+          )
         }
         break
       }
@@ -1220,22 +1399,37 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       }
 
       default: {
-        const count = multiDeviceCount || 4
-        const introP = easeOutCubic(Math.min(1, t / 2.0))
-        g.rotation.x = 0.15 * introP + smoothSin(t, 0.08, 0.02)
-        g.rotation.y = smoothSin(t, 0.12, 0.06)
-        g.position.y = smoothSin(t, 0.2, 0.04)
-        const totalSpan = Math.min(4.5, 0.9 * count)
-        for (let i = 0; i < count; i++) {
-          const ref = d[`p${i}`]
-          if (!ref) continue
-          const frac = count === 1 ? 0.5 : i / (count - 1)
-          const x = -totalSpan / 2 + frac * totalSpan
-          const z = -0.3 + 0.3 * Math.sin(frac * Math.PI)
-          const y = 0.05 + 0.1 * Math.sin(frac * Math.PI)
-          const ry = 0.12 - frac * 0.24
-          ref.position.set(x, y + smoothSin(t + i * 0.5, 0.25, 0.04), z)
-          ref.rotation.set(0, ry, 0)
+        if (isPhoneLaptop) {
+          // Keep phone+laptop in their default positions, apply animation to group only
+          g.rotation.x = 0.18 + smoothSin(t, 0.08, 0.01)
+          g.rotation.y = smoothSin(t, 0.1, 0.06)
+          g.position.y = 0.15 + smoothSin(t, 0.15, 0.02)
+          if (d.laptop) {
+            d.laptop.position.set(-0.2, -0.55, 0)
+            d.laptop.rotation.set(0.1 + smoothSin(t, 0.06, 0.01), smoothSin(t, 0.05, 0.015), 0)
+          }
+          if (d.phone) {
+            d.phone.position.set(1.1 + smoothSin(t, 0.1, 0.015), -0.1 + smoothSin(t + 0.5, 0.15, 0.03), 1.0)
+            d.phone.rotation.set(-0.08 + smoothSin(t, 0.08, 0.01), -0.15 + smoothSin(t, 0.06, 0.02), 0.04 + smoothSin(t + 1, 0.1, 0.01))
+          }
+        } else {
+          const count = multiDeviceCount || 4
+          const introP = easeOutCubic(Math.min(1, t / 2.0))
+          g.rotation.x = 0.15 * introP + smoothSin(t, 0.08, 0.02)
+          g.rotation.y = smoothSin(t, 0.12, 0.06)
+          g.position.y = smoothSin(t, 0.2, 0.04)
+          const totalSpan = Math.min(4.5, 0.9 * count)
+          for (let i = 0; i < count; i++) {
+            const ref = d[`p${i}`]
+            if (!ref) continue
+            const frac = count === 1 ? 0.5 : i / (count - 1)
+            const x = -totalSpan / 2 + frac * totalSpan
+            const z = -0.3 + 0.3 * Math.sin(frac * Math.PI)
+            const y = 0.05 + 0.1 * Math.sin(frac * Math.PI)
+            const ry = 0.12 - frac * 0.24
+            ref.position.set(x, y + smoothSin(t + i * 0.5, 0.25, 0.04), z)
+            ref.rotation.set(0, ry, 0)
+          }
         }
         break
       }
@@ -1245,6 +1439,24 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     g.rotation.y += userRotRef.current.y
     g.position.x += userPosRef.current.x
     g.position.y += userPosRef.current.y
+
+    // Apply per-device user adjustments for phone+laptop templates
+    if (isPhoneLaptop) {
+      const pa = deviceAdjRef.current.phone
+      const la = deviceAdjRef.current.laptop
+      if (d.phone) {
+        d.phone.position.x += pa.pos.x
+        d.phone.position.y += pa.pos.y
+        d.phone.rotation.x += pa.rot.x
+        d.phone.rotation.y += pa.rot.y
+      }
+      if (d.laptop) {
+        d.laptop.position.x += la.pos.x
+        d.laptop.position.y += la.pos.y
+        d.laptop.rotation.x += la.rot.x
+        d.laptop.rotation.y += la.rot.y
+      }
+    }
 
     // Smooth transition blending between clips
     if (transFromRef.current && transTRef.current < TRANS_DUR) {
@@ -1318,25 +1530,14 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
     case 'flatScatter7':
       return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 7, 0.30)}</group>
     case 'floatingPhoneLaptop':
-    case 'phoneInFrontLaptop': {
+    case 'phoneInFrontLaptop':
+    case 'phoneOnKeyboard': {
       const phoneSrc = getSlotScreen(0)
       const laptopSrc = getSlotScreen(1)
+      const isKeyboard = animation === 'phoneOnKeyboard'
       return (
-        <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>
-          <group ref={setRef('phone')}>
-            <DeviceFrame
-              type={resolvedType}
-              screenUrl={phoneSrc?.url || null}
-              screenFile={phoneSrc?.file || null}
-              isVideo={phoneSrc?.isVideo || false}
-              isGif={phoneSrc?.isGif || false}
-              videoSeekTime={videoSeekTime}
-              timelinePlaying={timelinePlaying}
-              scale={0.32}
-              showShadow={showDeviceShadow}
-            />
-          </group>
-          <group ref={setRef('laptop')}>
+        <group ref={groupRef}>
+          <group ref={setRef('laptop')} onPointerDown={makeDevicePointerDown('laptop')} onDoubleClick={makeDeviceDoubleClick('laptop')}>
             <DeviceFrame
               type="macbook"
               screenUrl={laptopSrc?.url || null}
@@ -1345,16 +1546,65 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
               isGif={laptopSrc?.isGif || false}
               videoSeekTime={videoSeekTime}
               timelinePlaying={timelinePlaying}
-              scale={0.35}
+              scale={isKeyboard ? 0.42 : 0.40}
               lidAngleRef={lidAngleRef}
+              showShadow={showDeviceShadow}
+            />
+          </group>
+          <group ref={setRef('phone')} onPointerDown={makeDevicePointerDown('phone')} onDoubleClick={makeDeviceDoubleClick('phone')}>
+            <DeviceFrame
+              type={resolvedType}
+              screenUrl={phoneSrc?.url || null}
+              screenFile={phoneSrc?.file || null}
+              isVideo={phoneSrc?.isVideo || false}
+              isGif={phoneSrc?.isGif || false}
+              videoSeekTime={videoSeekTime}
+              timelinePlaying={timelinePlaying}
+              scale={isKeyboard ? 0.18 : 0.22}
               showShadow={showDeviceShadow}
             />
           </group>
         </group>
       )
     }
-    default:
+    default: {
+      if (isPhoneLaptop) {
+        const phoneSrc = getSlotScreen(0)
+        const laptopSrc = getSlotScreen(1)
+        return (
+          <group ref={groupRef}>
+            <group ref={setRef('laptop')} onPointerDown={makeDevicePointerDown('laptop')} onDoubleClick={makeDeviceDoubleClick('laptop')}>
+              <DeviceFrame
+                type="macbook"
+                screenUrl={laptopSrc?.url || null}
+                screenFile={laptopSrc?.file || null}
+                isVideo={laptopSrc?.isVideo || false}
+                isGif={laptopSrc?.isGif || false}
+                videoSeekTime={videoSeekTime}
+                timelinePlaying={timelinePlaying}
+                scale={0.40}
+                lidAngleRef={lidAngleRef}
+                showShadow={showDeviceShadow}
+              />
+            </group>
+            <group ref={setRef('phone')} onPointerDown={makeDevicePointerDown('phone')} onDoubleClick={makeDeviceDoubleClick('phone')}>
+              <DeviceFrame
+                type={resolvedType}
+                screenUrl={phoneSrc?.url || null}
+                screenFile={phoneSrc?.file || null}
+                isVideo={phoneSrc?.isVideo || false}
+                isGif={phoneSrc?.isGif || false}
+                videoSeekTime={videoSeekTime}
+                timelinePlaying={timelinePlaying}
+                scale={0.22}
+                showShadow={showDeviceShadow}
+              />
+            </group>
+          </group>
+        )
+      }
       return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 4, 0.30)}</group>
+    }
   }
 }
 

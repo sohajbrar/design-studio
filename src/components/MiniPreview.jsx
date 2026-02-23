@@ -41,7 +41,7 @@ function MiniPhone({ position, rotation, scale: s = 1, opacity = 1 }) {
   return (
     <group position={position} rotation={rotation} scale={[s, s, s]}>
       <mesh geometry={PHONE_BODY_GEO}>
-        <meshPhysicalMaterial color="#78716a" roughness={0.2} metalness={0.6} clearcoat={1.0} clearcoatRoughness={0.15} emissive="#78716a" emissiveIntensity={0.08} transparent opacity={opacity} />
+        <meshPhysicalMaterial color="#2a2a2e" roughness={0.2} metalness={0.6} clearcoat={1.0} clearcoatRoughness={0.15} emissive="#2a2a2e" emissiveIntensity={0.08} transparent opacity={opacity} />
       </mesh>
       <mesh position={[0, 0, 0.021]} geometry={PHONE_SCREEN_GEO}>
         <meshBasicMaterial color="#050508" transparent opacity={opacity * 0.95} />
@@ -287,30 +287,41 @@ function MultiDeviceAnim({ animation, paused }) {
         }
         break
       }
-      case 'floatingPhoneLaptop': {
-        g.rotation.y = sSin(t, 0.15, 0.12)
-        g.position.y = sSin(t, 0.2, 0.04)
-        if (d.phone) {
-          d.phone.position.set(-1.4 + sSin(t, 0.18, 0.08), sSin(t + 1, 0.25, 0.12), 0.3)
-          d.phone.rotation.set(sSin(t, 0.2, 0.04), 0.2 + sSin(t, 0.15, 0.06), sSin(t + 0.5, 0.18, 0.03))
-        }
+      case 'floatingPhoneLaptop':
+      case 'phoneInFrontLaptop': {
+        const sweepDur = 4.0
+        const sweepP = easeOut(Math.min(1, t / sweepDur))
+        const startAngle = -Math.PI * 0.55
+        g.rotation.y = startAngle + (0 - startAngle) * sweepP + sSin(t, 0.05, 0.012)
+        g.rotation.x = 0.2 - 0.06 * sweepP + sSin(t, 0.04, 0.008)
+        g.position.y = 0.1 + sSin(t, 0.1, 0.018)
+        const sc = 1.4 + (1.0 - 1.4) * sweepP
+        g.scale.set(sc, sc, sc)
         if (d.laptop) {
-          d.laptop.position.set(1.1 + sSin(t + 0.5, 0.12, 0.06), 0.1 + sSin(t, 0.3, 0.08), -0.3)
-          d.laptop.rotation.set(-0.15 + sSin(t + 1, 0.15, 0.03), -0.25 + sSin(t, 0.12, 0.05), sSin(t + 0.3, 0.15, 0.02))
+          d.laptop.position.set(-0.1, -0.45, -0.2)
+          d.laptop.rotation.set(0.08 + sSin(t, 0.04, 0.008), -0.12 + sSin(t, 0.03, 0.008), sSin(t + 0.3, 0.04, 0.006))
+        }
+        if (d.phone) {
+          d.phone.position.set(0.95, -0.1 + sSin(t + 0.5, 0.08, 0.015), 0.8)
+          d.phone.rotation.set(-0.06 + sSin(t, 0.05, 0.008), -0.12 + sSin(t, 0.04, 0.01), 0.03 + sSin(t + 1, 0.05, 0.006))
         }
         break
       }
-      case 'phoneInFrontLaptop': {
-        const sp = easeOut(Math.min(1, t / 2.0))
-        g.rotation.y = sSin(t, 0.12, 0.06)
-        g.position.y = sSin(t, 0.2, 0.04)
+      case 'phoneOnKeyboard': {
+        const panDur = 4.0
+        const panP = easeOut(Math.min(1, t / panDur))
+        g.rotation.x = 0.6 + (0.16 - 0.6) * panP + sSin(t, 0.03, 0.005)
+        g.rotation.y = sSin(t, 0.04, 0.008)
+        g.position.y = -0.5 + (0.1 - (-0.5)) * panP + sSin(t, 0.06, 0.012)
+        const sc = 1.8 + (1.0 - 1.8) * panP
+        g.scale.set(sc, sc, sc)
         if (d.laptop) {
-          d.laptop.position.set(0, 0.15, -0.5)
-          d.laptop.rotation.set(-0.12 + sSin(t, 0.1, 0.02), sSin(t, 0.08, 0.03), 0)
+          d.laptop.position.set(0, -0.45, 0)
+          d.laptop.rotation.set(0.06 + sSin(t, 0.02, 0.005), sSin(t, 0.02, 0.006), 0)
         }
         if (d.phone) {
-          d.phone.position.set(3.5 + (0.9 - 3.5) * sp + sSin(t, 0.15, 0.03), -0.3 + sSin(t + 0.5, 0.2, 0.06), 0.8)
-          d.phone.rotation.set(sSin(t, 0.12, 0.02), -0.1 + sSin(t, 0.1, 0.04), sSin(t + 1, 0.15, 0.02))
+          d.phone.position.set(0.3, -0.15, 0.5)
+          d.phone.rotation.set(-1.1, 0.12 + sSin(t, 0.02, 0.004), 0.08)
         }
         break
       }
@@ -411,8 +422,15 @@ function MultiDeviceAnim({ animation, paused }) {
     case 'phoneInFrontLaptop':
       return (
         <group ref={gRef}>
-          <group ref={setRef('phone')}><MiniPhone scale={0.85} /></group>
-          <group ref={setRef('laptop')}><MiniLaptop scale={0.55} /></group>
+          <group ref={setRef('laptop')}><MiniLaptop scale={0.6} /></group>
+          <group ref={setRef('phone')}><MiniPhone scale={0.65} /></group>
+        </group>
+      )
+    case 'phoneOnKeyboard':
+      return (
+        <group ref={gRef}>
+          <group ref={setRef('laptop')}><MiniLaptop scale={0.65} /></group>
+          <group ref={setRef('phone')}><MiniPhone scale={0.5} /></group>
         </group>
       )
     default:
@@ -422,7 +440,7 @@ function MultiDeviceAnim({ animation, paused }) {
 
 const MULTI = new Set([
   'sideScroll10', 'angled3ZoomOut', 'circle4Rotate', 'angledZoom4',
-  'carousel6', 'floatingPhoneLaptop', 'phoneInFrontLaptop', 'offsetCircleRotate',
+  'carousel6', 'floatingPhoneLaptop', 'phoneInFrontLaptop', 'phoneOnKeyboard', 'offsetCircleRotate',
   'flatScatter7',
 ])
 

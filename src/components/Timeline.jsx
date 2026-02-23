@@ -539,48 +539,48 @@ export default function Timeline({
             </svg>
             + Zoom
           </button>
+          {(selectedClip || selectedText || selectedZoom) && (
+            <button
+              className="transport-action-btn"
+              onClick={handleSplit}
+              disabled={!canSplit}
+              title="Split at playhead"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <line x1="12" y1="2" x2="12" y2="22" />
+                <polyline points="8 6 12 2 16 6" />
+                <polyline points="8 18 12 22 16 18" />
+              </svg>
+              Split
+            </button>
+          )}
           {selectedClip && (
-            <>
-              <button
-                className="transport-action-btn"
-                onClick={handleSplit}
-                disabled={!canSplit}
-                title="Split at playhead"
+            <button
+              className="transport-action-btn danger"
+              onClick={() => onRemoveClip(selectedClipId)}
+              title="Remove clip"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <line x1="12" y1="2" x2="12" y2="22" />
-                  <polyline points="8 6 12 2 16 6" />
-                  <polyline points="8 18 12 22 16 18" />
-                </svg>
-                Split
-              </button>
-              <button
-                className="transport-action-btn danger"
-                onClick={() => onRemoveClip(selectedClipId)}
-                title="Remove clip"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                </svg>
-              </button>
-            </>
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+              </svg>
+            </button>
           )}
         </div>
       </div>

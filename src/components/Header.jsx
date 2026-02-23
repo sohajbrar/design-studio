@@ -22,7 +22,7 @@ export default function Header({ children, leftAction, siteTheme, onToggleTheme 
               </defs>
             </svg>
           </div>
-          <span className="logo-text">AI Design Studio</span><span className="logo-byline">by Sohaj</span>
+          <span className="logo-text">AI Design Studio</span><span className="logo-byline">by <a href="https://fb.workplace.com/profile.php?id=100043015364125" target="_blank" rel="noopener noreferrer" style={{color: 'inherit', textDecoration: 'underline'}}>Sohaj</a></span>
         </div>
       </div>
       <div className="header-center">
