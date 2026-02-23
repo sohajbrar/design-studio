@@ -2830,7 +2830,6 @@ function App() {
                                 </button>
                               </div>
                             </div>
-                            {textOverlays.length <= 1 && (
                             <div className="te-row-col">
                               <label className="control-label">Animation</label>
                               <div className="text-anim-options">
@@ -2869,7 +2868,6 @@ function App() {
                                 ))}
                               </div>
                             </div>
-                            )}
                           </div>
                         </div>
                       )}

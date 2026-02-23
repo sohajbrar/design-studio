@@ -1853,20 +1853,18 @@ const TEXT_FADE_DUR = 0.35
 function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
   if (!textOverlays || textOverlays.length === 0) return null
 
-  const visibleNow = textOverlays.filter((overlay) => {
-    if (overlay.startTime == null || overlay.endTime == null) return true
-    return currentTime >= overlay.startTime - TEXT_FADE_DUR && currentTime <= overlay.endTime + TEXT_FADE_DUR
-  })
-
-  const disableAnimation = visibleNow.length > 1
-
   return (
     <group>
-      {visibleNow.map((overlay) => {
+      {textOverlays
+        .filter((overlay) => {
+          if (overlay.startTime == null || overlay.endTime == null) return true
+          return currentTime >= overlay.startTime - TEXT_FADE_DUR && currentTime <= overlay.endTime + TEXT_FADE_DUR
+        })
+        .map((overlay) => {
           const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
           const duration = overlay.endTime != null && overlay.startTime != null ? overlay.endTime - overlay.startTime : 999
           return (
-            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} duration={duration} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} onTextDrag={onTextDrag} disableAnimation={disableAnimation} />
+            <CanvasTextOverlay key={overlay.id} overlay={overlay} currentTime={localTime} duration={duration} textSplit={textSplit} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onTextClick={onTextClick} onTextDrag={onTextDrag} disableAnimation={false} />
           )
         })}
     </group>
