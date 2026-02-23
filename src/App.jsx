@@ -726,9 +726,14 @@ function App() {
     })
   }, [currentTime, totalDuration])
 
-  // ── Space key handler for play/pause ─────────────
+  // ── Keyboard shortcuts: Space = play/pause, Cmd+Z = undo ─────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        handleUndo()
+        return
+      }
       const tag = e.target.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return
       if (e.code === 'Space' && hasStarted) {
@@ -738,7 +743,7 @@ function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [hasStarted, togglePlayback])
+  }, [hasStarted, togglePlayback, handleUndo])
 
   // ── Timeline playback loop ───────────────────────
   const rafRef = useRef(null)
@@ -783,7 +788,37 @@ function App() {
     }
   }, [isTimelinePlaying, totalDuration])
 
-  const markChanged = useCallback(() => { hasUnsavedChanges.current = true }, [])
+  const undoStackRef = useRef([])
+  const UNDO_LIMIT = 50
+
+  const pushUndo = useCallback(() => {
+    undoStackRef.current.push({
+      timelineClips: structuredClone(timelineClips),
+      textOverlays: structuredClone(textOverlays),
+      zoomEffects: structuredClone(zoomEffects),
+      bgColor,
+      bgGradient,
+      animation,
+    })
+    if (undoStackRef.current.length > UNDO_LIMIT) undoStackRef.current.shift()
+  }, [timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation])
+
+  const handleUndo = useCallback(() => {
+    const stack = undoStackRef.current
+    if (stack.length === 0) return
+    const snap = stack.pop()
+    setTimelineClips(snap.timelineClips)
+    setTextOverlays(snap.textOverlays)
+    setZoomEffects(snap.zoomEffects)
+    setBgColor(snap.bgColor)
+    setBgGradient(snap.bgGradient)
+    setAnimation(snap.animation)
+  }, [])
+
+  const markChanged = useCallback(() => {
+    pushUndo()
+    hasUnsavedChanges.current = true
+  }, [pushUndo])
 
   // ── Upload handler (creates clips immediately, updates video durations async) ─
   const handleUpload = useCallback((files) => {
