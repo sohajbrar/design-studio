@@ -1852,16 +1852,17 @@ const TEXT_FADE_DUR = 0.35
 
 function TextOverlays({ textOverlays, currentTime, textSplit, textOnLeft, isVerticalLayout, textOnTop, onTextClick, onTextDrag }) {
   if (!textOverlays || textOverlays.length === 0) return null
-  const disableAnimation = textOverlays.length > 1
+
+  const visibleNow = textOverlays.filter((overlay) => {
+    if (overlay.startTime == null || overlay.endTime == null) return true
+    return currentTime >= overlay.startTime - TEXT_FADE_DUR && currentTime <= overlay.endTime + TEXT_FADE_DUR
+  })
+
+  const disableAnimation = visibleNow.length > 1
 
   return (
     <group>
-      {textOverlays
-        .filter((overlay) => {
-          if (overlay.startTime == null || overlay.endTime == null) return true
-          return currentTime >= overlay.startTime - TEXT_FADE_DUR && currentTime <= overlay.endTime + TEXT_FADE_DUR
-        })
-        .map((overlay) => {
+      {visibleNow.map((overlay) => {
           const localTime = overlay.startTime != null ? currentTime - overlay.startTime : currentTime
           const duration = overlay.endTime != null && overlay.startTime != null ? overlay.endTime - overlay.startTime : 999
           return (
