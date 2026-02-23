@@ -63,6 +63,39 @@ function MiniLaptop({ position, rotation, scale: s = 1 }) {
   )
 }
 
+const LAPTOP_BASE_GEO = new THREE.ExtrudeGeometry(
+  makeRoundedRect(1.5, 1.0, 0.06),
+  { depth: 0.02, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2 }
+)
+LAPTOP_BASE_GEO.translate(0, 0, -0.01)
+
+const LAPTOP_LID_GEO = new THREE.ExtrudeGeometry(
+  makeRoundedRect(1.5, 1.0, 0.06),
+  { depth: 0.015, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2 }
+)
+LAPTOP_LID_GEO.translate(0, 0.5, -0.0075)
+
+const LAPTOP_LID_SCREEN_GEO = new THREE.ShapeGeometry(makeRoundedRect(1.40, 0.90, 0.04))
+LAPTOP_LID_SCREEN_GEO.translate(0, 0.5, 0)
+
+function MiniLaptopOpenable({ position, rotation, scale: s = 1, lidPivotRef }) {
+  return (
+    <group position={position} rotation={rotation} scale={[s, s, s]}>
+      <mesh geometry={LAPTOP_BASE_GEO}>
+        <meshPhysicalMaterial color="#a0a0a0" roughness={0.2} metalness={0.5} clearcoat={0.8} clearcoatRoughness={0.15} emissive="#a0a0a0" emissiveIntensity={0.06} />
+      </mesh>
+      <group position={[0, 0.5, 0]} ref={lidPivotRef}>
+        <mesh geometry={LAPTOP_LID_GEO}>
+          <meshPhysicalMaterial color="#a0a0a0" roughness={0.2} metalness={0.5} clearcoat={0.8} clearcoatRoughness={0.15} emissive="#a0a0a0" emissiveIntensity={0.06} />
+        </mesh>
+        <mesh position={[0, 0.5, 0.009]} geometry={LAPTOP_LID_SCREEN_GEO}>
+          <meshBasicMaterial color="#0a0a0a" />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
 function SceneBg({ bgColor }) {
   const { scene } = useThree()
   scene.background = new THREE.Color(bgColor)
@@ -94,9 +127,11 @@ function FrameController({ paused }) {
 function SingleDeviceAnim({ animation, deviceType, paused }) {
   const gRef = useRef()
   const tRef = useRef(2.5)
+  const lidPivotRef = useRef()
   const isBoth = deviceType === 'both'
   const isLaptop = deviceType === 'macbook'
   const isIpad = deviceType === 'ipad'
+  const isLidAnim = animation === 'laptopOpen' || animation === 'laptopClose'
 
   useFrame((_, dt) => {
     if (!paused) tRef.current += dt
@@ -168,8 +203,19 @@ function SingleDeviceAnim({ animation, deviceType, paused }) {
         break
       }
       case 'laptopOpen': {
-        g.rotation.y = sSin(t, 0.2, 0.15)
-        g.position.y = sSin(t, 0.3, 0.05)
+        const openP = easeOut(Math.min(1, t / 2.5))
+        if (lidPivotRef.current) lidPivotRef.current.rotation.x = -(openP * (Math.PI / 2))
+        g.rotation.x = 0.35 - 0.15 * openP + sSin(t, 0.1, 0.02)
+        g.rotation.y = sSin(t, 0.15, 0.12)
+        g.position.y = -0.15 + 0.15 * openP + sSin(t, 0.2, 0.04)
+        break
+      }
+      case 'laptopClose': {
+        const closeP = easeOut(Math.min(1, t / 2.5))
+        if (lidPivotRef.current) lidPivotRef.current.rotation.x = -((Math.PI / 2) * (1 - closeP))
+        g.rotation.x = 0.2 + 0.15 * closeP + sSin(t, 0.1, 0.02)
+        g.rotation.y = sSin(t, 0.15, 0.12)
+        g.position.y = sSin(t, 0.2, 0.04)
         break
       }
       case 'sideBySide': {
@@ -185,7 +231,9 @@ function SingleDeviceAnim({ animation, deviceType, paused }) {
 
   return (
     <group ref={gRef}>
-      {isLaptop ? (
+      {isLidAnim ? (
+        <MiniLaptopOpenable position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={0.75} lidPivotRef={lidPivotRef} />
+      ) : isLaptop ? (
         <MiniLaptop position={[0, 0, 0]} rotation={[0, 0, 0]} scale={0.7} />
       ) : isIpad ? (
         <MiniPhone position={[0, 0, 0]} rotation={[0, 0, 0]} scale={1.3} />
