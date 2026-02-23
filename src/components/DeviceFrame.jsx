@@ -454,11 +454,11 @@ function MacBookGLB({
     }
 
     // Lid rotation: lidAngleRef PI/2 = open (model default), PI = closed.
-    // The GLB lid is tilted ~23° past vertical, so it needs ~2.05 rad total
-    // rotation to close (vs PI/2 ≈ 1.57 for a perfectly vertical lid).
+    // Model lid is ~0.41 rad past vertical, so factor = 1 + 0.41/(PI/2) ≈ 1.25
+    // to reach flat without overshooting through the base.
     if (lidPivotRef.current && lidAngleRef) {
       const angle = lidAngleRef.current != null ? lidAngleRef.current : Math.PI / 2
-      lidPivotRef.current.rotation.x = (angle - Math.PI / 2) * 1.3
+      lidPivotRef.current.rotation.x = (angle - Math.PI / 2) * 1.25
     }
   })
 
