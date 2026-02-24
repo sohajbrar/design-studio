@@ -1642,14 +1642,15 @@ function CanvasTextOverlay({ overlay, currentTime, duration, textSplit, textOnLe
 
   const split = textSplit || 0.5
   const margin = 0.08
+  const hasAnim = overlay.animation && overlay.animation !== 'none'
   const textAreaWidth = isVerticalLayout
     ? visibleWidth * (1 - margin * 2)
-    : visibleWidth * split * (1 - margin * 2)
+    : hasAnim ? visibleWidth * split * (1 - margin * 2) : visibleWidth * (1 - margin * 2)
   const textAreaHeight = isVerticalLayout
-    ? visibleHeight * split * (1 - margin * 2)
+    ? (hasAnim ? visibleHeight * split * (1 - margin * 2) : visibleHeight * (1 - margin * 2))
     : visibleHeight * (1 - margin * 2)
 
-  const isDraggable = overlay.animation === 'none' || disableAnimation
+  const isDraggable = !hasAnim || disableAnimation
 
   const meshW = textAreaWidth
   const meshH = textAreaWidth * (TEX_H / TEX_W)

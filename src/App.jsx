@@ -663,13 +663,14 @@ function App() {
 
   const activeTextAnim = useMemo(() => {
     if (!textOverlays || textOverlays.length === 0) return 'none'
-    if (textOverlays.length > 1) return 'none'
     const timed = textOverlays.find(
       (t) => t.startTime != null && t.endTime != null && currentTime >= t.startTime && currentTime <= t.endTime
     )
     if (timed) return timed.animation || 'none'
     const always = textOverlays.find((t) => t.startTime == null || t.endTime == null)
-    return always ? (always.animation || 'none') : 'none'
+    if (always) return always.animation || 'none'
+    const any = textOverlays.find((t) => t.animation && t.animation !== 'none')
+    return any ? any.animation : 'none'
   }, [textOverlays, currentTime])
 
   const slotScreens = useMemo(() => {
