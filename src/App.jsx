@@ -726,6 +726,42 @@ function App() {
     })
   }, [currentTime, totalDuration])
 
+  // ── Undo system ────────────────────────────────────
+  const undoStackRef = useRef([])
+  const stateSnapRef = useRef(null)
+
+  useEffect(() => {
+    stateSnapRef.current = { timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation }
+  }, [timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation])
+
+  const handleUndo = useCallback(() => {
+    const stack = undoStackRef.current
+    if (stack.length === 0) return
+    const snap = stack.pop()
+    setTimelineClips(snap.timelineClips)
+    setTextOverlays(snap.textOverlays)
+    setZoomEffects(snap.zoomEffects)
+    setBgColor(snap.bgColor)
+    setBgGradient(snap.bgGradient)
+    setAnimation(snap.animation)
+  }, [])
+
+  const markChanged = useCallback(() => {
+    const s = stateSnapRef.current
+    if (s) {
+      undoStackRef.current.push({
+        timelineClips: JSON.parse(JSON.stringify(s.timelineClips)),
+        textOverlays: JSON.parse(JSON.stringify(s.textOverlays)),
+        zoomEffects: JSON.parse(JSON.stringify(s.zoomEffects)),
+        bgColor: s.bgColor,
+        bgGradient: s.bgGradient,
+        animation: s.animation,
+      })
+      if (undoStackRef.current.length > 50) undoStackRef.current.shift()
+    }
+    hasUnsavedChanges.current = true
+  }, [])
+
   // ── Keyboard shortcuts: Space = play/pause, Cmd+Z = undo ─────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -787,41 +823,6 @@ function App() {
       lastFrameRef.current = null
     }
   }, [isTimelinePlaying, totalDuration])
-
-  const undoStackRef = useRef([])
-  const stateSnapRef = useRef(null)
-
-  useEffect(() => {
-    stateSnapRef.current = { timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation }
-  }, [timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation])
-
-  const handleUndo = useCallback(() => {
-    const stack = undoStackRef.current
-    if (stack.length === 0) return
-    const snap = stack.pop()
-    setTimelineClips(snap.timelineClips)
-    setTextOverlays(snap.textOverlays)
-    setZoomEffects(snap.zoomEffects)
-    setBgColor(snap.bgColor)
-    setBgGradient(snap.bgGradient)
-    setAnimation(snap.animation)
-  }, [])
-
-  const markChanged = useCallback(() => {
-    const s = stateSnapRef.current
-    if (s) {
-      undoStackRef.current.push({
-        timelineClips: JSON.parse(JSON.stringify(s.timelineClips)),
-        textOverlays: JSON.parse(JSON.stringify(s.textOverlays)),
-        zoomEffects: JSON.parse(JSON.stringify(s.zoomEffects)),
-        bgColor: s.bgColor,
-        bgGradient: s.bgGradient,
-        animation: s.animation,
-      })
-      if (undoStackRef.current.length > 50) undoStackRef.current.shift()
-    }
-    hasUnsavedChanges.current = true
-  }, [])
 
   // ── Upload handler (creates clips immediately, updates video durations async) ─
   const handleUpload = useCallback((files) => {
