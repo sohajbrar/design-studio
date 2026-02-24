@@ -789,18 +789,10 @@ function App() {
   }, [isTimelinePlaying, totalDuration])
 
   const undoStackRef = useRef([])
-  const UNDO_LIMIT = 50
+  const stateSnapRef = useRef(null)
 
-  const pushUndo = useCallback(() => {
-    undoStackRef.current.push({
-      timelineClips: structuredClone(timelineClips),
-      textOverlays: structuredClone(textOverlays),
-      zoomEffects: structuredClone(zoomEffects),
-      bgColor,
-      bgGradient,
-      animation,
-    })
-    if (undoStackRef.current.length > UNDO_LIMIT) undoStackRef.current.shift()
+  useEffect(() => {
+    stateSnapRef.current = { timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation }
   }, [timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation])
 
   const handleUndo = useCallback(() => {
@@ -816,9 +808,20 @@ function App() {
   }, [])
 
   const markChanged = useCallback(() => {
-    pushUndo()
+    const s = stateSnapRef.current
+    if (s) {
+      undoStackRef.current.push({
+        timelineClips: JSON.parse(JSON.stringify(s.timelineClips)),
+        textOverlays: JSON.parse(JSON.stringify(s.textOverlays)),
+        zoomEffects: JSON.parse(JSON.stringify(s.zoomEffects)),
+        bgColor: s.bgColor,
+        bgGradient: s.bgGradient,
+        animation: s.animation,
+      })
+      if (undoStackRef.current.length > 50) undoStackRef.current.shift()
+    }
     hasUnsavedChanges.current = true
-  }, [pushUndo])
+  }, [])
 
   // ── Upload handler (creates clips immediately, updates video durations async) ─
   const handleUpload = useCallback((files) => {
