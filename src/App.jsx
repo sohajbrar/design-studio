@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import * as THREE from 'three'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
 import './App.css'
@@ -1349,32 +1348,42 @@ function App() {
   const startRecording = useCallback(async () => {
     const canvas = canvasRef.current
     const gl = glRendererRef.current
-    if (!canvas || !gl) {
-      console.warn('Canvas/renderer not available for recording')
+    if (!canvas) {
+      console.warn('Canvas element not available for recording')
       return
     }
 
     const recordDuration = totalDuration > 0 ? totalDuration : 6
 
-    // Scale renderer to target resolution
-    const targetH = quality === '4k' ? 2160 : quality === '1080p' ? 1080 : 720
-    const targetW = Math.round(targetH * (canvas.clientWidth / canvas.clientHeight))
-    const savedDpr = gl.getPixelRatio()
-    const savedSize = gl.getSize(new THREE.Vector2())
-    const newDpr = Math.max(1, targetH / canvas.clientHeight)
-    gl.setPixelRatio(newDpr)
-    gl.setSize(canvas.clientWidth, canvas.clientHeight, true)
+    // Scale renderer pixel ratio so the canvas buffer matches target resolution.
+    // Only change DPR — let R3F's resize observer handle the actual setSize call
+    // so we don't conflict with its internal state.
+    let savedDpr = null
+    if (gl) {
+      const targetH = quality === '4k' ? 2160 : quality === '1080p' ? 1080 : 720
+      savedDpr = gl.getPixelRatio()
+      const newDpr = Math.max(savedDpr, targetH / canvas.clientHeight)
+      if (newDpr !== savedDpr) {
+        gl.setPixelRatio(newDpr)
+        // Trigger R3F to apply the new DPR by nudging a resize
+        const w = canvas.clientWidth
+        const h = canvas.clientHeight
+        gl.setSize(w, h, false)
+      }
+    }
 
     const restoreRenderer = () => {
-      gl.setPixelRatio(savedDpr)
-      gl.setSize(savedSize.x / savedDpr, savedSize.y / savedDpr, true)
+      if (gl && savedDpr != null) {
+        gl.setPixelRatio(savedDpr)
+        gl.setSize(canvas.clientWidth, canvas.clientHeight, false)
+      }
     }
 
     setCurrentTime(0)
     setIsTimelinePlaying(true)
 
-    // Wait a frame so the renderer produces a full-res frame before capture starts
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+    // Let the renderer produce a couple frames at the new resolution
+    await new Promise(r => setTimeout(r, 200))
 
     const videoStream = canvas.captureStream(60)
     let stream = videoStream
@@ -1410,31 +1419,38 @@ function App() {
     let mediaRecorder
     try {
       mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond })
-    } catch (err) {
-      console.warn('vp9 not supported, falling back to vp8:', err)
+    } catch {
       const fallbackMime = hasAudioTracks ? 'video/webm;codecs=vp8,opus' : 'video/webm;codecs=vp8'
-      mediaRecorder = new MediaRecorder(stream, { mimeType: fallbackMime, videoBitsPerSecond })
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: fallbackMime, videoBitsPerSecond })
+      } catch {
+        mediaRecorder = new MediaRecorder(stream)
+      }
     }
 
     const chunks = []
     mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data)
+      if (e.data && e.data.size > 0) chunks.push(e.data)
     }
 
     const chosenFormat = exportFormat
+    let stopped = false
 
-    mediaRecorder.onstop = async () => {
+    const cleanup = () => {
+      if (stopped) return
+      stopped = true
       restoreRenderer()
-      const webmBlob = new Blob(chunks, { type: 'video/webm' })
       setIsRecording(false)
       setIsPlaying(false)
       setIsTimelinePlaying(false)
       if (ae) ae.pause()
+    }
 
-      if (webmBlob.size < 1000) {
-        console.warn('Recording produced empty/tiny output, skipping download')
-        return
-      }
+    mediaRecorder.onstop = async () => {
+      cleanup()
+      const webmBlob = new Blob(chunks, { type: 'video/webm' })
+
+      if (webmBlob.size < 100) return
 
       if (chosenFormat === 'webm') {
         const url = URL.createObjectURL(webmBlob)
@@ -1442,19 +1458,13 @@ function App() {
         a.href = url
         a.download = `mockup-demo-${Date.now()}.webm`
         a.click()
-        URL.revokeObjectURL(url)
+        setTimeout(() => URL.revokeObjectURL(url), 5000)
       } else {
         await convertWebmTo(webmBlob, chosenFormat)
       }
     }
 
-    mediaRecorder.onerror = (e) => {
-      console.error('MediaRecorder error:', e)
-      restoreRenderer()
-      setIsRecording(false)
-      setIsPlaying(false)
-      setIsTimelinePlaying(false)
-    }
+    mediaRecorder.onerror = () => cleanup()
 
     recorderRef.current = mediaRecorder
     setIsRecording(true)
@@ -1463,28 +1473,19 @@ function App() {
     await new Promise(r => setTimeout(r, 150))
     if (ae && hasAudio) ae.sync(0)
 
-    mediaRecorder.start(1000)
+    mediaRecorder.start()
 
-    const safetyMs = (recordDuration + 2) * 1000
-    const stopTimer = setTimeout(() => {
+    setTimeout(() => {
+      if (mediaRecorder.state === 'recording') mediaRecorder.stop()
+    }, (recordDuration + 0.5) * 1000)
+
+    // Safety fallback
+    setTimeout(() => {
       if (mediaRecorder.state === 'recording') {
+        console.warn('Safety timeout: forcing recorder stop')
         mediaRecorder.stop()
       }
-    }, (recordDuration + 0.3) * 1000)
-
-    const safetyTimer = setTimeout(() => {
-      if (mediaRecorder.state === 'recording') {
-        console.warn('Recording safety timeout hit, forcing stop')
-        mediaRecorder.stop()
-      }
-    }, safetyMs)
-
-    const origStop = mediaRecorder.onstop
-    mediaRecorder.onstop = async function (e) {
-      clearTimeout(stopTimer)
-      clearTimeout(safetyTimer)
-      await origStop.call(this, e)
-    }
+    }, (recordDuration + 5) * 1000)
   }, [quality, exportFormat, convertWebmTo, totalDuration, musicTrack, voiceoverTrack])
 
   const stopRecording = useCallback(() => {
