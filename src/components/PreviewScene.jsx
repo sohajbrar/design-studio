@@ -2073,7 +2073,7 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, isVertica
 
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
-  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef, glRendererRef,
+  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef, glRendererRef, recordingDpr,
   textOverlays, currentTime, clipAnimationTime, activeClipId, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
   outroLogo, totalDuration, multiDeviceCount, onTextClick, onTextDrag, onDeviceClick, onDrop,
 }) {
@@ -2195,7 +2195,7 @@ export default function PreviewScene({
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.1,
         }}
-        dpr={[1, 2]}
+        dpr={recordingDpr || [1, 2]}
         shadows
         onCreated={({ gl }) => {
           if (canvasRef) canvasRef.current = gl.domElement

@@ -533,6 +533,7 @@ function App() {
   const [showDeviceShadow, setShowDeviceShadow] = useState(() => loadSaved('showDeviceShadow', false))
   const [isPlaying, setIsPlaying] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [recordingDpr, setRecordingDpr] = useState(null)
   const [showExport, setShowExport] = useState(false)
   const [quality, setQuality] = useState(() => loadSaved('quality', '1080p'))
   const [exportFormat, setExportFormat] = useState(() => loadSaved('exportFormat', 'mp4'))
@@ -1347,7 +1348,6 @@ function App() {
 
   const startRecording = useCallback(async () => {
     const canvas = canvasRef.current
-    const gl = glRendererRef.current
     if (!canvas) {
       console.warn('Canvas element not available for recording')
       return
@@ -1355,35 +1355,16 @@ function App() {
 
     const recordDuration = totalDuration > 0 ? totalDuration : 6
 
-    // Scale renderer pixel ratio so the canvas buffer matches target resolution.
-    // Only change DPR — let R3F's resize observer handle the actual setSize call
-    // so we don't conflict with its internal state.
-    let savedDpr = null
-    if (gl) {
-      const targetH = quality === '4k' ? 2160 : quality === '1080p' ? 1080 : 720
-      savedDpr = gl.getPixelRatio()
-      const newDpr = Math.max(savedDpr, targetH / canvas.clientHeight)
-      if (newDpr !== savedDpr) {
-        gl.setPixelRatio(newDpr)
-        // Trigger R3F to apply the new DPR by nudging a resize
-        const w = canvas.clientWidth
-        const h = canvas.clientHeight
-        gl.setSize(w, h, false)
-      }
-    }
-
-    const restoreRenderer = () => {
-      if (gl && savedDpr != null) {
-        gl.setPixelRatio(savedDpr)
-        gl.setSize(canvas.clientWidth, canvas.clientHeight, false)
-      }
-    }
+    // Set high DPR via React state so R3F applies it natively.
+    const targetH = quality === '4k' ? 2160 : quality === '1080p' ? 1080 : 720
+    const neededDpr = Math.max(window.devicePixelRatio || 1, targetH / Math.max(1, canvas.clientHeight))
+    setRecordingDpr(neededDpr)
 
     setCurrentTime(0)
     setIsTimelinePlaying(true)
 
-    // Let the renderer produce a couple frames at the new resolution
-    await new Promise(r => setTimeout(r, 200))
+    // Wait for React re-render + R3F to apply new DPR + a few rendered frames
+    await new Promise(r => setTimeout(r, 500))
 
     const videoStream = canvas.captureStream(60)
     let stream = videoStream
@@ -1434,22 +1415,15 @@ function App() {
     }
 
     const chosenFormat = exportFormat
-    let stopped = false
 
-    const cleanup = () => {
-      if (stopped) return
-      stopped = true
-      restoreRenderer()
+    mediaRecorder.onstop = async () => {
+      setRecordingDpr(null)
       setIsRecording(false)
       setIsPlaying(false)
       setIsTimelinePlaying(false)
       if (ae) ae.pause()
-    }
 
-    mediaRecorder.onstop = async () => {
-      cleanup()
       const webmBlob = new Blob(chunks, { type: 'video/webm' })
-
       if (webmBlob.size < 100) return
 
       if (chosenFormat === 'webm') {
@@ -1464,13 +1438,18 @@ function App() {
       }
     }
 
-    mediaRecorder.onerror = () => cleanup()
+    mediaRecorder.onerror = () => {
+      setRecordingDpr(null)
+      setIsRecording(false)
+      setIsPlaying(false)
+      setIsTimelinePlaying(false)
+    }
 
     recorderRef.current = mediaRecorder
     setIsRecording(true)
     setIsPlaying(true)
 
-    await new Promise(r => setTimeout(r, 150))
+    await new Promise(r => setTimeout(r, 100))
     if (ae && hasAudio) ae.sync(0)
 
     mediaRecorder.start()
@@ -1479,7 +1458,6 @@ function App() {
       if (mediaRecorder.state === 'recording') mediaRecorder.stop()
     }, (recordDuration + 0.5) * 1000)
 
-    // Safety fallback
     setTimeout(() => {
       if (mediaRecorder.state === 'recording') {
         console.warn('Safety timeout: forcing recorder stop')
@@ -1492,6 +1470,7 @@ function App() {
     if (recorderRef.current && recorderRef.current.state === 'recording') {
       recorderRef.current.stop()
     }
+    setRecordingDpr(null)
   }, [])
 
   // ── Template handler (applies settings to existing screens/clips) ──
@@ -3501,7 +3480,7 @@ function App() {
                 isPlaying={isPlaying}
                 canvasRef={canvasRef}
                 glRendererRef={glRendererRef}
-                glRendererRef={glRendererRef}
+                recordingDpr={recordingDpr}
                 textOverlays={textOverlays}
                 currentTime={currentTime}
                 clipAnimationTime={clipAnimationTime}
