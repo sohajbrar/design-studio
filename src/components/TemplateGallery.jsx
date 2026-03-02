@@ -236,7 +236,7 @@ export const TEMPLATES = [
     bgGradient: false,
     showBase: false,
     clipDuration: 5,
-    textOverlay: { text: 'Built for Desktop', fontSize: 44, color: '#000000', posY: -0.45, animation: 'slideFromBottom' },
+    textOverlay: { text: 'Built for Desktop', fontSize: 44, color: '#000000', posY: 0.45, animation: 'slideFromTop' },
     musicId: 'f-10',
     preview: {
       gradient: '#F4C3B0',
