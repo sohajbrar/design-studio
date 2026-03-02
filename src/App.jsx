@@ -1493,6 +1493,8 @@ function App() {
       setActiveThemeId(null)
     }
 
+    setOutroLogo(template.outroLogo || null)
+
     const clipDur = template.clipDuration || 3
     setTimelineClips((prev) => {
       if (prev.length === 0) {

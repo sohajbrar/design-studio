@@ -154,7 +154,8 @@ export const TEMPLATES = [
     bgColor: '#A2D5F2',
     bgGradient: false,
     showBase: false,
-    clipDuration: 4,
+    clipDuration: 7,
+    outroLogo: 'whatsapp',
     textOverlay: { text: 'Launching Soon', fontSize: 56, color: '#000000', posY: 0.45, animation: 'slideFromTop' },
     musicId: 'f-8',
     preview: {
