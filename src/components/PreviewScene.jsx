@@ -1358,7 +1358,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
         } else {
           const orbitT = t - settleEnd
           g.rotation.x = topDownRotX + smoothSin(t, 0.06, 0.015)
-          g.rotation.y = orbitT * 0.12 + smoothSin(t, 0.04, 0.02)
+          g.rotation.y = orbitT * -0.12 + smoothSin(t, 0.04, 0.02)
           g.position.y = 0.35 + smoothSin(t, 0.08, 0.02)
         }
 
