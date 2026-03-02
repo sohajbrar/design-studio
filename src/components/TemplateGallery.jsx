@@ -174,7 +174,7 @@ export const TEMPLATES = [
     bgColor: '#BEFAB3',
     bgGradient: false,
     showBase: false,
-    clipDuration: 4,
+    clipDuration: 10,
     textOverlay: null,
     musicId: 'f-1',
     preview: {
