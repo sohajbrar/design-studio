@@ -2073,7 +2073,7 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, isVertica
 
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
-  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef,
+  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef, glRendererRef,
   textOverlays, currentTime, clipAnimationTime, activeClipId, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
   outroLogo, totalDuration, multiDeviceCount, onTextClick, onTextDrag, onDeviceClick, onDrop,
 }) {
@@ -2199,6 +2199,7 @@ export default function PreviewScene({
         shadows
         onCreated={({ gl }) => {
           if (canvasRef) canvasRef.current = gl.domElement
+          if (glRendererRef) glRendererRef.current = gl
         }}
       >
         <SceneBackground bgColor={bgColor} bgGradient={bgGradient} />

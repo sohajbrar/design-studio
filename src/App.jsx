@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import * as THREE from 'three'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
 import './App.css'
@@ -549,6 +550,7 @@ function App() {
     return localStorage.getItem('ds_siteTheme') || 'dark'
   })
   const canvasRef = useRef(null)
+  const glRendererRef = useRef(null)
   const recorderRef = useRef(null)
   const animationRef = useRef(animation)
   animationRef.current = animation
@@ -1346,15 +1348,33 @@ function App() {
 
   const startRecording = useCallback(async () => {
     const canvas = canvasRef.current
-    if (!canvas) {
-      console.warn('Canvas element not available for recording')
+    const gl = glRendererRef.current
+    if (!canvas || !gl) {
+      console.warn('Canvas/renderer not available for recording')
       return
     }
 
     const recordDuration = totalDuration > 0 ? totalDuration : 6
 
+    // Scale renderer to target resolution
+    const targetH = quality === '4k' ? 2160 : quality === '1080p' ? 1080 : 720
+    const targetW = Math.round(targetH * (canvas.clientWidth / canvas.clientHeight))
+    const savedDpr = gl.getPixelRatio()
+    const savedSize = gl.getSize(new THREE.Vector2())
+    const newDpr = Math.max(1, targetH / canvas.clientHeight)
+    gl.setPixelRatio(newDpr)
+    gl.setSize(canvas.clientWidth, canvas.clientHeight, true)
+
+    const restoreRenderer = () => {
+      gl.setPixelRatio(savedDpr)
+      gl.setSize(savedSize.x / savedDpr, savedSize.y / savedDpr, true)
+    }
+
     setCurrentTime(0)
     setIsTimelinePlaying(true)
+
+    // Wait a frame so the renderer produces a full-res frame before capture starts
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
     const videoStream = canvas.captureStream(60)
     let stream = videoStream
@@ -1385,9 +1405,16 @@ function App() {
     const mimeType = hasAudioTracks
       ? 'video/webm;codecs=vp9,opus'
       : 'video/webm;codecs=vp9'
-    const videoBitsPerSecond = quality === '4k' ? 20000000 : quality === '1080p' ? 8000000 : 4000000
+    const videoBitsPerSecond = quality === '4k' ? 40000000 : quality === '1080p' ? 12000000 : 5000000
 
-    const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond })
+    let mediaRecorder
+    try {
+      mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond })
+    } catch (err) {
+      console.warn('vp9 not supported, falling back to vp8:', err)
+      const fallbackMime = hasAudioTracks ? 'video/webm;codecs=vp8,opus' : 'video/webm;codecs=vp8'
+      mediaRecorder = new MediaRecorder(stream, { mimeType: fallbackMime, videoBitsPerSecond })
+    }
 
     const chunks = []
     mediaRecorder.ondataavailable = (e) => {
@@ -1397,11 +1424,17 @@ function App() {
     const chosenFormat = exportFormat
 
     mediaRecorder.onstop = async () => {
+      restoreRenderer()
       const webmBlob = new Blob(chunks, { type: 'video/webm' })
       setIsRecording(false)
       setIsPlaying(false)
       setIsTimelinePlaying(false)
       if (ae) ae.pause()
+
+      if (webmBlob.size < 1000) {
+        console.warn('Recording produced empty/tiny output, skipping download')
+        return
+      }
 
       if (chosenFormat === 'webm') {
         const url = URL.createObjectURL(webmBlob)
@@ -1415,21 +1448,43 @@ function App() {
       }
     }
 
+    mediaRecorder.onerror = (e) => {
+      console.error('MediaRecorder error:', e)
+      restoreRenderer()
+      setIsRecording(false)
+      setIsPlaying(false)
+      setIsTimelinePlaying(false)
+    }
+
     recorderRef.current = mediaRecorder
     setIsRecording(true)
     setIsPlaying(true)
 
-    // Small delay to let audio elements begin playing before capture starts
     await new Promise(r => setTimeout(r, 150))
     if (ae && hasAudio) ae.sync(0)
 
-    mediaRecorder.start()
+    mediaRecorder.start(1000)
 
-    setTimeout(() => {
+    const safetyMs = (recordDuration + 2) * 1000
+    const stopTimer = setTimeout(() => {
       if (mediaRecorder.state === 'recording') {
         mediaRecorder.stop()
       }
     }, (recordDuration + 0.3) * 1000)
+
+    const safetyTimer = setTimeout(() => {
+      if (mediaRecorder.state === 'recording') {
+        console.warn('Recording safety timeout hit, forcing stop')
+        mediaRecorder.stop()
+      }
+    }, safetyMs)
+
+    const origStop = mediaRecorder.onstop
+    mediaRecorder.onstop = async function (e) {
+      clearTimeout(stopTimer)
+      clearTimeout(safetyTimer)
+      await origStop.call(this, e)
+    }
   }, [quality, exportFormat, convertWebmTo, totalDuration, musicTrack, voiceoverTrack])
 
   const stopRecording = useCallback(() => {
@@ -3444,6 +3499,8 @@ function App() {
                 showDeviceShadow={showDeviceShadow}
                 isPlaying={isPlaying}
                 canvasRef={canvasRef}
+                glRendererRef={glRendererRef}
+                glRendererRef={glRendererRef}
                 textOverlays={textOverlays}
                 currentTime={currentTime}
                 clipAnimationTime={clipAnimationTime}
