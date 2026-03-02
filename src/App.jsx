@@ -31,7 +31,6 @@ const ANIMATION_PRESETS = [
   { id: 'zoomTopRight', name: 'Zoom TR', singleDevice: true },
   { id: 'heroRise', name: 'Hero Rise', singleDevice: true },
   { id: 'laptopOpen', name: 'Laptop Open', macbookOnly: true },
-  { id: 'laptopClose', name: 'Laptop Close', macbookOnly: true },
   { id: 'floatingPhoneLaptop', name: 'Floating', phoneLaptop: true },
   { id: 'phoneInFrontLaptop', name: 'Sweep', phoneLaptop: true },
   { id: 'phoneOnKeyboard', name: 'On Keyboard', phoneLaptop: true },
@@ -54,6 +53,7 @@ const OUTRO_PRESETS = [
   { id: 'slideRightRotate', name: 'Right + Rotate' },
   { id: 'zoomOut', name: 'Zoom Out' },
   { id: 'flip', name: 'Flip' },
+  { id: 'laptopClose', name: 'Laptop Close', macbookOnly: true },
 ]
 
 const WA_THEMES = [
@@ -3101,7 +3101,10 @@ function App() {
                         <h3 className="section-title">Exit Animation</h3>
                         <p className="anim-hint">Plays during the last 1.8s of the clip</p>
                         <div className="animation-grid">
-                          {OUTRO_PRESETS.map((preset) => (
+                          {OUTRO_PRESETS.filter((preset) => {
+                            if (preset.macbookOnly) return deviceType === 'macbook'
+                            return true
+                          }).map((preset) => (
                             <button
                               key={preset.id}
                               className={`animation-tile ${currentOutro === preset.id ? 'active' : ''}`}
