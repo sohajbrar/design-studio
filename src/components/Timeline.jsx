@@ -81,8 +81,7 @@ export default function Timeline({
   const handleRulerMouseDown = useCallback(
     (e) => {
       const rect = e.currentTarget.getBoundingClientRect()
-      const scrollLeft = scrollRef.current?.scrollLeft || 0
-      const x = e.clientX - rect.left + scrollLeft
+      const x = e.clientX - rect.left
       const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
       setCurrentTime(time)
       setDragState({ type: 'playhead', startX: e.clientX, startValue: time })
@@ -94,12 +93,10 @@ export default function Timeline({
     if (!dragState) return
 
     const handlePointerMove = (e) => {
-      const scrollLeft = scrollRef.current?.scrollLeft || 0
-
       if (dragState.type === 'playhead') {
         const containerRect = tracksRef.current?.getBoundingClientRect()
         if (!containerRect) return
-        const x = e.clientX - containerRect.left + scrollLeft
+        const x = e.clientX - containerRect.left
         const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
         setCurrentTime(time)
       }
@@ -390,9 +387,8 @@ export default function Timeline({
   const DEFAULT_ADD_DURATION = 1
 
   const handleTrackHover = useCallback((e, trackType) => {
-    const scrollLeft = scrollRef.current?.scrollLeft || 0
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left + scrollLeft
+    const x = e.clientX - rect.left
     const time = Math.max(0, xToTime(x))
     setHoverGhost({ trackType, time, duration: DEFAULT_ADD_DURATION })
   }, [xToTime])
@@ -403,9 +399,8 @@ export default function Timeline({
 
   const handleTrackClick = useCallback((e, trackType) => {
     if (e.target !== e.currentTarget) return
-    const scrollLeft = scrollRef.current?.scrollLeft || 0
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left + scrollLeft
+    const x = e.clientX - rect.left
     const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
     setCurrentTime(time)
     setSelectedClipId(null)
@@ -618,9 +613,8 @@ export default function Timeline({
             className="timeline-track media-track"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) {
-                const scrollLeft = scrollRef.current?.scrollLeft || 0
                 const rect = e.currentTarget.getBoundingClientRect()
-                const x = e.clientX - rect.left + scrollLeft
+                const x = e.clientX - rect.left
                 const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
                 setCurrentTime(time)
                 setSelectedClipId(null)
@@ -909,9 +903,8 @@ export default function Timeline({
             className="timeline-track music-track"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) {
-                const scrollLeft = scrollRef.current?.scrollLeft || 0
                 const rect = e.currentTarget.getBoundingClientRect()
-                const x = e.clientX - rect.left + scrollLeft
+                const x = e.clientX - rect.left
                 const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
                 setCurrentTime(time)
                 setSelectedClipId(null)
@@ -987,9 +980,8 @@ export default function Timeline({
             className="timeline-track voiceover-track"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) {
-                const scrollLeft = scrollRef.current?.scrollLeft || 0
                 const rect = e.currentTarget.getBoundingClientRect()
-                const x = e.clientX - rect.left + scrollLeft
+                const x = e.clientX - rect.left
                 const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
                 setCurrentTime(time)
                 setSelectedClipId(null)

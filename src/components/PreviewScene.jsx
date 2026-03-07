@@ -858,6 +858,51 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
   const userPosRef = useRef({ x: 0, y: 0 })
   const dragRef = useRef({ active: false, startX: 0, startY: 0, moved: false })
 
+  // Circle Spin: event-driven phone switching
+  const [circleActiveIdx, setCircleActiveIdx] = useState(0)
+  const circleStepRef = useRef(0)
+  const circleAnimRef = useRef(0)
+
+  useEffect(() => {
+    circleStepRef.current = 0
+    circleAnimRef.current = 0
+    setCircleActiveIdx(0)
+  }, [resetKey, activeClipId])
+
+  const handleCircleVideoEnded = useCallback(() => {
+    const count = multiDeviceCount || 4
+    circleStepRef.current += 1
+    setCircleActiveIdx(circleStepRef.current % count)
+  }, [multiDeviceCount])
+
+  // When playback starts, sync active phone to the scrub position
+  const prevPlayingRef = useRef(false)
+  useEffect(() => {
+    if (animation !== 'circle4Rotate') return
+    if (timelinePlaying && !prevPlayingRef.current) {
+      const count = multiDeviceCount || 4
+      const stepFromTime = (ctRef.current / (clipDuration || 6)) * count
+      const idx = Math.floor(stepFromTime) % count
+      circleStepRef.current = Math.floor(stepFromTime)
+      circleAnimRef.current = stepFromTime
+      setCircleActiveIdx(idx)
+    }
+    prevPlayingRef.current = timelinePlaying
+  }, [timelinePlaying, animation, multiDeviceCount, clipDuration])
+
+  // Auto-advance for image (non-video) slots in Circle Spin
+  useEffect(() => {
+    if (animation !== 'circle4Rotate' || !timelinePlaying) return
+    const count = multiDeviceCount || 4
+    const scr = slotScreens ? slotScreens[circleActiveIdx] : null
+    if (scr?.isVideo) return
+    const timer = setTimeout(() => {
+      circleStepRef.current += 1
+      setCircleActiveIdx(circleStepRef.current % count)
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [circleActiveIdx, animation, timelinePlaying, multiDeviceCount, slotScreens])
+
   const hasLaptopSlot = slotScreens && slotScreens.length === 2
   const isPhoneLaptop = animation === 'floatingPhoneLaptop' || animation === 'phoneInFrontLaptop' || animation === 'phoneOnKeyboard' || hasLaptopSlot
 
@@ -1136,18 +1181,18 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       // ── 3. Circle Rotate (dynamic count) ─────────────────────────
       case 'circle4Rotate': {
         const count = multiDeviceCount || 4
-        const stepDur = 1.4
-        const transDur = 0.5
-        const totalSteps = count
-        const rawStep = t / stepDur
-        const stepIdx = Math.floor(rawStep)
-        const frac = rawStep - stepIdx
-        const snapFrac = frac < (transDur / stepDur)
-          ? easeOutCubic(frac / (transDur / stepDur))
-          : 1
-        const smoothStep = Math.min(stepIdx + snapFrac, totalSteps)
-        const targetAngle = (smoothStep / totalSteps) * Math.PI * 2
 
+        if (timelinePlaying) {
+          // Playing: event-driven rotation (waits for video to finish)
+          const target = circleStepRef.current
+          circleAnimRef.current += (target - circleAnimRef.current) * 0.08
+        } else {
+          // Scrubbing: follow timeline position so preview updates with dragger
+          const stepFromTime = (t / (clipDuration || 6)) * count
+          circleAnimRef.current = stepFromTime
+        }
+
+        const targetAngle = -(circleAnimRef.current / count) * Math.PI * 2
         g.rotation.y = targetAngle
         g.rotation.x = 0.08
 
@@ -1519,8 +1564,33 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 10, 0.28)}</group>
     case 'angled3ZoomOut':
       return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(3, 0.33)}</group>
-    case 'circle4Rotate':
-      return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 4, 0.28)}</group>
+    case 'circle4Rotate': {
+      const circleCount = multiDeviceCount || 4
+      return (
+        <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>
+          {Array.from({ length: circleCount }, (_, i) => {
+            const scr = getSlotScreen(i)
+            const isActive = i === circleActiveIdx
+            return (
+              <group key={i} ref={setRef(`p${i}`)}>
+                <DeviceFrame
+                  type={resolvedType}
+                  screenUrl={scr?.url || null}
+                  screenFile={scr?.file || null}
+                  isVideo={isActive && (scr?.isVideo || false)}
+                  isGif={scr?.isGif || false}
+                  videoSeekTime={(isActive && timelinePlaying) ? 0 : videoSeekTime}
+                  timelinePlaying={isActive && timelinePlaying}
+                  onVideoEnded={(isActive && timelinePlaying) ? handleCircleVideoEnded : undefined}
+                  scale={0.28}
+                  showShadow={showDeviceShadow}
+                />
+              </group>
+            )
+          })}
+        </group>
+      )
+    }
     case 'angledZoom4':
       return <group ref={groupRef} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick}>{renderPhones(multiDeviceCount || 4, 0.32)}</group>
     case 'carousel6':

@@ -171,6 +171,41 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
       loadedRef.current = true
     }
 
+    function videoFrameToCanvas(videoEl) {
+      const targetW = 540
+      const targetH = Math.round(targetW / screenAspect)
+      const canvas = document.createElement('canvas')
+      canvas.width = targetW
+      canvas.height = targetH
+      const ctx = canvas.getContext('2d')
+      const vidAspect = videoEl.videoWidth / videoEl.videoHeight
+      const canvasAspect = targetW / targetH
+      let sx, sy, sw, sh
+      if (vidAspect > canvasAspect) {
+        sh = videoEl.videoHeight; sw = videoEl.videoHeight * canvasAspect
+        sx = (videoEl.videoWidth - sw) / 2; sy = 0
+      } else {
+        sw = videoEl.videoWidth; sh = videoEl.videoWidth / canvasAspect
+        sx = 0; sy = (videoEl.videoHeight - sh) / 2
+      }
+      ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, targetW, targetH)
+      const tex = new THREE.CanvasTexture(canvas)
+      tex.colorSpace = THREE.SRGBColorSpace
+      tex.minFilter = THREE.LinearFilter
+      tex.magFilter = THREE.LinearFilter
+      tex.generateMipmaps = false
+      tex.needsUpdate = true
+      return tex
+    }
+
+    // Transitioning from video → static: capture poster frame from the old video,
+    // then destroy the video element to free the hardware decoder slot
+    if (!isVideo && !isGif && prevVideoRef.current && prevVideoRef.current.videoWidth > 0) {
+      const tex = videoFrameToCanvas(prevVideoRef.current)
+      commitTexture(tex, null)
+      return () => { cancelled = true }
+    }
+
     if (isGif && (screenFile || screenUrl)) {
       const bufferPromise = screenFile
         ? screenFile.arrayBuffer()
@@ -307,7 +342,24 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
           commitTexture(tex, null)
         })
         .catch((err) => {
-          console.error('[DeviceFrame] createImageBitmap failed:', err)
+          // createImageBitmap fails for video files — extract poster frame via temp video
+          if (screenUrl && !cancelled) {
+            const tempVid = document.createElement('video')
+            tempVid.src = screenUrl
+            tempVid.muted = true
+            tempVid.playsInline = true
+            tempVid.preload = 'auto'
+            tempVid.addEventListener('loadeddata', () => {
+              if (cancelled) { tempVid.pause(); tempVid.src = ''; return }
+              const tex = videoFrameToCanvas(tempVid)
+              tempVid.pause()
+              tempVid.src = ''
+              commitTexture(tex, null)
+            })
+            tempVid.load()
+          } else {
+            console.error('[DeviceFrame] createImageBitmap failed:', err)
+          }
         })
     }
 
@@ -482,6 +534,7 @@ export default function DeviceFrame({
   isGif = false,
   videoSeekTime = 0,
   timelinePlaying = false,
+  onVideoEnded,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   scale = 1,
@@ -494,6 +547,10 @@ export default function DeviceFrame({
 
   const screenMeshRef = useRef()
   const lastSeekRef = useRef(-1)
+  const videoEndedFiredRef = useRef(false)
+  const playFailedRef = useRef(false)
+  const stuckTimeRef = useRef(0)
+  const stuckSinceRef = useRef(0)
   const screenAspect = screenW / screenH
   const { textureRef, loadedRef, videoRef, gifRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif)
 
@@ -606,12 +663,43 @@ export default function DeviceFrame({
     const video = videoRef.current
     if (video && isVideo && loadedRef.current) {
       if (timelinePlaying) {
-        if (video.paused) {
+        if (video.ended && onVideoEnded) {
+          if (!videoEndedFiredRef.current) {
+            videoEndedFiredRef.current = true
+            onVideoEnded()
+          }
+        } else if (playFailedRef.current && onVideoEnded) {
+          if (!videoEndedFiredRef.current) {
+            videoEndedFiredRef.current = true
+            onVideoEnded()
+          }
+        } else if (video.paused && !playFailedRef.current) {
           video.currentTime = videoSeekTime || 0
-          video.play().catch(() => {})
+          video.play().then(() => { playFailedRef.current = false }).catch(() => {
+            playFailedRef.current = true
+          })
           lastSeekRef.current = -1
+          stuckTimeRef.current = videoSeekTime || 0
+          stuckSinceRef.current = 0
+        } else if (!video.paused && !video.ended && onVideoEnded && !videoEndedFiredRef.current) {
+          // Video claims to be playing — detect if decoder is stuck
+          if (Math.abs(video.currentTime - stuckTimeRef.current) < 0.05) {
+            if (!stuckSinceRef.current) stuckSinceRef.current = performance.now()
+            else if (performance.now() - stuckSinceRef.current > 1500) {
+              videoEndedFiredRef.current = true
+              onVideoEnded()
+            }
+          } else {
+            stuckTimeRef.current = video.currentTime
+            stuckSinceRef.current = 0
+          }
         }
+        if (!video.ended && !playFailedRef.current && !stuckSinceRef.current) videoEndedFiredRef.current = false
       } else {
+        videoEndedFiredRef.current = false
+        playFailedRef.current = false
+        stuckSinceRef.current = 0
+        stuckTimeRef.current = 0
         if (!video.paused) video.pause()
         const seekTo = videoSeekTime || 0
         if (Math.abs(lastSeekRef.current - seekTo) > 0.03) {

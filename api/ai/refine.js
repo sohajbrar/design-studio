@@ -30,7 +30,6 @@ Templates (switching to a template applies a complete preset — animation, colo
   "angled-zoom-4" (Angled Zoom — 4 phones dramatic angles, multi-device)
   "carousel-6" (Carousel — 6 phones offset carousel, multi-device)
   "floating-phone-laptop" (Phone + Laptop — floating showcase, multi-device)
-  "phone-front-laptop" (Phone on Laptop — phone slides in front, multi-device)
   "flat-scatter" (Flat Grid — 7 phones lying flat, multi-device)
   "offset-circle" (Offset Ring — phones in offset circle, multi-device)
 - When user asks to "switch template" or names a template, return ONLY {"templateId":"<id>"}. Do NOT combine templateId with other fields.
@@ -263,8 +262,7 @@ const TEMPLATE_MAP = {
   'circle spin': 'circle-4', '4 phones circle': 'circle-4', 'circle': 'circle-4',
   'angled zoom': 'angled-zoom-4', '4 phones angled': 'angled-zoom-4',
   'carousel': 'carousel-6', '6 phones': 'carousel-6',
-  'phone.*laptop': 'floating-phone-laptop', 'phone and laptop': 'floating-phone-laptop', 'phone + laptop': 'floating-phone-laptop',
-  'phone on laptop': 'phone-front-laptop', 'phone front laptop': 'phone-front-laptop',
+  'phone.*laptop': 'floating-phone-laptop', 'phone and laptop': 'floating-phone-laptop', 'phone + laptop': 'floating-phone-laptop', 'phone on laptop': 'floating-phone-laptop', 'phone front laptop': 'floating-phone-laptop',
   'flat grid': 'flat-scatter', 'flat scatter': 'flat-scatter', '7 phones': 'flat-scatter',
   'offset ring': 'offset-circle', 'offset circle': 'offset-circle',
 }
