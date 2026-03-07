@@ -806,6 +806,10 @@ function App() {
         setCurrentTime((prev) => {
           const next = prev + delta
           if (next >= totalDuration) {
+            // During recording, don't stop playback — the recorder handles its own stop
+            if (recorderRef.current && recorderRef.current.state === 'recording') {
+              return totalDuration
+            }
             setIsTimelinePlaying(false)
             setIsPlaying(false)
             if (ae) ae.pause()
@@ -1360,11 +1364,13 @@ function App() {
     const neededDpr = Math.max(window.devicePixelRatio || 1, targetH / Math.max(1, canvas.clientHeight))
     setRecordingDpr(neededDpr)
 
+    // Reset timeline to start but don't play yet — wait for DPR to apply first
     setCurrentTime(0)
-    setIsTimelinePlaying(true)
+    setIsRecording(true)
+    setIsPlaying(true)
 
-    // Wait for React re-render + R3F to apply new DPR + a few rendered frames
-    await new Promise(r => setTimeout(r, 500))
+    // Wait for React re-render + R3F to resize the canvas at the new DPR
+    await new Promise(r => setTimeout(r, 800))
 
     const videoStream = canvas.captureStream(60)
     let stream = videoStream
@@ -1378,8 +1384,6 @@ function App() {
         if (ae.audioCtx && ae.audioCtx.state === 'suspended') {
           await ae.audioCtx.resume()
         }
-        ae.play()
-        ae.sync(0)
         hasAudioTracks = audioStream.getAudioTracks().length > 0
         if (hasAudioTracks) {
           stream = new MediaStream([
@@ -1424,7 +1428,10 @@ function App() {
       if (ae) ae.pause()
 
       const webmBlob = new Blob(chunks, { type: 'video/webm' })
-      if (webmBlob.size < 100) return
+      if (webmBlob.size < 100) {
+        console.warn('Recording produced empty blob — no video data captured')
+        return
+      }
 
       if (chosenFormat === 'webm') {
         const url = URL.createObjectURL(webmBlob)
@@ -1446,17 +1453,19 @@ function App() {
     }
 
     recorderRef.current = mediaRecorder
-    setIsRecording(true)
-    setIsPlaying(true)
 
-    await new Promise(r => setTimeout(r, 100))
-    if (ae && hasAudio) ae.sync(0)
+    // Start recording with timeslice so data is captured incrementally
+    mediaRecorder.start(1000)
 
-    mediaRecorder.start()
+    // NOW start the timeline — after the recorder is already capturing
+    setCurrentTime(0)
+    setIsTimelinePlaying(true)
+    if (ae && hasAudio) { ae.play(); ae.sync(0) }
 
+    // Stop after the full duration (measured from when timeline starts)
     setTimeout(() => {
       if (mediaRecorder.state === 'recording') mediaRecorder.stop()
-    }, (recordDuration + 0.5) * 1000)
+    }, (recordDuration + 1) * 1000)
 
     setTimeout(() => {
       if (mediaRecorder.state === 'recording') {
