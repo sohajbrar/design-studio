@@ -13,6 +13,7 @@ import Timeline from './components/Timeline'
 import AIAssistant from './components/AIAssistant'
 import AudioEngine from './utils/audioEngine'
 import { MUSIC_LIBRARY, generateTrack } from './utils/musicLibrary'
+import { track, trackError, trackTimed } from './utils/analytics'
 
 const ANIMATION_PRESETS = [
   { id: 'showcase', name: 'Showcase', singleDevice: true },
@@ -538,6 +539,7 @@ function App() {
   const [quality, setQuality] = useState(() => loadSaved('quality', '1080p'))
   const [exportFormat, setExportFormat] = useState(() => loadSaved('exportFormat', 'mp4'))
   const [aspectRatio, setAspectRatio] = useState(() => loadSaved('aspectRatio', 'none'))
+  const [screenFitMode, setScreenFitMode] = useState(() => loadSaved('screenFitMode', 'crop'))
   const [sidebarTab, setSidebarTab] = useState('templates')
   const [activeTemplateId, setActiveTemplateId] = useState(null)
   const [showBackConfirm, setShowBackConfirm] = useState(false)
@@ -552,6 +554,8 @@ function App() {
   const canvasRef = useRef(null)
   const glRendererRef = useRef(null)
   const recorderRef = useRef(null)
+  const ffmpegRef = useRef(null)
+  const ffmpegLoadingRef = useRef(null)
   const animationRef = useRef(animation)
   animationRef.current = animation
   const templateOutroRef = useRef('none')
@@ -605,7 +609,8 @@ function App() {
     localStorage.setItem('ds_quality', JSON.stringify(quality))
     localStorage.setItem('ds_exportFormat', JSON.stringify(exportFormat))
     localStorage.setItem('ds_aspectRatio', JSON.stringify(aspectRatio))
-  }, [bgColor, bgGradient, showBase, showDeviceShadow, deviceType, quality, exportFormat, aspectRatio])
+    localStorage.setItem('ds_screenFitMode', JSON.stringify(screenFitMode))
+  }, [bgColor, bgGradient, showBase, showDeviceShadow, deviceType, quality, exportFormat, aspectRatio, screenFitMode])
 
   // ── Derived values ───────────────────────────────
   const totalDuration = useMemo(
@@ -834,8 +839,10 @@ function App() {
   // ── Upload handler (creates clips immediately, updates video durations async) ─
   const handleUpload = useCallback((files) => {
     markChanged()
+    const fileArr = Array.from(files)
+    track('screen_upload', { count: fileArr.length, source: 'upload_panel', types: fileArr.map(f => f.type).join(',') })
     const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.webm', '.avi', '.mkv', '.m4v']
-    const newScreens = Array.from(files).map((file) => {
+    const newScreens = fileArr.map((file) => {
       const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
       const isVideo = file.type.startsWith('video/') || VIDEO_EXTENSIONS.includes(ext)
       const isGif = ext === '.gif' || file.type === 'image/gif'
@@ -928,6 +935,7 @@ function App() {
 
   // Timeline drag-drop always creates new clips (even for multi-device templates)
   const handleTimelineDrop = useCallback((files) => {
+    track('timeline_drop_upload', { count: files.length })
     const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.webm', '.avi', '.mkv', '.m4v']
     const newScreens = Array.from(files).map((file) => {
       const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
@@ -977,6 +985,7 @@ function App() {
 
   const handleRemoveScreen = useCallback((id) => {
     markChanged()
+    track('screen_remove')
     setScreens((prev) => {
       const screen = prev.find((s) => s.id === id)
       if (screen) URL.revokeObjectURL(screen.url)
@@ -987,6 +996,7 @@ function App() {
   }, [])
 
   const handleReorderScreens = useCallback((fromIndex, toIndex) => {
+    track('screen_reorder', { fromIndex, toIndex })
     setScreens((prev) => {
       const updated = [...prev]
       const [moved] = updated.splice(fromIndex, 1)
@@ -997,6 +1007,7 @@ function App() {
 
   // ── Timeline operations ──────────────────────────
   const handleUpdateClip = useCallback((clipId, updates) => {
+    track('clip_update', { fields: Object.keys(updates).join(',') })
     setTimelineClips((prev) => {
       const updated = prev.map((c) => (c.id === clipId ? { ...c, ...updates } : c))
       return recalcStartTimes(updated)
@@ -1004,6 +1015,7 @@ function App() {
   }, [])
 
   const handleReorderClips = useCallback((fromIndex, toIndex) => {
+    track('clip_reorder', { fromIndex, toIndex })
     setTimelineClips((prev) => {
       const updated = [...prev]
       const [moved] = updated.splice(fromIndex, 1)
@@ -1013,6 +1025,7 @@ function App() {
   }, [])
 
   const handleSplitClip = useCallback((clipId, splitTime) => {
+    track('clip_split', { splitTime })
     setTimelineClips((prev) => {
       const idx = prev.findIndex((c) => c.id === clipId)
       if (idx === -1) return prev
@@ -1044,6 +1057,7 @@ function App() {
 
   const handleSplitText = useCallback((textId, splitTime) => {
     markChanged()
+    track('text_split', { splitTime })
     setTextOverlays((prev) => {
       const idx = prev.findIndex((t) => t.id === textId)
       if (idx === -1) return prev
@@ -1061,6 +1075,7 @@ function App() {
   }, [])
 
   const handleSplitZoom = useCallback((effectId, splitTime) => {
+    track('zoom_effect_split', { splitTime })
     setZoomEffects((prev) => {
       const idx = prev.findIndex((e) => e.id === effectId)
       if (idx === -1) return prev
@@ -1174,6 +1189,7 @@ function App() {
   }, [])
 
   const handleRemoveClip = useCallback((clipId) => {
+    track('clip_remove')
     setTimelineClips((prev) => recalcStartTimes(prev.filter((c) => c.id !== clipId)))
     setSelectedClipId((prev) => (prev === clipId ? null : prev))
   }, [])
@@ -1292,36 +1308,69 @@ function App() {
   }, [previewingTrackId])
 
   // ── Export / recording ───────────────────────────
-  const handleExport = useCallback(async () => {
-    if (!canvasRef.current) return
-    setShowExport(true)
-  }, [])
-
   const [convertingFormat, setConvertingFormat] = useState(null)
+  const [convertProgress, setConvertProgress] = useState(0)
 
-  const convertWebmTo = useCallback(async (webmBlob, targetFormat) => {
-    setConvertingFormat(targetFormat.toUpperCase())
-    try {
+  const getFFmpeg = useCallback(async () => {
+    if (ffmpegRef.current) return ffmpegRef.current
+    if (ffmpegLoadingRef.current) return ffmpegLoadingRef.current
+
+    ffmpegLoadingRef.current = (async () => {
       const ffmpeg = new FFmpeg()
+      ffmpeg.on('progress', ({ progress }) => {
+        setConvertProgress(Math.round(Math.min(progress, 1) * 100))
+      })
       await ffmpeg.load({
         coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
         wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
       })
+      ffmpegRef.current = ffmpeg
+      ffmpegLoadingRef.current = null
+      return ffmpeg
+    })()
+    return ffmpegLoadingRef.current
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (ffmpegRef.current) {
+        ffmpegRef.current.terminate()
+        ffmpegRef.current = null
+      }
+    }
+  }, [])
+
+  const handleExport = useCallback(async () => {
+    if (!canvasRef.current) return
+    setShowExport(true)
+    getFFmpeg()
+  }, [getFFmpeg])
+
+  const convertWebmTo = useCallback(async (webmBlob, targetFormat) => {
+    setConvertingFormat(targetFormat.toUpperCase())
+    setConvertProgress(0)
+    try {
+      const ffmpeg = await getFFmpeg()
 
       const webmData = await fetchFile(webmBlob)
       await ffmpeg.writeFile('input.webm', webmData)
 
       const outputFile = `output.${targetFormat}`
+      const colorArgs = [
+        '-vf', 'scale=in_range=full:out_range=limited',
+        '-pix_fmt', 'yuv420p',
+        '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
+      ]
       if (targetFormat === 'mov') {
         await ffmpeg.exec([
-          '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'fast',
-          '-crf', '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
+          '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast',
+          '-crf', '22', ...colorArgs, '-c:a', 'aac', '-b:a', '192k',
           '-movflags', '+faststart', '-f', 'mov', outputFile,
         ])
       } else {
         await ffmpeg.exec([
-          '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'fast',
-          '-crf', '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
+          '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast',
+          '-crf', '22', ...colorArgs, '-c:a', 'aac', '-b:a', '192k',
           '-movflags', '+faststart', outputFile,
         ])
       }
@@ -1336,7 +1385,6 @@ function App() {
       a.download = `mockup-demo-${Date.now()}.${targetFormat}`
       a.click()
       URL.revokeObjectURL(url)
-      ffmpeg.terminate()
     } catch (err) {
       console.error(`${targetFormat.toUpperCase()} conversion failed, falling back to WebM:`, err)
       const url = URL.createObjectURL(webmBlob)
@@ -1347,8 +1395,9 @@ function App() {
       URL.revokeObjectURL(url)
     } finally {
       setConvertingFormat(null)
+      setConvertProgress(0)
     }
-  }, [])
+  }, [getFFmpeg])
 
   const startRecording = useCallback(async () => {
     const canvas = canvasRef.current
@@ -1359,55 +1408,197 @@ function App() {
 
     const recordDuration = totalDuration > 0 ? totalDuration : 6
 
-    // Set high DPR via React state so R3F applies it natively.
     const targetH = quality === '4k' ? 2160 : quality === '1080p' ? 1080 : 720
     const neededDpr = Math.max(window.devicePixelRatio || 1, targetH / Math.max(1, canvas.clientHeight))
     setRecordingDpr(neededDpr)
 
-    // Reset timeline to start but don't play yet — wait for DPR to apply first
     setCurrentTime(0)
     setIsRecording(true)
     setIsPlaying(true)
 
-    // Wait for React re-render + R3F to resize the canvas at the new DPR
     await new Promise(r => setTimeout(r, 800))
-
-    const videoStream = canvas.captureStream(60)
-    let stream = videoStream
-    let hasAudioTracks = false
 
     const ae = audioEngineRef.current
     const hasAudio = ae && (musicTrack || voiceoverTrack)
+    const chosenFormat = exportFormat
+    const videoBitrate = quality === '4k' ? 40000000 : quality === '1080p' ? 12000000 : 5000000
+    const useWebCodecs = chosenFormat !== 'webm' && typeof VideoEncoder !== 'undefined'
+
+    if (useWebCodecs) {
+      // ── WebCodecs + mp4-muxer path (hardware-accelerated, no FFmpeg) ──
+      try {
+        const { Muxer, ArrayBufferTarget } = await import('mp4-muxer')
+        const w = canvas.width
+        const h = canvas.height
+
+        let audioStream = null
+        let audioTrack = null
+        if (hasAudio) {
+          try {
+            audioStream = ae.getAudioStream()
+            if (ae.audioCtx && ae.audioCtx.state === 'suspended') await ae.audioCtx.resume()
+            audioTrack = audioStream.getAudioTracks()[0] || null
+          } catch (err) {
+            console.warn('Could not get audio for WebCodecs recording:', err)
+          }
+        }
+
+        const hasAudioForMux = audioTrack && typeof MediaStreamTrackProcessor !== 'undefined'
+
+        const target = new ArrayBufferTarget()
+        const muxer = new Muxer({
+          target,
+          video: { codec: 'avc', width: w, height: h },
+          audio: hasAudioForMux ? { codec: 'aac', numberOfChannels: 2, sampleRate: 48000 } : undefined,
+          fastStart: 'in-memory',
+          type: chosenFormat === 'mov' ? 'quicktime' : 'mp4',
+        })
+
+        const videoEncoder = new VideoEncoder({
+          output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+          error: (e) => console.error('VideoEncoder error:', e),
+        })
+        videoEncoder.configure({
+          codec: 'avc1.640028',
+          width: w,
+          height: h,
+          bitrate: videoBitrate,
+          framerate: 60,
+        })
+
+        let audioEncoder = null
+        let audioReader = null
+        if (hasAudioForMux) {
+          audioEncoder = new AudioEncoder({
+            output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+            error: (e) => console.error('AudioEncoder error:', e),
+          })
+          audioEncoder.configure({
+            codec: 'mp4a.40.2',
+            sampleRate: 48000,
+            numberOfChannels: 2,
+            bitrate: 192000,
+          })
+          const processor = new MediaStreamTrackProcessor({ track: audioTrack })
+          audioReader = processor.readable.getReader()
+          ;(async () => {
+            try {
+              while (true) {
+                const { value, done } = await audioReader.read()
+                if (done) break
+                if (audioEncoder.state === 'configured') audioEncoder.encode(value)
+                value.close()
+              }
+            } catch (_) { /* reader cancelled on stop */ }
+          })()
+        }
+
+        let frameIdx = 0
+        let stopped = false
+        const startTime = performance.now()
+
+        const captureFrame = () => {
+          if (stopped) return
+          if (videoEncoder.encodeQueueSize <= 10) {
+            try {
+              const timestamp = (performance.now() - startTime) * 1000
+              const frame = new VideoFrame(canvas, { timestamp })
+              videoEncoder.encode(frame, { keyFrame: frameIdx % 150 === 0 })
+              frame.close()
+              frameIdx++
+            } catch (_) { /* canvas not ready */ }
+          }
+          requestAnimationFrame(captureFrame)
+        }
+
+        const recorderHandle = {
+          state: 'recording',
+          stop: async () => {
+            if (recorderHandle.state !== 'recording') return
+            recorderHandle.state = 'inactive'
+            stopped = true
+
+            setConvertingFormat(chosenFormat.toUpperCase())
+            setConvertProgress(0)
+            try {
+              if (audioReader) await audioReader.cancel().catch(() => {})
+              await videoEncoder.flush()
+              videoEncoder.close()
+              if (audioEncoder) { await audioEncoder.flush(); audioEncoder.close() }
+
+              muxer.finalize()
+              const mimeType = chosenFormat === 'mov' ? 'video/quicktime' : 'video/mp4'
+              const blob = new Blob([target.buffer], { type: mimeType })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `mockup-demo-${Date.now()}.${chosenFormat}`
+              a.click()
+              setTimeout(() => URL.revokeObjectURL(url), 5000)
+            } catch (err) {
+              console.error('WebCodecs finalize failed:', err)
+            } finally {
+              setConvertingFormat(null)
+              setConvertProgress(0)
+            }
+
+            setRecordingDpr(null)
+            setIsRecording(false)
+            setIsPlaying(false)
+            setIsTimelinePlaying(false)
+            if (ae) ae.pause()
+          },
+        }
+
+        recorderRef.current = recorderHandle
+        requestAnimationFrame(captureFrame)
+
+        setCurrentTime(0)
+        setIsTimelinePlaying(true)
+        if (ae && hasAudio) { ae.play(); ae.sync(0) }
+
+        setTimeout(() => {
+          if (recorderHandle.state === 'recording') recorderHandle.stop()
+        }, (recordDuration + 1) * 1000)
+        setTimeout(() => {
+          if (recorderHandle.state === 'recording') {
+            console.warn('Safety timeout: forcing WebCodecs recorder stop')
+            recorderHandle.stop()
+          }
+        }, (recordDuration + 5) * 1000)
+
+        return
+      } catch (err) {
+        console.warn('WebCodecs init failed, falling back to MediaRecorder:', err)
+      }
+    }
+
+    // ── MediaRecorder fallback (WebM native, or FFmpeg conversion) ──
+    const videoStream = canvas.captureStream(60)
+    let stream = videoStream
+    let hasAudioTracks = false
     if (hasAudio) {
       try {
         const audioStream = ae.getAudioStream()
-        if (ae.audioCtx && ae.audioCtx.state === 'suspended') {
-          await ae.audioCtx.resume()
-        }
+        if (ae.audioCtx && ae.audioCtx.state === 'suspended') await ae.audioCtx.resume()
         hasAudioTracks = audioStream.getAudioTracks().length > 0
         if (hasAudioTracks) {
-          stream = new MediaStream([
-            ...videoStream.getTracks(),
-            ...audioStream.getTracks(),
-          ])
+          stream = new MediaStream([...videoStream.getTracks(), ...audioStream.getTracks()])
         }
       } catch (err) {
         console.warn('Could not attach audio to recording:', err)
       }
     }
 
-    const mimeType = hasAudioTracks
-      ? 'video/webm;codecs=vp9,opus'
-      : 'video/webm;codecs=vp9'
-    const videoBitsPerSecond = quality === '4k' ? 40000000 : quality === '1080p' ? 12000000 : 5000000
+    const mimeType = hasAudioTracks ? 'video/webm;codecs=vp9,opus' : 'video/webm;codecs=vp9'
 
     let mediaRecorder
     try {
-      mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond })
+      mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: videoBitrate })
     } catch {
       const fallbackMime = hasAudioTracks ? 'video/webm;codecs=vp8,opus' : 'video/webm;codecs=vp8'
       try {
-        mediaRecorder = new MediaRecorder(stream, { mimeType: fallbackMime, videoBitsPerSecond })
+        mediaRecorder = new MediaRecorder(stream, { mimeType: fallbackMime, videoBitsPerSecond: videoBitrate })
       } catch {
         mediaRecorder = new MediaRecorder(stream)
       }
@@ -1417,8 +1608,6 @@ function App() {
     mediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunks.push(e.data)
     }
-
-    const chosenFormat = exportFormat
 
     mediaRecorder.onstop = async () => {
       setRecordingDpr(null)
@@ -1453,20 +1642,15 @@ function App() {
     }
 
     recorderRef.current = mediaRecorder
-
-    // Start recording with timeslice so data is captured incrementally
     mediaRecorder.start(1000)
 
-    // NOW start the timeline — after the recorder is already capturing
     setCurrentTime(0)
     setIsTimelinePlaying(true)
     if (ae && hasAudio) { ae.play(); ae.sync(0) }
 
-    // Stop after the full duration (measured from when timeline starts)
     setTimeout(() => {
       if (mediaRecorder.state === 'recording') mediaRecorder.stop()
     }, (recordDuration + 1) * 1000)
-
     setTimeout(() => {
       if (mediaRecorder.state === 'recording') {
         console.warn('Safety timeout: forcing recorder stop')
@@ -1475,9 +1659,9 @@ function App() {
     }, (recordDuration + 5) * 1000)
   }, [quality, exportFormat, convertWebmTo, totalDuration, musicTrack, voiceoverTrack])
 
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback(async () => {
     if (recorderRef.current && recorderRef.current.state === 'recording') {
-      recorderRef.current.stop()
+      await recorderRef.current.stop()
     }
     setRecordingDpr(null)
   }, [])
@@ -2297,6 +2481,7 @@ function App() {
     setShowDeviceShadow(loadSaved('showDeviceShadow', false))
     setQuality(loadSaved('quality', '1080p'))
     setAspectRatio(loadSaved('aspectRatio', 'none'))
+    setScreenFitMode(loadSaved('screenFitMode', 'crop'))
     setScreenSlotMap([])
     setActiveScreenSlots(null)
     templateOutroRef.current = 'none'
@@ -2407,7 +2592,7 @@ function App() {
             </button>
             <button
               className={`btn btn-header btn-primary ${isRecording ? 'recording' : ''}`}
-              onClick={isRecording ? stopRecording : () => setShowExport(true)}
+              onClick={isRecording ? stopRecording : () => { setShowExport(true); getFFmpeg() }}
               disabled={!hasScreens}
             >
               {isRecording ? '⏹ Stop Recording' : '⏺ Record & Export'}
@@ -2416,7 +2601,7 @@ function App() {
         )}
         {hasStarted && convertingFormat && (
           <div className="btn btn-header btn-converting">
-            Converting to {convertingFormat}...
+            Converting to {convertingFormat}{convertProgress > 0 ? ` (${convertProgress}%)` : '...'}
           </div>
         )}
       </Header>
@@ -3035,6 +3220,26 @@ function App() {
                           </button>
                         ))}
                       </div>
+                      <div className="screen-fit-row">
+                        <span className="screen-fit-label">Screen fit</span>
+                        <div className="screen-fit-chips">
+                          {[
+                            { id: 'fill', label: 'Fill', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 3l18 18M21 3L3 21" opacity="0.35" /></svg> },
+                            { id: 'fit', label: 'Fit', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><rect x="6" y="5" width="12" height="14" rx="1" opacity="0.5" /></svg> },
+                            { id: 'crop', label: 'Crop', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2v14a2 2 0 002 2h14" /><path d="M18 22V8a2 2 0 00-2-2H2" /></svg> },
+                          ].map((m) => (
+                            <button
+                              key={m.id}
+                              className={`screen-fit-btn${screenFitMode === m.id ? ' active' : ''}`}
+                              onClick={() => { markChanged(); setScreenFitMode(m.id) }}
+                              title={m.id === 'fill' ? 'Stretch to fill screen' : m.id === 'fit' ? 'Fit entire image in screen' : 'Crop to cover screen'}
+                            >
+                              {m.icon}
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                     <div className="control-group">
                       <h3 className="section-title">Export</h3>
@@ -3501,6 +3706,7 @@ function App() {
                 activeClipId={activeClipId}
                 activeTextAnim={activeTextAnim}
                 aspectRatio={aspectRatio}
+                screenFitMode={screenFitMode}
                 textSplit={textSplit}
                 onTextSplitChange={setTextSplit}
                 layoutFlipped={layoutFlipped}

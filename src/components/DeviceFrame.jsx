@@ -108,7 +108,7 @@ function createRoundedRectShape(w, h, r) {
  * Uses a double-buffer strategy: the old texture stays visible until the new
  * one is fully loaded, eliminating any black-frame flash between clips.
  */
-function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif) {
+function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif, screenFitMode = 'crop') {
   const textureRef = useRef(null)
   const loadedRef = useRef(false)
   const videoRef = useRef(null)
@@ -178,17 +178,33 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
       canvas.width = targetW
       canvas.height = targetH
       const ctx = canvas.getContext('2d')
-      const vidAspect = videoEl.videoWidth / videoEl.videoHeight
-      const canvasAspect = targetW / targetH
-      let sx, sy, sw, sh
-      if (vidAspect > canvasAspect) {
-        sh = videoEl.videoHeight; sw = videoEl.videoHeight * canvasAspect
-        sx = (videoEl.videoWidth - sw) / 2; sy = 0
+      if (screenFitMode === 'fill') {
+        ctx.drawImage(videoEl, 0, 0, targetW, targetH)
+      } else if (screenFitMode === 'fit') {
+        const vidAspect = videoEl.videoWidth / videoEl.videoHeight
+        const canvasAspect = targetW / targetH
+        let dw, dh, dx, dy
+        if (vidAspect > canvasAspect) {
+          dw = targetW; dh = targetW / vidAspect
+          dx = 0; dy = 0
+        } else {
+          dh = targetH; dw = targetH * vidAspect
+          dx = (targetW - dw) / 2; dy = 0
+        }
+        ctx.drawImage(videoEl, 0, 0, videoEl.videoWidth, videoEl.videoHeight, dx, dy, dw, dh)
       } else {
-        sw = videoEl.videoWidth; sh = videoEl.videoWidth / canvasAspect
-        sx = 0; sy = (videoEl.videoHeight - sh) / 2
+        const vidAspect = videoEl.videoWidth / videoEl.videoHeight
+        const canvasAspect = targetW / targetH
+        let sx, sy, sw, sh
+        if (vidAspect > canvasAspect) {
+          sh = videoEl.videoHeight; sw = videoEl.videoHeight * canvasAspect
+          sx = (videoEl.videoWidth - sw) / 2; sy = 0
+        } else {
+          sw = videoEl.videoWidth; sh = videoEl.videoWidth / canvasAspect
+          sx = 0; sy = 0
+        }
+        ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, targetW, targetH)
       }
-      ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, targetW, targetH)
       const tex = new THREE.CanvasTexture(canvas)
       tex.colorSpace = THREE.SRGBColorSpace
       tex.minFilter = THREE.LinearFilter
@@ -249,15 +265,17 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
           }
         })
 
-        const imgAspect = gifW / gifH
-        const canvasAspect = targetW / targetH
-        let sx, sy, sw, sh
-        if (imgAspect > canvasAspect) {
-          sh = gifH; sw = gifH * canvasAspect
-          sx = (gifW - sw) / 2; sy = 0
-        } else {
-          sw = gifW; sh = gifW / canvasAspect
-          sx = 0; sy = (gifH - sh) / 2
+        let sx = 0, sy = 0, sw = gifW, sh = gifH
+        if (screenFitMode === 'crop') {
+          const imgAspect = gifW / gifH
+          const canvasAspect = targetW / targetH
+          if (imgAspect > canvasAspect) {
+            sh = gifH; sw = gifH * canvasAspect
+            sx = (gifW - sw) / 2; sy = 0
+          } else {
+            sw = gifW; sh = gifW / canvasAspect
+            sx = 0; sy = 0
+          }
         }
 
         const first = frameDataList[0]
@@ -303,6 +321,16 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
         tex.minFilter = THREE.LinearFilter
         tex.magFilter = THREE.LinearFilter
         tex.generateMipmaps = false
+        if (screenFitMode === 'crop' && video.videoWidth && video.videoHeight) {
+          const vidAspect = video.videoWidth / video.videoHeight
+          if (vidAspect > screenAspect) {
+            tex.repeat.set(screenAspect / vidAspect, 1)
+            tex.offset.set((1 - screenAspect / vidAspect) / 2, 0)
+          } else if (vidAspect < screenAspect) {
+            tex.repeat.set(1, vidAspect / screenAspect)
+            tex.offset.set(0, 1 - vidAspect / screenAspect)
+          }
+        }
         commitTexture(tex, video)
       })
       video.load()
@@ -316,21 +344,37 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
           canvas.height = targetH
           const ctx = canvas.getContext('2d')
 
-          const imgAspect = bitmap.width / bitmap.height
-          const canvasAspect = targetW / targetH
-          let sx, sy, sw, sh
-          if (imgAspect > canvasAspect) {
-            sh = bitmap.height
-            sw = bitmap.height * canvasAspect
-            sx = (bitmap.width - sw) / 2
-            sy = 0
+          if (screenFitMode === 'fill') {
+            ctx.drawImage(bitmap, 0, 0, targetW, targetH)
+          } else if (screenFitMode === 'fit') {
+            const imgAspect = bitmap.width / bitmap.height
+            const canvasAspect = targetW / targetH
+            let dw, dh, dx, dy
+            if (imgAspect > canvasAspect) {
+              dw = targetW; dh = targetW / imgAspect
+              dx = 0; dy = 0
+            } else {
+              dh = targetH; dw = targetH * imgAspect
+              dx = (targetW - dw) / 2; dy = 0
+            }
+            ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, dx, dy, dw, dh)
           } else {
-            sw = bitmap.width
-            sh = bitmap.width / canvasAspect
-            sx = 0
-            sy = (bitmap.height - sh) / 2
+            const imgAspect = bitmap.width / bitmap.height
+            const canvasAspect = targetW / targetH
+            let sx, sy, sw, sh
+            if (imgAspect > canvasAspect) {
+              sh = bitmap.height
+              sw = bitmap.height * canvasAspect
+              sx = (bitmap.width - sw) / 2
+              sy = 0
+            } else {
+              sw = bitmap.width
+              sh = bitmap.width / canvasAspect
+              sx = 0
+              sy = 0
+            }
+            ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, targetW, targetH)
           }
-          ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, targetW, targetH)
           bitmap.close()
 
           const tex = new THREE.CanvasTexture(canvas)
@@ -366,7 +410,7 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
     return () => {
       cancelled = true
     }
-  }, [screenFile, screenUrl, isVideo, isGif, screenAspect])
+  }, [screenFile, screenUrl, isVideo, isGif, screenAspect, screenFitMode])
 
   return { textureRef, loadedRef, videoRef, gifRef }
 }
@@ -405,8 +449,25 @@ function MacBookGLB({
       if (node.isMesh && node.material?.name === 'sfCQkHOWyrsLmor') screenMesh = node
     })
 
-    // Replace screen material
     if (screenMesh) {
+      screenMesh.geometry = screenMesh.geometry.clone()
+      const uv = screenMesh.geometry.attributes.uv
+      if (uv) {
+        let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity
+        for (let i = 0; i < uv.count; i++) {
+          const u = uv.getX(i), v = uv.getY(i)
+          if (u < minU) minU = u
+          if (u > maxU) maxU = u
+          if (v < minV) minV = v
+          if (v > maxV) maxV = v
+        }
+        const rU = maxU - minU || 1
+        const rV = maxV - minV || 1
+        for (let i = 0; i < uv.count; i++) {
+          uv.setXY(i, (uv.getX(i) - minU) / rU, (uv.getY(i) - minV) / rV)
+        }
+        uv.needsUpdate = true
+      }
       screenMesh.material = new THREE.MeshBasicMaterial({ color: '#111122', toneMapped: false })
       screenNodeRef.current = screenMesh
     }
@@ -540,6 +601,7 @@ export default function DeviceFrame({
   scale = 1,
   lidAngleRef,
   showShadow = false,
+  screenFitMode = 'crop',
 }) {
   const config = DEVICE_CONFIGS[type]
   const screenW = config.width - config.screenInset * 2
@@ -552,7 +614,7 @@ export default function DeviceFrame({
   const stuckTimeRef = useRef(0)
   const stuckSinceRef = useRef(0)
   const screenAspect = screenW / screenH
-  const { textureRef, loadedRef, videoRef, gifRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif)
+  const { textureRef, loadedRef, videoRef, gifRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif, screenFitMode)
 
   // Rounded body geometry
   const bodyGeo = useMemo(() => {

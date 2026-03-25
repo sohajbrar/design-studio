@@ -47,7 +47,10 @@ export default function ExportModal({ onClose, onRecord, quality, setQuality, ex
           </div>
           {exportFormat !== 'webm' && (
             <div className="modal-info">
-              <p>Recording will capture in WebM and then convert to {exportFormat.toUpperCase()} using FFmpeg. This may take a moment after recording finishes.</p>
+              <p>{typeof VideoEncoder !== 'undefined'
+                ? `Exports directly to ${exportFormat.toUpperCase()} using hardware-accelerated encoding.`
+                : `Recording will capture in WebM and then convert to ${exportFormat.toUpperCase()} using FFmpeg. This may take a moment after recording finishes.`
+              }</p>
             </div>
           )}
           {exportFormat === 'webm' && (

@@ -219,7 +219,7 @@ function useVisibleHeight(zDepth) {
 }
 
 // ── Main animated devices ─────────────────────────────────────
-function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeClipId, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode }) {
+function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, isPlaying, currentTime, clipAnimationTime, activeClipId, activeTextAnim, textSplit, textOnLeft, isVerticalLayout, textOnTop, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode, screenFitMode }) {
   const groupRef = useRef()
   const iphoneRef = useRef()
   const androidRef = useRef()
@@ -692,6 +692,9 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             group.position.y += 3.5 * p
             group.rotation.x += 0.4 * p
             break
+          case 'laptopClose':
+            lidAngleRef.current = (Math.PI / 2) + p * (Math.PI / 2)
+            break
         }
       }
     }
@@ -776,6 +779,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             timelinePlaying={timelinePlaying}
             scale={0.35}
             showShadow={showDeviceShadow}
+            screenFitMode={screenFitMode}
           />
         </group>
       )}
@@ -791,6 +795,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             timelinePlaying={timelinePlaying}
             scale={0.35}
             showShadow={showDeviceShadow}
+            screenFitMode={screenFitMode}
           />
         </group>
       )}
@@ -806,6 +811,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             timelinePlaying={timelinePlaying}
             scale={0.35}
             showShadow={showDeviceShadow}
+            screenFitMode={screenFitMode}
           />
         </group>
       )}
@@ -822,6 +828,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             scale={0.38}
             lidAngleRef={lidAngleRef}
             showShadow={showDeviceShadow}
+            screenFitMode={screenFitMode}
           />
         </group>
       )}
@@ -837,6 +844,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             timelinePlaying={timelinePlaying}
             scale={0.35}
             showShadow={showDeviceShadow}
+            screenFitMode={screenFitMode}
           />
         </group>
       )}
@@ -851,7 +859,7 @@ const MULTI_DEVICE_ANIMS = new Set([
   'flatScatter7',
 ])
 
-function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, activeClipId, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode, deviceType = 'iphone' }) {
+function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime, activeClipId, videoSeekTime, timelinePlaying, outroAnimation, clipDuration, slotScreens, multiDeviceCount, showDeviceShadow, onDeviceClick, resetKey, onManualAdjust, interactionMode, deviceType = 'iphone', screenFitMode }) {
   const groupRef = useRef()
   const devRefs = useRef({})
   const userRotRef = useRef({ x: 0, y: 0 })
@@ -1089,6 +1097,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
       videoSeekTime, timelinePlaying,
       scale: 0.3,
       showShadow: showDeviceShadow,
+      screenFitMode,
     }
   }
 
@@ -1584,6 +1593,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
                   onVideoEnded={(isActive && timelinePlaying) ? handleCircleVideoEnded : undefined}
                   scale={0.28}
                   showShadow={showDeviceShadow}
+                  screenFitMode={screenFitMode}
                 />
               </group>
             )
@@ -1619,6 +1629,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
               scale={isKeyboard ? 0.42 : 0.40}
               lidAngleRef={lidAngleRef}
               showShadow={showDeviceShadow}
+              screenFitMode={screenFitMode}
             />
           </group>
           <group ref={setRef('phone')} onPointerDown={makeDevicePointerDown('phone')} onDoubleClick={makeDeviceDoubleClick('phone')}>
@@ -1632,6 +1643,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
               timelinePlaying={timelinePlaying}
               scale={isKeyboard ? 0.18 : 0.22}
               showShadow={showDeviceShadow}
+              screenFitMode={screenFitMode}
             />
           </group>
         </group>
@@ -1655,6 +1667,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
                 scale={0.40}
                 lidAngleRef={lidAngleRef}
                 showShadow={showDeviceShadow}
+                screenFitMode={screenFitMode}
               />
             </group>
             <group ref={setRef('phone')} onPointerDown={makeDevicePointerDown('phone')} onDoubleClick={makeDeviceDoubleClick('phone')}>
@@ -1668,6 +1681,7 @@ function MultiDeviceScene({ screens, activeScreen, animation, clipAnimationTime,
                 timelinePlaying={timelinePlaying}
                 scale={0.22}
                 showShadow={showDeviceShadow}
+                screenFitMode={screenFitMode}
               />
             </group>
           </group>
@@ -2144,7 +2158,7 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, isVertica
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef, glRendererRef, recordingDpr,
-  textOverlays, currentTime, clipAnimationTime, activeClipId, activeTextAnim, aspectRatio, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
+  textOverlays, currentTime, clipAnimationTime, activeClipId, activeTextAnim, aspectRatio, screenFitMode, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
   outroLogo, totalDuration, multiDeviceCount, onTextClick, onTextDrag, onDeviceClick, onDrop,
 }) {
   const tint = useTintedLights(bgColor)
@@ -2268,6 +2282,7 @@ export default function PreviewScene({
         dpr={recordingDpr || [1, 2]}
         shadows
         onCreated={({ gl }) => {
+          gl.outputColorSpace = THREE.SRGBColorSpace
           if (canvasRef) canvasRef.current = gl.domElement
           if (glRendererRef) glRendererRef.current = gl
         }}
@@ -2303,6 +2318,7 @@ export default function PreviewScene({
               onManualAdjust={setHasManualAdjust}
               interactionMode={interactionMode}
               deviceType={deviceType}
+              screenFitMode={screenFitMode}
             />
           ) : (
             <AnimatedDevices
@@ -2329,6 +2345,7 @@ export default function PreviewScene({
               resetKey={resetKey}
               onManualAdjust={setHasManualAdjust}
               interactionMode={interactionMode}
+              screenFitMode={screenFitMode}
             />
           )}
           {showBase && (
