@@ -1452,6 +1452,7 @@ function App() {
           audio: hasAudioForMux ? { codec: 'aac', numberOfChannels: 2, sampleRate: 48000 } : undefined,
           fastStart: 'in-memory',
           type: chosenFormat === 'mov' ? 'quicktime' : 'mp4',
+          firstTimestampBehavior: 'offset',
         })
 
         const videoEncoder = new VideoEncoder({
