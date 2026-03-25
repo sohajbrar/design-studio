@@ -1431,19 +1431,21 @@ function App() {
         const w = canvas.width
         const h = canvas.height
 
-        let audioStream = null
-        let audioTrack = null
-        if (hasAudio) {
+        let audioTrackClone = null
+        let hasAudioForMux = false
+        if (hasAudio && typeof MediaStreamTrackProcessor !== 'undefined') {
           try {
-            audioStream = ae.getAudioStream()
+            const audioStream = ae.getAudioStream()
             if (ae.audioCtx && ae.audioCtx.state === 'suspended') await ae.audioCtx.resume()
-            audioTrack = audioStream.getAudioTracks()[0] || null
+            const origTrack = audioStream.getAudioTracks()[0]
+            if (origTrack && origTrack.readyState === 'live') {
+              audioTrackClone = origTrack.clone()
+              hasAudioForMux = true
+            }
           } catch (err) {
             console.warn('Could not get audio for WebCodecs recording:', err)
           }
         }
-
-        const hasAudioForMux = audioTrack && typeof MediaStreamTrackProcessor !== 'undefined'
 
         const target = new ArrayBufferTarget()
         const muxer = new Muxer({
@@ -1480,7 +1482,7 @@ function App() {
             numberOfChannels: 2,
             bitrate: 192000,
           })
-          const processor = new MediaStreamTrackProcessor({ track: audioTrack })
+          const processor = new MediaStreamTrackProcessor({ track: audioTrackClone })
           audioReader = processor.readable.getReader()
           ;(async () => {
             try {
@@ -1500,7 +1502,7 @@ function App() {
 
         const captureFrame = () => {
           if (stopped) return
-          if (videoEncoder.encodeQueueSize <= 10) {
+          if (videoEncoder.state === 'configured' && videoEncoder.encodeQueueSize <= 10) {
             try {
               const timestamp = (performance.now() - startTime) * 1000
               const frame = new VideoFrame(canvas, { timestamp })
@@ -1523,9 +1525,15 @@ function App() {
             setConvertProgress(0)
             try {
               if (audioReader) await audioReader.cancel().catch(() => {})
-              await videoEncoder.flush()
+              if (videoEncoder.state === 'configured') {
+                await videoEncoder.flush()
+              }
               videoEncoder.close()
-              if (audioEncoder) { await audioEncoder.flush(); audioEncoder.close() }
+              if (audioEncoder && audioEncoder.state === 'configured') {
+                await audioEncoder.flush()
+              }
+              if (audioEncoder) audioEncoder.close()
+              if (audioTrackClone) audioTrackClone.stop()
 
               muxer.finalize()
               const mimeType = chosenFormat === 'mov' ? 'video/quicktime' : 'video/mp4'
