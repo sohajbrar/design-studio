@@ -1356,21 +1356,16 @@ function App() {
       await ffmpeg.writeFile('input.webm', webmData)
 
       const outputFile = `output.${targetFormat}`
-      const colorArgs = [
-        '-vf', 'scale=in_range=full:out_range=limited',
-        '-pix_fmt', 'yuv420p',
-        '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
-      ]
       if (targetFormat === 'mov') {
         await ffmpeg.exec([
           '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast',
-          '-crf', '22', ...colorArgs, '-c:a', 'aac', '-b:a', '192k',
+          '-crf', '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
           '-movflags', '+faststart', '-f', 'mov', outputFile,
         ])
       } else {
         await ffmpeg.exec([
           '-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast',
-          '-crf', '22', ...colorArgs, '-c:a', 'aac', '-b:a', '192k',
+          '-crf', '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
           '-movflags', '+faststart', outputFile,
         ])
       }
