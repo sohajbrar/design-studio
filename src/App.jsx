@@ -1503,8 +1503,17 @@ function App() {
           })()
         }
 
+        // Use a 2D OffscreenCanvas as intermediary to normalize color space.
+        // Creating VideoFrames directly from a WebGL canvas on macOS causes
+        // the hardware encoder to misinterpret the color range, producing
+        // washed-out/dull colors. Drawing through a 2D context first forces
+        // proper sRGB conversion.
+        const offscreen = new OffscreenCanvas(w, h)
+        const offCtx = offscreen.getContext('2d')
+
         // Verify the encoder accepts a test frame before committing
-        const testFrame = new VideoFrame(canvas, { timestamp: 0 })
+        offCtx.drawImage(canvas, 0, 0, w, h)
+        const testFrame = new VideoFrame(offscreen, { timestamp: 0 })
         videoEncoder.encode(testFrame, { keyFrame: true })
         testFrame.close()
         await videoEncoder.flush()
@@ -1519,7 +1528,8 @@ function App() {
           if (videoEncoder.state === 'configured' && videoEncoder.encodeQueueSize <= 10) {
             try {
               const timestamp = (performance.now() - startTime) * 1000
-              const frame = new VideoFrame(canvas, { timestamp })
+              offCtx.drawImage(canvas, 0, 0, w, h)
+              const frame = new VideoFrame(offscreen, { timestamp })
               videoEncoder.encode(frame, { keyFrame: frameIdx % 150 === 0 })
               frame.close()
               frameIdx++
