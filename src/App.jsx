@@ -1422,7 +1422,11 @@ function App() {
     const hasAudio = ae && (musicTrack || voiceoverTrack)
     const chosenFormat = exportFormat
     const videoBitrate = quality === '4k' ? 40000000 : quality === '1080p' ? 12000000 : 5000000
-    const useWebCodecs = chosenFormat !== 'webm' && typeof VideoEncoder !== 'undefined'
+    // WebCodecs disabled: macOS VideoToolbox encoder produces incorrect color
+    // range metadata in the H.264 bitstream (marks full-range as limited-range),
+    // causing washed-out colors. The optimized FFmpeg path (cached singleton,
+    // pre-loaded, ultrafast preset) handles color space correctly.
+    const useWebCodecs = false
 
     if (useWebCodecs) {
       // ── WebCodecs + mp4-muxer path (hardware-accelerated, no FFmpeg) ──
