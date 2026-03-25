@@ -1427,9 +1427,21 @@ function App() {
     if (useWebCodecs) {
       // ── WebCodecs + mp4-muxer path (hardware-accelerated, no FFmpeg) ──
       try {
+        const w = canvas.width % 2 === 0 ? canvas.width : canvas.width - 1
+        const h = canvas.height % 2 === 0 ? canvas.height : canvas.height - 1
+        if (w < 2 || h < 2) throw new Error('Canvas too small for H.264')
+
+        const videoConfig = {
+          codec: 'avc1.640028',
+          width: w,
+          height: h,
+          bitrate: videoBitrate,
+          framerate: 60,
+        }
+        const support = await VideoEncoder.isConfigSupported(videoConfig)
+        if (!support.supported) throw new Error('H.264 config not supported by browser')
+
         const { Muxer, ArrayBufferTarget } = await import('mp4-muxer')
-        const w = canvas.width
-        const h = canvas.height
 
         let audioTrackClone = null
         let hasAudioForMux = false
@@ -1457,17 +1469,12 @@ function App() {
           firstTimestampBehavior: 'offset',
         })
 
+        let encoderErrored = false
         const videoEncoder = new VideoEncoder({
           output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-          error: (e) => console.error('VideoEncoder error:', e),
+          error: (e) => { console.error('VideoEncoder error:', e); encoderErrored = true },
         })
-        videoEncoder.configure({
-          codec: 'avc1.640028',
-          width: w,
-          height: h,
-          bitrate: videoBitrate,
-          framerate: 60,
-        })
+        videoEncoder.configure(support.config)
 
         let audioEncoder = null
         let audioReader = null
@@ -1496,12 +1503,19 @@ function App() {
           })()
         }
 
-        let frameIdx = 0
+        // Verify the encoder accepts a test frame before committing
+        const testFrame = new VideoFrame(canvas, { timestamp: 0 })
+        videoEncoder.encode(testFrame, { keyFrame: true })
+        testFrame.close()
+        await videoEncoder.flush()
+        if (encoderErrored) throw new Error('VideoEncoder failed test frame')
+
+        let frameIdx = 1
         let stopped = false
         const startTime = performance.now()
 
         const captureFrame = () => {
-          if (stopped) return
+          if (stopped || encoderErrored) return
           if (videoEncoder.state === 'configured' && videoEncoder.encodeQueueSize <= 10) {
             try {
               const timestamp = (performance.now() - startTime) * 1000
@@ -1509,7 +1523,7 @@ function App() {
               videoEncoder.encode(frame, { keyFrame: frameIdx % 150 === 0 })
               frame.close()
               frameIdx++
-            } catch (_) { /* canvas not ready */ }
+            } catch (_) { /* skip frame */ }
           }
           requestAnimationFrame(captureFrame)
         }
@@ -1525,13 +1539,9 @@ function App() {
             setConvertProgress(0)
             try {
               if (audioReader) await audioReader.cancel().catch(() => {})
-              if (videoEncoder.state === 'configured') {
-                await videoEncoder.flush()
-              }
+              if (videoEncoder.state === 'configured') await videoEncoder.flush()
               videoEncoder.close()
-              if (audioEncoder && audioEncoder.state === 'configured') {
-                await audioEncoder.flush()
-              }
+              if (audioEncoder && audioEncoder.state === 'configured') await audioEncoder.flush()
               if (audioEncoder) audioEncoder.close()
               if (audioTrackClone) audioTrackClone.stop()
 
