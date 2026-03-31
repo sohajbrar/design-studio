@@ -1,5 +1,6 @@
 import { StrictMode, Component } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Analytics } from '@vercel/analytics/react'
 import './index.css'
 import App from './App.jsx'
 import PasswordGate from './components/PasswordGate.jsx'
@@ -71,5 +72,6 @@ createRoot(document.getElementById('root')).render(
     <PasswordGate>
       <App />
     </PasswordGate>
+    <Analytics />
   </RootErrorBoundary>,
 )
