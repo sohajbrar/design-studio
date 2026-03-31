@@ -18,6 +18,7 @@
     "@react-three/postprocessing": "^3.0.4",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.3.0",
+    "@vercel/speed-insights": "^2.0.0",
     "gifuct-js": "^2.1.2",
     "lucide-react": "^0.564.0",
     "mp4-muxer": "^5.2.2",
