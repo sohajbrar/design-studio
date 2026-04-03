@@ -14,6 +14,7 @@ import AIAssistant from './components/AIAssistant'
 import AudioEngine from './utils/audioEngine'
 import { MUSIC_LIBRARY, generateTrack } from './utils/musicLibrary'
 import { track, trackError, trackTimed } from './utils/analytics'
+import { uploadVideoToBlob } from './utils/blobUpload'
 
 const ANIMATION_PRESETS = [
   { id: 'showcase', name: 'Showcase', singleDevice: true },
@@ -745,6 +746,7 @@ function App() {
   const handleUndo = useCallback(() => {
     const stack = undoStackRef.current
     if (stack.length === 0) return
+    track('undo')
     const snap = stack.pop()
     setTimelineClips(snap.timelineClips)
     setTextOverlays(snap.textOverlays)
@@ -1093,6 +1095,7 @@ function App() {
   }, [])
 
   const handleAddZoomEffect = useCallback((atTime) => {
+    track('zoom_add')
     const t = typeof atTime === 'number' && isFinite(atTime) ? atTime : currentTime
     setZoomEffects((prev) => {
       const maxT = totalDuration || 6
@@ -1126,12 +1129,14 @@ function App() {
   }, [])
 
   const handleRemoveZoomEffect = useCallback((effectId) => {
+    track('zoom_remove')
     setZoomEffects((prev) => prev.filter((e) => e.id !== effectId))
   }, [])
 
   // ── Text overlay operations ─────────────────────
   const handleAddText = useCallback((atTime) => {
     markChanged()
+    track('text_add')
     const t = typeof atTime === 'number' && isFinite(atTime) ? atTime : currentTime
     setTextOverlays((prev) => {
       const dur = 2
@@ -1166,6 +1171,8 @@ function App() {
 
   const handleUpdateText = useCallback((textId, updates) => {
     markChanged()
+    const fields = Object.keys(updates || {}).join(',')
+    if (fields) track('text_update', { fields })
     setTextOverlays((prev) =>
       prev.map((t) => {
         if (t.id !== textId) return t
@@ -1184,6 +1191,7 @@ function App() {
 
   const handleRemoveText = useCallback((textId) => {
     markChanged()
+    track('text_remove')
     setTextOverlays((prev) => prev.filter((t) => t.id !== textId))
     setSelectedTextId((prev) => (prev === textId ? null : prev))
   }, [])
@@ -1219,6 +1227,7 @@ function App() {
 
   const handleSetMusic = useCallback(async (source) => {
     markChanged()
+    track('music_set', { source: source.file ? 'upload' : 'library' })
     if (previewAudioRef.current) { previewAudioRef.current.pause(); previewAudioRef.current = null }
     setPreviewingTrackId(null)
     let url, name, file = null, isLibrary = false, audioDuration = 30
@@ -1251,6 +1260,7 @@ function App() {
 
   const handleSetVoiceover = useCallback(async (file) => {
     markChanged()
+    track('voiceover_set')
     const url = URL.createObjectURL(file)
     const audioDuration = await getAudioDuration(file)
     const maxT = totalDuration || 30
@@ -1268,12 +1278,14 @@ function App() {
   }, [totalDuration, getAudioDuration])
 
   const handleRemoveMusic = useCallback(() => {
+    track('music_remove')
     if (musicTrack?.url && !musicTrack.isLibrary) URL.revokeObjectURL(musicTrack.url)
     setMusicTrack(null)
     setSelectedAudioTrack((prev) => prev === 'music' ? null : prev)
   }, [musicTrack])
 
   const handleRemoveVoiceover = useCallback(() => {
+    track('voiceover_remove')
     if (voiceoverTrack?.url) URL.revokeObjectURL(voiceoverTrack.url)
     setVoiceoverTrack(null)
     setSelectedAudioTrack((prev) => prev === 'voiceover' ? null : prev)
@@ -1342,6 +1354,7 @@ function App() {
 
   const handleExport = useCallback(async () => {
     if (!canvasRef.current) return
+    track('export_modal_open')
     setShowExport(true)
     getFFmpeg()
   }, [getFFmpeg])
@@ -1380,6 +1393,7 @@ function App() {
       a.download = `mockup-demo-${Date.now()}.${targetFormat}`
       a.click()
       URL.revokeObjectURL(url)
+      uploadVideoToBlob(outBlob, targetFormat)
     } catch (err) {
       console.error(`${targetFormat.toUpperCase()} conversion failed, falling back to WebM:`, err)
       const url = URL.createObjectURL(webmBlob)
@@ -1388,6 +1402,7 @@ function App() {
       a.download = `mockup-demo-${Date.now()}.webm`
       a.click()
       URL.revokeObjectURL(url)
+      uploadVideoToBlob(webmBlob, 'webm')
     } finally {
       setConvertingFormat(null)
       setConvertProgress(0)
@@ -1400,6 +1415,7 @@ function App() {
       console.warn('Canvas element not available for recording')
       return
     }
+    track('export_start', { format: exportFormat, quality })
 
     const recordDuration = totalDuration > 0 ? totalDuration : 6
 
@@ -1657,9 +1673,11 @@ function App() {
         a.download = `mockup-demo-${Date.now()}.webm`
         a.click()
         setTimeout(() => URL.revokeObjectURL(url), 5000)
+        uploadVideoToBlob(webmBlob, 'webm')
       } else {
         await convertWebmTo(webmBlob, chosenFormat)
       }
+      track('export_complete', { format: chosenFormat, duration_ms: Math.round(recordDuration * 1000) })
     }
 
     mediaRecorder.onerror = () => {
@@ -1696,6 +1714,7 @@ function App() {
 
   // ── Template handler (applies settings to existing screens/clips) ──
   const handleSelectTemplate = useCallback((template) => {
+    track('template_select', { templateId: template.id })
     hasUnsavedChanges.current = false
     setHasStarted(true)
     setActiveTemplateId(template.id)
@@ -1834,6 +1853,7 @@ function App() {
 
   const applyConfigDelta = useCallback((delta) => {
     if (!delta) return
+    track('ai_assistant_apply')
 
     // Template switch — applies the full template preset then returns
     if (delta.templateId) {
@@ -2095,6 +2115,7 @@ function App() {
   const shareBlobIdRef = useRef(null)
 
   const handleShare = useCallback(async () => {
+    track('share')
     setIsSaving(true)
     try {
       const config = await buildShareableConfig()
@@ -2326,6 +2347,7 @@ function App() {
   }, [])
 
   const handleAIGenerate = useCallback((result) => {
+    track('project_start_ai')
     const config = result?.config || result
     if (!config) return
     hasUnsavedChanges.current = false
@@ -2440,6 +2462,7 @@ function App() {
   }, [screens, handleSetMusic])
 
   const handleStartBlank = useCallback(() => {
+    track('project_start_blank')
     hasUnsavedChanges.current = false
     setHasStarted(true)
     setDeviceType('iphone')
@@ -2468,11 +2491,16 @@ function App() {
   }, [globalBrandTheme, animation])
 
   const toggleSiteTheme = useCallback(() => {
-    setSiteTheme(prev => prev === 'dark' ? 'light' : 'dark')
+    setSiteTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark'
+      track('site_theme_toggle', { theme: next })
+      return next
+    })
   }, [])
 
   // ── Back / reset handler ────────────────────────
   const handleConfirmBack = useCallback(() => {
+    track('project_reset')
     setIsPlaying(false)
     setIsTimelinePlaying(false)
     try {
@@ -2744,7 +2772,7 @@ function App() {
                   <button
                     key={tab.id}
                     className={`sidebar-tab ${sidebarTab === tab.id ? 'active' : ''}`}
-                    onClick={() => setSidebarTab(tab.id)}
+                    onClick={() => { setSidebarTab(tab.id); track('sidebar_tab', { tab: tab.id }) }}
                   >
                     {tab.icon}
                     <span className="sidebar-tab-label">{tab.label || tab.id.charAt(0).toUpperCase() + tab.id.slice(1)}</span>
@@ -2818,6 +2846,7 @@ function App() {
                                 onClick={() => {
                                   const next = Math.max(2, multiDeviceCount - 1)
                                   setMultiDeviceCount(next)
+                                  track('device_count_change', { count: next })
                                   const slots = Array.from({ length: next }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' }))
                                   setActiveScreenSlots(slots)
                                   setScreenSlotMap((prev) => {
@@ -2834,6 +2863,7 @@ function App() {
                                 onClick={() => {
                                   const next = Math.min(maxDevices, multiDeviceCount + 1)
                                   setMultiDeviceCount(next)
+                                  track('device_count_change', { count: next })
                                   const slots = Array.from({ length: next }, (_, i) => ({ label: `Phone ${i + 1}`, device: 'iPhone' }))
                                   setActiveScreenSlots(slots)
                                   setScreenSlotMap((prev) => {
@@ -3188,7 +3218,7 @@ function App() {
                           <button
                             key={d.id}
                             className={`animation-tile ${deviceType === d.id ? 'active' : ''}`}
-                            onClick={() => { markChanged(); setDeviceType(d.id) }}
+                            onClick={() => { markChanged(); setDeviceType(d.id); track('device_change', { device: d.id }) }}
                           >
                             <div className="animation-tile-icon">{d.icon}</div>
                             <span className="animation-tile-name">{d.label}</span>
@@ -3201,7 +3231,7 @@ function App() {
                       <div className="aspect-ratio-grid">
                         <button
                           className={`aspect-ratio-tile ${aspectRatio === 'none' ? 'active' : ''}`}
-                          onClick={() => setAspectRatio('none')}
+                          onClick={() => { setAspectRatio('none'); track('aspect_ratio_change', { ratio: 'none' }) }}
                         >
                           <div className="aspect-ratio-icon">
                             <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
@@ -3222,7 +3252,7 @@ function App() {
                           <button
                             key={ar.id}
                             className={`aspect-ratio-tile ${aspectRatio === ar.id ? 'active' : ''}`}
-                            onClick={() => setAspectRatio(ar.id)}
+                            onClick={() => { setAspectRatio(ar.id); track('aspect_ratio_change', { ratio: ar.id }) }}
                           >
                             <div className="aspect-ratio-icon">
                               <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
@@ -3259,7 +3289,7 @@ function App() {
                             <button
                               key={m.id}
                               className={`screen-fit-btn${screenFitMode === m.id ? ' active' : ''}`}
-                              onClick={() => { markChanged(); setScreenFitMode(m.id) }}
+                              onClick={() => { markChanged(); setScreenFitMode(m.id); track('screen_fit_change', { mode: m.id }) }}
                               title={m.id === 'fill' ? 'Stretch to fill screen' : m.id === 'fit' ? 'Fit entire image in screen' : 'Crop to cover screen'}
                             >
                               {m.icon}
@@ -3321,6 +3351,7 @@ function App() {
                               className={`animation-tile ${currentAnim === preset.id ? 'active' : ''}`}
                               onClick={() => {
                                 markChanged()
+                                track('animation_change', { type: 'intro', animation: preset.id })
                                 const clip = selClip || activeClip
                                 if (clip) {
                                   handleUpdateClip(clip.id, { animation: preset.id })
@@ -3352,6 +3383,7 @@ function App() {
                               className={`animation-tile ${currentOutro === preset.id ? 'active' : ''}`}
                               onClick={() => {
                                 markChanged()
+                                track('animation_change', { type: 'outro', animation: preset.id })
                                 const clip = selClip || activeClip
                                 if (clip) {
                                   handleUpdateClip(clip.id, { outroAnimation: preset.id })
@@ -3592,6 +3624,7 @@ function App() {
                             className={`theme-card ${activeThemeId === theme.id ? 'active' : ''}`}
                             onClick={() => {
                               markChanged()
+                              track('theme_change', { theme: theme.id })
                               setActiveThemeId(theme.id)
                               setBgColor(theme.bgColor)
                               setBgGradient(theme.bgGradient)
@@ -3646,6 +3679,7 @@ function App() {
                             className={`gradient-swatch ${bgGradient === preset.id ? 'active' : ''}`}
                             onClick={() => {
                               markChanged()
+                              track('gradient_change', { gradient: preset.id })
                               setBgGradient(preset.id)
                               setBgColor(preset.bg)
                               setActiveThemeId(null)
@@ -3666,7 +3700,7 @@ function App() {
                           <input
                             type="color"
                             value={bgColor}
-                            onChange={(e) => { markChanged(); setBgColor(e.target.value); setBgGradient(false); setActiveThemeId(null) }}
+                            onChange={(e) => { markChanged(); setBgColor(e.target.value); setBgGradient(false); setActiveThemeId(null); track('bg_color_change') }}
                             className="color-input"
                           />
                           <input

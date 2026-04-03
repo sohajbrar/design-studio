@@ -1,3 +1,5 @@
+import { track as vercelTrack } from '@vercel/analytics'
+
 const ANALYTICS_VERSION = 1
 
 const SESSION_KEY = 'ds_analytics_session'
@@ -38,8 +40,7 @@ export function track(event, properties = {}) {
     console.log('%c[analytics]', 'color:#21C063;font-weight:bold', event, payload)
   }
 
-  // TODO: send to your analytics backend, e.g.:
-  // navigator.sendBeacon('/api/analytics', JSON.stringify(payload))
+  try { vercelTrack(event, properties) } catch (_) { /* noop if not on Vercel */ }
 }
 
 /**
@@ -56,6 +57,8 @@ export function trackError(event, error, context = {}) {
     // eslint-disable-next-line no-console
     console.log('%c[analytics:error]', 'color:#ff4444;font-weight:bold', event, payload)
   }
+
+  try { vercelTrack(event, { error_message: error?.message || String(error), ...context }) } catch (_) { /* noop */ }
 }
 
 /**
