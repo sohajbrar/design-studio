@@ -8,18 +8,9 @@ export default function Header({ children, centerContent, leftAction, siteTheme,
         <div className="logo">
           <div className="logo-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <rect x="2" y="4" width="8" height="14" rx="2" fill="url(#g1)" />
-              <rect x="14" y="4" width="8" height="14" rx="2" fill="url(#g2)" opacity="0.7" />
-              <defs>
-                <linearGradient id="g1" x1="2" y1="4" x2="10" y2="18">
-                  <stop stopColor="#1a1a1a" />
-                  <stop offset="1" stopColor="#444444" />
-                </linearGradient>
-                <linearGradient id="g2" x1="14" y1="4" x2="22" y2="18">
-                  <stop stopColor="#333333" />
-                  <stop offset="1" stopColor="#555555" />
-                </linearGradient>
-              </defs>
+              <rect x="5" y="2" width="14" height="20" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
+              <rect x="9.5" y="19" width="5" height="1" rx="0.5" fill="currentColor" opacity="0.3" />
+              <path d="M10 8V16L16 12L10 8Z" fill="currentColor" opacity="0.85" />
             </svg>
           </div>
           <span className="logo-text">AI Design Studio</span><span className="logo-byline">by <a href="https://fb.workplace.com/profile.php?id=100043015364125" target="_blank" rel="noopener noreferrer" style={{color: 'inherit', textDecoration: 'underline'}}>Sohaj</a></span>

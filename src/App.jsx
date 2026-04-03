@@ -2715,20 +2715,11 @@ function App() {
               <div className="landing-content">
                 <div className="upload-icon-large">
                   <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-                    <rect x="8" y="12" width="20" height="36" rx="4" stroke="url(#ug1)" strokeWidth="2.5" />
-                    <rect x="36" y="12" width="20" height="36" rx="4" stroke="url(#ug2)" strokeWidth="2.5" />
-                    <path d="M32 4L28 10H36L32 4Z" fill="#333333" opacity="0.5" />
-                    <path d="M32 60L28 54H36L32 60Z" fill="#222222" opacity="0.5" />
-                    <defs>
-                      <linearGradient id="ug1" x1="8" y1="12" x2="28" y2="48">
-                        <stop stopColor="#1a1a1a" />
-                        <stop offset="1" stopColor="#444444" />
-                      </linearGradient>
-                      <linearGradient id="ug2" x1="36" y1="12" x2="56" y2="48">
-                        <stop stopColor="#333333" />
-                        <stop offset="1" stopColor="#555555" />
-                      </linearGradient>
-                    </defs>
+                    <rect x="16" y="6" width="32" height="52" rx="7" stroke="currentColor" strokeWidth="2.5" />
+                    <rect x="27" y="9" width="10" height="2" rx="1" fill="currentColor" opacity="0.2" />
+                    <rect x="27" y="53" width="10" height="2" rx="1" fill="currentColor" opacity="0.2" />
+                    <circle cx="32" cy="32" r="13" fill="currentColor" opacity="0.07" />
+                    <path d="M28 24V40L42 32L28 24Z" fill="currentColor" opacity="0.8" />
                   </svg>
                 </div>
                 <h1 className="upload-title">
