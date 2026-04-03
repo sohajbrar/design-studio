@@ -8,8 +8,8 @@ export default function Header({ children, centerContent, leftAction, siteTheme,
         <div className="logo">
           <div className="logo-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M14 3H18C19.7 3 21 4.3 21 6V18C21 19.7 19.7 21 18 21H14C7 21 3 17 3 12C3 7 7 3 14 3Z" stroke="currentColor" strokeWidth="1.5" />
-              <circle cx="13" cy="12" r="2.2" fill="currentColor" />
+              <path d="M4 3.5V20.5L16.5 12L4 3.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="M19 9.5L18.3 11.2L16.5 12L18.3 12.8L19 14.5L19.7 12.8L21.5 12L19.7 11.2Z" fill="currentColor" />
             </svg>
           </div>
           <span className="logo-text">AI Design Studio</span><span className="logo-byline">by <a href="https://fb.workplace.com/profile.php?id=100043015364125" target="_blank" rel="noopener noreferrer" style={{color: 'inherit', textDecoration: 'underline'}}>Sohaj</a></span>
