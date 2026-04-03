@@ -547,10 +547,10 @@
 /* ── Landing page ─────────────────────────────── */
 .landing-page {
   flex: 1;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow: hidden;
 }
 
 .landing-hero {
@@ -560,7 +560,6 @@
   width: 100%;
   display: flex;
   justify-content: center;
-  flex-shrink: 0;
 }
 
 .landing-content {
@@ -572,7 +571,6 @@
 /* ── Home tabs (Create / Videos) ─────────────── */
 .home-tabs {
   display: inline-flex;
-  margin-top: 20px;
   border-radius: 100px;
   border: 1px solid var(--border-color);
   overflow: hidden;
@@ -621,8 +619,6 @@
 }
 
 .landing-tab-content {
-  flex: 1;
-  overflow-y: auto;
   width: 100%;
   display: flex;
   justify-content: center;

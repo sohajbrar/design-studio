@@ -2631,6 +2631,22 @@ function App() {
             </svg>
           </button>
         ) : null}
+        centerContent={!hasStarted ? (
+          <div className="home-tabs">
+            <button
+              className={`home-tab ${homeTab === 'create' ? 'active' : ''}`}
+              onClick={() => setHomeTab('create')}
+            >
+              Create
+            </button>
+            <button
+              className={`home-tab ${homeTab === 'videos' ? 'active' : ''}`}
+              onClick={() => setHomeTab('videos')}
+            >
+              Videos
+            </button>
+          </div>
+        ) : null}
       >
         {hasStarted && !convertingFormat && (
           <>
@@ -2704,20 +2720,6 @@ function App() {
                 <p className="upload-subtitle">
                   Pick a template to get started, or begin with a blank canvas
                 </p>
-                <div className="home-tabs">
-                  <button
-                    className={`home-tab ${homeTab === 'create' ? 'active' : ''}`}
-                    onClick={() => setHomeTab('create')}
-                  >
-                    Create
-                  </button>
-                  <button
-                    className={`home-tab ${homeTab === 'videos' ? 'active' : ''}`}
-                    onClick={() => setHomeTab('videos')}
-                  >
-                    Videos
-                  </button>
-                </div>
               </div>
             </div>
             <div className="landing-tab-content">

@@ -1,6 +1,6 @@
 import './Header.css'
 
-export default function Header({ children, leftAction, siteTheme, onToggleTheme }) {
+export default function Header({ children, centerContent, leftAction, siteTheme, onToggleTheme }) {
   return (
     <header className="header">
       <div className="header-left">
@@ -26,6 +26,7 @@ export default function Header({ children, leftAction, siteTheme, onToggleTheme 
         </div>
       </div>
       <div className="header-center">
+        {centerContent}
       </div>
       <div className="header-right">
         {onToggleTheme && (
