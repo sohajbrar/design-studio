@@ -547,6 +547,7 @@ function App() {
   const [showBackConfirm, setShowBackConfirm] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
   const [homeTab, setHomeTab] = useState('create')
+  const [autoPreviewUrl, setAutoPreviewUrl] = useState(null)
   const hasUnsavedChanges = useRef(false)
   const [activeThemeId, setActiveThemeId] = useState(null)
   const [outroLogo, setOutroLogo] = useState(null)
@@ -2188,6 +2189,16 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
 
+    const videoUrl = params.get('video')
+    if (videoUrl) {
+      setHomeTab('videos')
+      setAutoPreviewUrl(videoUrl)
+      const cleanUrl = new URL(window.location.href)
+      cleanUrl.searchParams.delete('video')
+      window.history.replaceState(null, '', cleanUrl.toString())
+      return
+    }
+
     // v3: load from jsonblob.com
     const blobId = params.get('p')
     if (blobId) {
@@ -2744,7 +2755,11 @@ function App() {
                   />
                 </div>
               ) : (
-                <VideosGallery visible={homeTab === 'videos'} />
+                <VideosGallery
+                visible={homeTab === 'videos'}
+                autoPreviewUrl={autoPreviewUrl}
+                onAutoPreviewConsumed={() => setAutoPreviewUrl(null)}
+              />
               )}
             </div>}
           </div>
@@ -3928,7 +3943,13 @@ function App() {
               </svg>
               Video saved & downloaded
               {cloudSaveUrl && (
-                <button className="cloud-toast-btn" onClick={() => window.open(cloudSaveUrl, '_blank')}>
+                <button className="cloud-toast-btn" onClick={() => {
+                  const url = new URL(window.location.href)
+                  url.search = ''
+                  url.hash = ''
+                  url.searchParams.set('video', cloudSaveUrl)
+                  window.open(url.toString(), '_blank')
+                }}>
                   View
                 </button>
               )}

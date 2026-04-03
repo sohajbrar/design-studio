@@ -23,7 +23,7 @@ function getFormat(pathname) {
   return ext || 'video'
 }
 
-export default function VideosGallery({ visible }) {
+export default function VideosGallery({ visible, autoPreviewUrl, onAutoPreviewConsumed }) {
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -43,16 +43,27 @@ export default function VideosGallery({ visible }) {
       setHasMore(data.hasMore)
       setCursor(data.cursor)
       setError(null)
+      return data.videos
     } catch (err) {
       setError(err.message)
+      return []
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    if (visible) fetchVideos()
-  }, [visible, fetchVideos])
+    if (visible) {
+      fetchVideos().then((vids) => {
+        if (autoPreviewUrl && vids.length > 0) {
+          const match = vids.find((v) => v.url === autoPreviewUrl)
+          if (match) setPreviewVideo(match)
+          else setPreviewVideo({ url: autoPreviewUrl, pathname: autoPreviewUrl.split('/').pop(), size: 0, uploadedAt: new Date().toISOString(), email: '', context: '' })
+          onAutoPreviewConsumed?.()
+        }
+      })
+    }
+  }, [visible, fetchVideos, autoPreviewUrl, onAutoPreviewConsumed])
 
   const handleDelete = useCallback(async (video) => {
     if (!confirm('Delete this video? This cannot be undone.')) return
