@@ -547,10 +547,10 @@
 /* ── Landing page ─────────────────────────────── */
 .landing-page {
   flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow: hidden;
 }
 
 .landing-hero {
@@ -560,6 +560,7 @@
   width: 100%;
   display: flex;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .landing-content {
@@ -571,43 +572,17 @@
 /* ── Home tabs (Create / Videos) ─────────────── */
 .home-tabs {
   display: flex;
-  gap: 4px;
-  padding: 0 40px;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.landing-tab-content {
+  flex: 1;
+  overflow-y: auto;
   width: 100%;
-  max-width: 1400px;
-  margin-bottom: 8px;
-}
-
-.home-tab {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.home-tab:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.home-tab.active {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-@media (max-width: 768px) {
-  .home-tabs {
-    padding: 0 16px;
-  }
+  justify-content: center;
 }
 
 .landing-section {

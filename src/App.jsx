@@ -2691,46 +2691,39 @@ function App() {
                 <p className="upload-subtitle">
                   Pick a template to get started, or begin with a blank canvas
                 </p>
+                <div className="home-tabs">
+                  <button
+                    className={`chip ${homeTab === 'create' ? 'active' : ''}`}
+                    onClick={() => setHomeTab('create')}
+                  >
+                    Create
+                  </button>
+                  <button
+                    className={`chip ${homeTab === 'videos' ? 'active' : ''}`}
+                    onClick={() => setHomeTab('videos')}
+                  >
+                    Videos
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="home-tabs">
-              <button
-                className={`home-tab ${homeTab === 'create' ? 'active' : ''}`}
-                onClick={() => setHomeTab('create')}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="16" />
-                  <line x1="8" y1="12" x2="16" y2="12" />
-                </svg>
-                Create
-              </button>
-              <button
-                className={`home-tab ${homeTab === 'videos' ? 'active' : ''}`}
-                onClick={() => setHomeTab('videos')}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="23 7 16 12 23 17 23 7" />
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                </svg>
-                Videos
-              </button>
-            </div>
-            {homeTab === 'create' ? (
-              <div className="landing-section">
-                <TemplateGallery
-                  onSelectTemplate={handleSelectTemplate}
-                  activeTemplateId={activeTemplateId}
-                  onStartBlank={handleStartBlank}
-                  onAIGenerate={handleAIGenerate}
-                  aiLoading={aiLoading}
-                  globalBrandTheme={globalBrandTheme}
-                  onBrandThemeChange={setGlobalBrandTheme}
-                />
-              </div>
-            ) : (
-              <VideosGallery />
-            )}
+            <div className="landing-tab-content">
+              {homeTab === 'create' ? (
+                <div className="landing-section">
+                  <TemplateGallery
+                    onSelectTemplate={handleSelectTemplate}
+                    activeTemplateId={activeTemplateId}
+                    onStartBlank={handleStartBlank}
+                    onAIGenerate={handleAIGenerate}
+                    aiLoading={aiLoading}
+                    globalBrandTheme={globalBrandTheme}
+                    onBrandThemeChange={setGlobalBrandTheme}
+                  />
+                </div>
+              ) : (
+                <VideosGallery />
+              )}
+            </div>}
           </div>
         ) : (
           <>
