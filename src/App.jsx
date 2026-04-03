@@ -2750,7 +2750,7 @@ function App() {
                 onAutoPreviewConsumed={() => setAutoPreviewUrl(null)}
               />
               )}
-            </div>}
+            </div>
           </div>
         ) : (
           <>
