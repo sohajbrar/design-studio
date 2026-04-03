@@ -15,7 +15,9 @@
 .upload-hero-bg {
   position: absolute;
   inset: -100px;
-  background: radial-gradient(ellipse at center, rgba(128, 128, 128, 0.05) 0%, transparent 70%);
+  background:
+    radial-gradient(ellipse at 40% 40%, rgba(160, 170, 200, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse at 65% 60%, rgba(120, 130, 160, 0.08) 0%, transparent 55%);
   pointer-events: none;
   z-index: 0;
 }
@@ -35,7 +37,10 @@
   font-weight: 800;
   letter-spacing: -0.03em;
   margin-bottom: 12px;
-  color: var(--text-primary);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 60%, var(--text-muted) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .upload-subtitle {
