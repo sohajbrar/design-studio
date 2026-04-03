@@ -547,7 +547,7 @@
 /* ── Landing page ─────────────────────────────── */
 .landing-page {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: scroll;
   display: flex;
   flex-direction: column;
   align-items: center;
