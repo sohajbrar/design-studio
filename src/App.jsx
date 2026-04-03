@@ -1395,7 +1395,7 @@ function App() {
       a.download = `mockup-demo-${Date.now()}.${targetFormat}`
       a.click()
       URL.revokeObjectURL(url)
-      uploadVideoToBlob(outBlob, targetFormat)
+      saveToCloud(outBlob, targetFormat)
     } catch (err) {
       console.error(`${targetFormat.toUpperCase()} conversion failed, falling back to WebM:`, err)
       const url = URL.createObjectURL(webmBlob)
@@ -1404,7 +1404,7 @@ function App() {
       a.download = `mockup-demo-${Date.now()}.webm`
       a.click()
       URL.revokeObjectURL(url)
-      uploadVideoToBlob(webmBlob, 'webm')
+      saveToCloud(webmBlob, 'webm')
     } finally {
       setConvertingFormat(null)
       setConvertProgress(0)
@@ -1675,7 +1675,7 @@ function App() {
         a.download = `mockup-demo-${Date.now()}.webm`
         a.click()
         setTimeout(() => URL.revokeObjectURL(url), 5000)
-        uploadVideoToBlob(webmBlob, 'webm')
+        saveToCloud(webmBlob, 'webm')
       } else {
         await convertWebmTo(webmBlob, chosenFormat)
       }
@@ -1819,6 +1819,16 @@ function App() {
   const [shareToast, setShareToast] = useState(null)
   const shareToastTimer = useRef(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [cloudSaveStatus, setCloudSaveStatus] = useState(null)
+  const cloudSaveTimer = useRef(null)
+
+  const saveToCloud = useCallback(async (blob, format) => {
+    setCloudSaveStatus('saving')
+    const url = await uploadVideoToBlob(blob, format)
+    if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current)
+    setCloudSaveStatus(url ? 'saved' : 'failed')
+    cloudSaveTimer.current = setTimeout(() => setCloudSaveStatus(null), 3000)
+  }, [])
 
   const getCurrentConfig = useCallback(() => ({
     activeTemplateId,
@@ -2721,7 +2731,7 @@ function App() {
                   />
                 </div>
               ) : (
-                <VideosGallery />
+                <VideosGallery visible={homeTab === 'videos'} />
               )}
             </div>}
           </div>
@@ -3887,6 +3897,34 @@ function App() {
             <polyline points="20 6 9 17 4 12" />
           </svg>
           {shareToast}
+        </div>
+      )}
+
+      {cloudSaveStatus && (
+        <div className={`share-toast cloud-toast ${cloudSaveStatus === 'failed' ? 'cloud-toast-error' : ''}`}>
+          {cloudSaveStatus === 'saving' && (
+            <>
+              <div className="videos-loading-spinner" style={{ width: 14, height: 14, borderWidth: 2, margin: 0 }} />
+              Saving to cloud...
+            </>
+          )}
+          {cloudSaveStatus === 'saved' && (
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Saved to cloud
+            </>
+          )}
+          {cloudSaveStatus === 'failed' && (
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+              Cloud save failed
+            </>
+          )}
         </div>
       )}
     </div>

@@ -800,3 +800,11 @@
     transform: translateX(-50%) translateY(0);
   }
 }
+
+.cloud-toast {
+  bottom: 72px;
+}
+
+.cloud-toast-error svg {
+  color: var(--danger);
+}

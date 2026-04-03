@@ -23,7 +23,7 @@ function getFormat(pathname) {
   return ext || 'video'
 }
 
-export default function VideosGallery() {
+export default function VideosGallery({ visible }) {
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -42,6 +42,7 @@ export default function VideosGallery() {
       setVideos((prev) => nextCursor ? [...prev, ...data.videos] : data.videos)
       setHasMore(data.hasMore)
       setCursor(data.cursor)
+      setError(null)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -49,7 +50,9 @@ export default function VideosGallery() {
     }
   }, [])
 
-  useEffect(() => { fetchVideos() }, [fetchVideos])
+  useEffect(() => {
+    if (visible) fetchVideos()
+  }, [visible, fetchVideos])
 
   const handleDelete = useCallback(async (video) => {
     if (!confirm('Delete this video? This cannot be undone.')) return
@@ -109,7 +112,7 @@ export default function VideosGallery() {
             </svg>
           </div>
           <h3>No exported videos yet</h3>
-          <p>Videos you export will appear here automatically</p>
+          <p>Export a video and it will appear here automatically. Uploads may take a moment after export finishes.</p>
         </div>
       </div>
     )
@@ -121,7 +124,7 @@ export default function VideosGallery() {
         {videos.map((video) => (
           <div key={video.url} className="video-card">
             <div className="video-card-preview" onClick={() => setPreviewVideo(video)}>
-              <video src={video.url} preload="metadata" muted playsInline />
+              <video src={video.url} crossOrigin="anonymous" preload="metadata" muted playsInline />
               <div className="video-card-play-overlay">
                 <div className="video-card-play-btn">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -173,7 +176,7 @@ export default function VideosGallery() {
       {previewVideo && (
         <div className="video-modal-overlay" onClick={() => setPreviewVideo(null)}>
           <div className="video-modal" onClick={(e) => e.stopPropagation()}>
-            <video src={previewVideo.url} controls autoPlay playsInline />
+            <video src={previewVideo.url} crossOrigin="anonymous" controls autoPlay playsInline />
             <div className="video-modal-footer">
               <div className="video-card-meta">
                 <div className="video-card-name">{previewVideo.pathname.split('/').pop()}</div>
