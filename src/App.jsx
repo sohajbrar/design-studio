@@ -1820,14 +1820,17 @@ function App() {
   const shareToastTimer = useRef(null)
   const [isSaving, setIsSaving] = useState(false)
   const [cloudSaveStatus, setCloudSaveStatus] = useState(null)
+  const [cloudSaveUrl, setCloudSaveUrl] = useState(null)
   const cloudSaveTimer = useRef(null)
 
   const saveToCloud = useCallback(async (blob, format) => {
     setCloudSaveStatus('saving')
+    setCloudSaveUrl(null)
     const url = await uploadVideoToBlob(blob, format)
     if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current)
     setCloudSaveStatus(url ? 'saved' : 'failed')
-    cloudSaveTimer.current = setTimeout(() => setCloudSaveStatus(null), 3000)
+    if (url) setCloudSaveUrl(url)
+    cloudSaveTimer.current = setTimeout(() => { setCloudSaveStatus(null); setCloudSaveUrl(null) }, 8000)
   }, [])
 
   const getCurrentConfig = useCallback(() => ({
@@ -3913,7 +3916,13 @@ function App() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              Saved to cloud
+              Video saved & downloaded
+              {cloudSaveUrl && (
+                <button className="cloud-toast-btn" onClick={() => window.open(cloudSaveUrl, '_blank')}>
+                  View
+                </button>
+              )}
+              <button className="cloud-toast-dismiss" onClick={() => { setCloudSaveStatus(null); setCloudSaveUrl(null) }}>×</button>
             </>
           )}
           {cloudSaveStatus === 'failed' && (
