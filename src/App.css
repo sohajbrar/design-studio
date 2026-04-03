@@ -571,10 +571,53 @@
 
 /* ── Home tabs (Create / Videos) ─────────────── */
 .home-tabs {
+  display: inline-flex;
+  margin-top: 20px;
+  border-radius: 100px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.home-tab {
+  padding: 10px 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
   display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 16px;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  position: relative;
+}
+
+.home-tab:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: var(--border-color);
+}
+
+.home-tab:hover {
+  color: var(--text-primary);
+}
+
+.home-tab.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.home-tab.active::after {
+  display: none;
 }
 
 .landing-tab-content {

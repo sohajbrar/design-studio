@@ -2693,13 +2693,13 @@ function App() {
                 </p>
                 <div className="home-tabs">
                   <button
-                    className={`chip ${homeTab === 'create' ? 'active' : ''}`}
+                    className={`home-tab ${homeTab === 'create' ? 'active' : ''}`}
                     onClick={() => setHomeTab('create')}
                   >
                     Create
                   </button>
                   <button
-                    className={`chip ${homeTab === 'videos' ? 'active' : ''}`}
+                    className={`home-tab ${homeTab === 'videos' ? 'active' : ''}`}
                     onClick={() => setHomeTab('videos')}
                   >
                     Videos
