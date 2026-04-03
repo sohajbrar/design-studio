@@ -8,7 +8,7 @@ export default async function handler(req, res) {
       onBeforeGenerateToken: async (pathname) => {
         return {
           maximumSizeInBytes: 100 * 1024 * 1024,
-          allowedContentTypes: ['video/webm', 'video/mp4', 'video/quicktime'],
+          allowedContentTypes: ['video/webm', 'video/mp4', 'video/quicktime', 'application/json'],
         }
       },
       onUploadCompleted: async ({ blob }) => {

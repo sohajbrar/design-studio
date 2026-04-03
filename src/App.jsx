@@ -1411,7 +1411,10 @@ function App() {
     }
   }, [getFFmpeg])
 
-  const startRecording = useCallback(async () => {
+  const exportMetaRef = useRef({ email: '', context: '' })
+
+  const startRecording = useCallback(async (meta) => {
+    if (meta) exportMetaRef.current = meta
     const canvas = canvasRef.current
     if (!canvas) {
       console.warn('Canvas element not available for recording')
@@ -1826,7 +1829,8 @@ function App() {
   const saveToCloud = useCallback(async (blob, format) => {
     setCloudSaveStatus('saving')
     setCloudSaveUrl(null)
-    const url = await uploadVideoToBlob(blob, format)
+    const meta = exportMetaRef.current
+    const url = await uploadVideoToBlob(blob, format, meta)
     if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current)
     setCloudSaveStatus(url ? 'saved' : 'failed')
     if (url) setCloudSaveUrl(url)

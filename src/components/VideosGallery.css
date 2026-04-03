@@ -92,6 +92,10 @@
   margin-top: 2px;
 }
 
+.video-card-email {
+  color: var(--accent);
+}
+
 .video-card-actions {
   display: flex;
   gap: 4px;

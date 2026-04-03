@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import './ExportModal.css'
 
 const FORMAT_INFO = {
@@ -7,6 +8,9 @@ const FORMAT_INFO = {
 }
 
 export default function ExportModal({ onClose, onRecord, quality, setQuality, exportFormat, setExportFormat }) {
+  const [email, setEmail] = useState('')
+  const [context, setContext] = useState('')
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -45,6 +49,26 @@ export default function ExportModal({ onClose, onRecord, quality, setQuality, ex
               ))}
             </div>
           </div>
+          <div className="modal-field">
+            <label>Email address</label>
+            <input
+              type="email"
+              className="modal-input"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="modal-field">
+            <label>Description</label>
+            <textarea
+              className="modal-input modal-textarea"
+              placeholder="What is this video for? (optional)"
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              rows={2}
+            />
+          </div>
           {exportFormat !== 'webm' && (
             <div className="modal-info">
               <p>Recording will capture in WebM and then convert to {exportFormat.toUpperCase()}. This may take a moment after recording finishes.</p>
@@ -58,7 +82,7 @@ export default function ExportModal({ onClose, onRecord, quality, setQuality, ex
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => { onRecord(); onClose(); }}>
+          <button className="btn btn-primary" onClick={() => { onRecord({ email: email.trim(), context: context.trim() }); onClose(); }}>
             Export as .{exportFormat}
           </button>
         </div>

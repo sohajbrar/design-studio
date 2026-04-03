@@ -135,8 +135,12 @@ export default function VideosGallery({ visible }) {
             </div>
             <div className="video-card-info">
               <div className="video-card-meta">
-                <div className="video-card-name">{video.pathname.split('/').pop()}</div>
+                <div className="video-card-name">
+                  {video.context || video.pathname.split('/').pop()}
+                </div>
                 <div className="video-card-details">
+                  {video.email && <span className="video-card-email">{video.email}</span>}
+                  {video.email && ' · '}
                   {getFormat(video.pathname).toUpperCase()} · {formatSize(video.size)} · {formatDate(video.uploadedAt)}
                 </div>
               </div>
@@ -179,8 +183,12 @@ export default function VideosGallery({ visible }) {
             <video src={previewVideo.url} crossOrigin="anonymous" controls autoPlay playsInline />
             <div className="video-modal-footer">
               <div className="video-card-meta">
-                <div className="video-card-name">{previewVideo.pathname.split('/').pop()}</div>
+                <div className="video-card-name">
+                  {previewVideo.context || previewVideo.pathname.split('/').pop()}
+                </div>
                 <div className="video-card-details">
+                  {previewVideo.email && <span className="video-card-email">{previewVideo.email}</span>}
+                  {previewVideo.email && ' · '}
                   {getFormat(previewVideo.pathname).toUpperCase()} · {formatSize(previewVideo.size)} · {formatDate(previewVideo.uploadedAt)}
                 </div>
               </div>
