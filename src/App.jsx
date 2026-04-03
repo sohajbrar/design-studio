@@ -9,6 +9,7 @@ import TemplateGallery, { TEMPLATES } from './components/TemplateGallery'
 
 import Header from './components/Header'
 import ExportModal from './components/ExportModal'
+import VideosGallery from './components/VideosGallery'
 import Timeline from './components/Timeline'
 import AIAssistant from './components/AIAssistant'
 import AudioEngine from './utils/audioEngine'
@@ -545,6 +546,7 @@ function App() {
   const [activeTemplateId, setActiveTemplateId] = useState(null)
   const [showBackConfirm, setShowBackConfirm] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
+  const [homeTab, setHomeTab] = useState('create')
   const hasUnsavedChanges = useRef(false)
   const [activeThemeId, setActiveThemeId] = useState(null)
   const [outroLogo, setOutroLogo] = useState(null)
@@ -2691,17 +2693,44 @@ function App() {
                 </p>
               </div>
             </div>
-            <div className="landing-section">
-              <TemplateGallery
-                onSelectTemplate={handleSelectTemplate}
-                activeTemplateId={activeTemplateId}
-                onStartBlank={handleStartBlank}
-                onAIGenerate={handleAIGenerate}
-                aiLoading={aiLoading}
-                globalBrandTheme={globalBrandTheme}
-                onBrandThemeChange={setGlobalBrandTheme}
-              />
+            <div className="home-tabs">
+              <button
+                className={`home-tab ${homeTab === 'create' ? 'active' : ''}`}
+                onClick={() => setHomeTab('create')}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="16" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+                Create
+              </button>
+              <button
+                className={`home-tab ${homeTab === 'videos' ? 'active' : ''}`}
+                onClick={() => setHomeTab('videos')}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="23 7 16 12 23 17 23 7" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                </svg>
+                Videos
+              </button>
             </div>
+            {homeTab === 'create' ? (
+              <div className="landing-section">
+                <TemplateGallery
+                  onSelectTemplate={handleSelectTemplate}
+                  activeTemplateId={activeTemplateId}
+                  onStartBlank={handleStartBlank}
+                  onAIGenerate={handleAIGenerate}
+                  aiLoading={aiLoading}
+                  globalBrandTheme={globalBrandTheme}
+                  onBrandThemeChange={setGlobalBrandTheme}
+                />
+              </div>
+            ) : (
+              <VideosGallery />
+            )}
           </div>
         ) : (
           <>
