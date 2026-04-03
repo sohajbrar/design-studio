@@ -2715,11 +2715,9 @@ function App() {
               <div className="landing-content">
                 <div className="upload-icon-large">
                   <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-                    <rect x="16" y="6" width="32" height="52" rx="7" stroke="currentColor" strokeWidth="2.5" />
-                    <rect x="27" y="9" width="10" height="2" rx="1" fill="currentColor" opacity="0.2" />
-                    <rect x="27" y="53" width="10" height="2" rx="1" fill="currentColor" opacity="0.2" />
-                    <circle cx="32" cy="32" r="13" fill="currentColor" opacity="0.07" />
-                    <path d="M28 24V40L42 32L28 24Z" fill="currentColor" opacity="0.8" />
+                    <path d="M36 8H48C52.4 8 56 11.6 56 16V48C56 52.4 52.4 56 48 56H36C18 56 8 46 8 32C8 18 18 8 36 8Z" stroke="currentColor" strokeWidth="2.5" />
+                    <circle cx="34" cy="32" r="5.5" fill="currentColor" opacity="0.12" />
+                    <circle cx="34" cy="32" r="2.5" fill="currentColor" />
                   </svg>
                 </div>
                 <h1 className="upload-title">
