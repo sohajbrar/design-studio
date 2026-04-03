@@ -12,12 +12,12 @@ export default function Header({ children, centerContent, leftAction, siteTheme,
               <rect x="14" y="4" width="8" height="14" rx="2" fill="url(#g2)" opacity="0.7" />
               <defs>
                 <linearGradient id="g1" x1="2" y1="4" x2="10" y2="18">
-                  <stop stopColor="#21C063" />
-                  <stop offset="1" stopColor="#2ed874" />
+                  <stop stopColor="#1a1a1a" />
+                  <stop offset="1" stopColor="#444444" />
                 </linearGradient>
                 <linearGradient id="g2" x1="14" y1="4" x2="22" y2="18">
-                  <stop stopColor="#1aad56" />
-                  <stop offset="1" stopColor="#21C063" />
+                  <stop stopColor="#333333" />
+                  <stop offset="1" stopColor="#555555" />
                 </linearGradient>
               </defs>
             </svg>

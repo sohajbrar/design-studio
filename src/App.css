@@ -610,8 +610,8 @@
 }
 
 .home-tab.active {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--text-primary);
+  color: var(--bg-primary);
   font-weight: 600;
 }
 

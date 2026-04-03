@@ -2717,16 +2717,16 @@ function App() {
                   <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
                     <rect x="8" y="12" width="20" height="36" rx="4" stroke="url(#ug1)" strokeWidth="2.5" />
                     <rect x="36" y="12" width="20" height="36" rx="4" stroke="url(#ug2)" strokeWidth="2.5" />
-                    <path d="M32 4L28 10H36L32 4Z" fill="#21C063" opacity="0.5" />
-                    <path d="M32 60L28 54H36L32 60Z" fill="#1aad56" opacity="0.5" />
+                    <path d="M32 4L28 10H36L32 4Z" fill="#333333" opacity="0.5" />
+                    <path d="M32 60L28 54H36L32 60Z" fill="#222222" opacity="0.5" />
                     <defs>
                       <linearGradient id="ug1" x1="8" y1="12" x2="28" y2="48">
-                        <stop stopColor="#21C063" />
-                        <stop offset="1" stopColor="#2ed874" />
+                        <stop stopColor="#1a1a1a" />
+                        <stop offset="1" stopColor="#444444" />
                       </linearGradient>
                       <linearGradient id="ug2" x1="36" y1="12" x2="56" y2="48">
-                        <stop stopColor="#1aad56" />
-                        <stop offset="1" stopColor="#21C063" />
+                        <stop stopColor="#333333" />
+                        <stop offset="1" stopColor="#555555" />
                       </linearGradient>
                     </defs>
                   </svg>
