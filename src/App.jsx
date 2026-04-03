@@ -2653,7 +2653,7 @@ function App() {
               onClick={isRecording ? stopRecording : () => { setShowExport(true); getFFmpeg() }}
               disabled={!hasScreens}
             >
-              {isRecording ? '⏹ Stop Recording' : '⏺ Record & Export'}
+              {isRecording ? '⏹ Stop Recording' : '⏺ Save & Export'}
             </button>
           </>
         )}
