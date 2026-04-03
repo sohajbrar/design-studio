@@ -8,7 +8,7 @@ export default function Header({ children, centerContent, leftAction, siteTheme,
         <div className="logo">
           <div className="logo-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M6 1L5 3L3 4L5 5L6 7L7 5L9 4L7 3Z M6 2.7L5.5 4L6 5.3L6.5 4Z" fill="currentColor" fillRule="evenodd" />
+              <path d="M5 3L4 5L2 6L4 7L5 9L6 7L8 6L6 5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
               <path d="M3 13V17.5C3 19 4.3 20 6 20H13C14.7 20 16 19 16 17.5V11.5C16 10 14.7 9 13 9H10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
               <path d="M18 12L22 9.5V18.5L18 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
             </svg>
