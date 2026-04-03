@@ -2716,9 +2716,13 @@ function App() {
                     </defs>
                   </svg>
                 </div>
-                <h1 className="upload-title">Create Stunning Demo Videos</h1>
+                <h1 className="upload-title">
+                  {homeTab === 'create' ? 'Create Stunning Demo Videos' : 'Your Exported Videos'}
+                </h1>
                 <p className="upload-subtitle">
-                  Pick a template to get started, or begin with a blank canvas
+                  {homeTab === 'create'
+                    ? 'Pick a template to get started, or begin with a blank canvas'
+                    : 'Browse, preview, and download your saved exports'}
                 </p>
               </div>
             </div>
