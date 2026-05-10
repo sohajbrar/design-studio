@@ -337,12 +337,19 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
     } else if (screenFile) {
       createImageBitmap(screenFile)
         .then((bitmap) => {
-          const targetW = 1080
+          // Size the texture to preserve the source resolution (capped at 4K
+          // wide) so high-DPI screenshots stay sharp instead of being
+          // pre-downsampled to 1080.
+          const MAX_W = 4096
+          const MIN_W = 1080
+          const targetW = Math.max(MIN_W, Math.min(MAX_W, bitmap.width))
           const targetH = Math.round(targetW / screenAspect)
           const canvas = document.createElement('canvas')
           canvas.width = targetW
           canvas.height = targetH
           const ctx = canvas.getContext('2d')
+          ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = 'high'
 
           if (screenFitMode === 'fill') {
             ctx.drawImage(bitmap, 0, 0, targetW, targetH)
@@ -379,9 +386,12 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
 
           const tex = new THREE.CanvasTexture(canvas)
           tex.colorSpace = THREE.SRGBColorSpace
-          tex.minFilter = THREE.LinearFilter
+          // Mipmaps + anisotropy keep the screen sharp when viewed at any
+          // angle (lid open/close, rotation) without aliasing.
+          tex.minFilter = THREE.LinearMipmapLinearFilter
           tex.magFilter = THREE.LinearFilter
-          tex.generateMipmaps = false
+          tex.generateMipmaps = true
+          tex.anisotropy = 16
           tex.needsUpdate = true
           commitTexture(tex, null)
         })
