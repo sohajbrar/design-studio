@@ -567,11 +567,14 @@ function MacBookGLB({
     }
 
     // Lid rotation: lidAngleRef PI/2 = open (model default), PI = closed.
-    // Model lid is ~0.41 rad past vertical, so factor = 1 + 0.41/(PI/2) ≈ 1.25
-    // to reach flat without overshooting through the base.
+    // Model lid leans ~21° back from vertical at rest, so flat-closed is
+    // reached at ~111° of forward rotation. Cap there so the close motion
+    // stops flush against the base instead of rotating through it.
     if (lidPivotRef.current && lidAngleRef) {
       const angle = lidAngleRef.current != null ? lidAngleRef.current : Math.PI / 2
-      lidPivotRef.current.rotation.x = (angle - Math.PI / 2) * 1.25
+      const target = (angle - Math.PI / 2) * 1.25
+      const FLAT_ROT = (111 * Math.PI) / 180
+      lidPivotRef.current.rotation.x = Math.min(target, FLAT_ROT)
     }
   })
 

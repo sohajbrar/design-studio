@@ -692,10 +692,19 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             group.position.y += 3.5 * p
             group.rotation.x += 0.4 * p
             break
-          case 'laptopClose':
-            lidAngleRef.current = (Math.PI / 2) + p * (Math.PI / 2)
-            break
         }
+      }
+    }
+
+    // Lid-close outro runs on its own clock so the close is visible from the
+    // very start of the window (easeOutCubic → fast start, settled finish) and
+    // works even on short clips that don't satisfy the gated outro above.
+    if (outroAnimation === 'laptopClose') {
+      const lidOutroDur = 1.8
+      const lidOutroStart = Math.max(0, (clipDuration || 0) - lidOutroDur)
+      if (clipDuration && t > lidOutroStart) {
+        const closeP = easeOutCubic((t - lidOutroStart) / lidOutroDur)
+        lidAngleRef.current = (Math.PI / 2) + closeP * (Math.PI / 2)
       }
     }
 
