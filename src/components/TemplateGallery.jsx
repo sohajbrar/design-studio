@@ -29,10 +29,18 @@ function TemplateCardPreview({ template, themed, isHovered, cardAccent }) {
             <StaticPreviewSvg template={template} />
           </div>
         }>
-          <div className="template-mini-preview">
+          <div
+            className="template-mini-preview"
+            style={template.bgImageUrl ? {
+              backgroundImage: `url(${template.bgImageUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            } : undefined}
+          >
             <MiniPreviewCanvas
               animation={template.animation}
               bgColor={bgColor}
+              bgImageUrl={template.bgImageUrl}
               deviceType={template.deviceType}
               paused={!isHovered}
             />
@@ -522,6 +530,188 @@ export const TEMPLATES = [
       multiDevice: 'flatScatter',
     },
   },
+
+  // ── Environment / Lifestyle templates ──────────────────────
+  {
+    id: 'env-floral-tray',
+    name: 'Floral Tray',
+    description: 'Phone floating above a floral wooden tray',
+    category: 'Environment',
+    deviceType: 'iphone',
+    animation: 'envFloat',
+    outroAnimation: 'zoomOut',
+    bgColor: '#D4B896',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/floral-tray.jpg',
+    showBase: false,
+    clipDuration: 6,
+    textOverlay: { text: 'Beautifully Simple', fontSize: 44, color: '#2C1A0E', posY: -0.45, animation: 'slideFromBottom' },
+    musicId: 'f-9',
+    preview: {
+      gradient: 'linear-gradient(135deg, #C8A882 0%, #8B6340 50%, #5C3D1E 100%)',
+      accentColor: '#8B6340',
+    },
+  },
+  {
+    id: 'env-dark-studio',
+    name: 'Dark Studio',
+    description: 'Dramatic dark studio with device floating',
+    category: 'Environment',
+    deviceType: 'iphone',
+    animation: 'envZoomIn',
+    outroAnimation: 'zoomOut',
+    bgColor: '#1A1A1A',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/dark-hand.jpg',
+    showBase: false,
+    clipDuration: 6,
+    textOverlay: { text: 'Experience It', fontSize: 52, color: '#FFFFFF', posY: -0.45, animation: 'slideFromBottom' },
+    musicId: 'f-4',
+    preview: {
+      gradient: 'linear-gradient(135deg, #111111 0%, #2A2A2A 50%, #3A3A3A 100%)',
+      accentColor: '#888888',
+    },
+  },
+  {
+    id: 'env-outdoor-fresh',
+    name: 'Outdoor Fresh',
+    description: 'Natural outdoor environment with gentle slide',
+    category: 'Environment',
+    deviceType: 'iphone',
+    animation: 'envSlideIn',
+    outroAnimation: 'slideLeft',
+    bgColor: '#4A6741',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/outdoor-hand.jpg',
+    showBase: false,
+    clipDuration: 5,
+    textOverlay: null,
+    musicId: 'f-3',
+    preview: {
+      gradient: 'linear-gradient(135deg, #3D5C35 0%, #5A8050 50%, #7AA66A 100%)',
+      accentColor: '#7AA66A',
+    },
+  },
+  {
+    id: 'env-keyboard-mobile',
+    name: 'Keyboard & Mobile',
+    description: 'Device over keyboard — productivity vibes',
+    category: 'Environment',
+    deviceType: 'iphone',
+    animation: 'envFloat',
+    outroAnimation: 'slideRight',
+    bgColor: '#2A5C5A',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/keyboard-hand.jpg',
+    showBase: false,
+    clipDuration: 6,
+    textOverlay: { text: 'Stay Productive', fontSize: 44, color: '#FFFFFF', posY: -0.45, animation: 'slideFromLeft' },
+    musicId: 'f-5',
+    preview: {
+      gradient: 'linear-gradient(135deg, #1A3C3A 0%, #2A5C5A 50%, #3A8C88 100%)',
+      accentColor: '#3A8C88',
+    },
+  },
+  {
+    id: 'env-macbook-desk',
+    name: 'Clean Desk',
+    description: 'MacBook on a minimal wooden desk setup',
+    category: 'Environment',
+    deviceType: 'macbook',
+    animation: 'envFloat',
+    outroAnimation: 'laptopClose',
+    bgColor: '#B8956A',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/macbook-desk.jpg',
+    showBase: false,
+    clipDuration: 6,
+    textOverlay: { text: 'Built for Work', fontSize: 44, color: '#2C1A0E', posY: 0.45, animation: 'slideFromTop' },
+    musicId: 'f-10',
+    preview: {
+      gradient: 'linear-gradient(135deg, #8B6340 0%, #B8956A 50%, #D4B896 100%)',
+      accentColor: '#8B6340',
+    },
+  },
+  {
+    id: 'env-macbook-tropical',
+    name: 'Tropical Studio',
+    description: 'MacBook with lush tropical leaf background',
+    category: 'Environment',
+    deviceType: 'macbook',
+    animation: 'envZoomOut',
+    outroAnimation: 'laptopClose',
+    bgColor: '#5C7A3E',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/macbook-tropical.jpg',
+    showBase: false,
+    clipDuration: 7,
+    textOverlay: { text: 'Grow Your Business', fontSize: 44, color: '#FFFFFF', posY: 0.45, animation: 'slideFromTop' },
+    musicId: 'f-7',
+    preview: {
+      gradient: 'linear-gradient(135deg, #3A5C24 0%, #5C7A3E 50%, #8AAA5A 100%)',
+      accentColor: '#8AAA5A',
+    },
+  },
+  {
+    id: 'env-macbook-overhead',
+    name: 'Overhead View',
+    description: 'Overhead workspace view with slow reveal',
+    category: 'Environment',
+    deviceType: 'macbook',
+    animation: 'envZoomIn',
+    outroAnimation: 'zoomOut',
+    bgColor: '#2A2A2A',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/macbook-overhead.jpg',
+    showBase: false,
+    clipDuration: 6,
+    textOverlay: null,
+    musicId: 'f-1',
+    preview: {
+      gradient: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 50%, #404040 100%)',
+      accentColor: '#888888',
+    },
+  },
+  {
+    id: 'env-macbook-typing',
+    name: 'In Action',
+    description: 'Laptop mid-use — dynamic everyday feel',
+    category: 'Environment',
+    deviceType: 'macbook',
+    animation: 'envRotateSlow',
+    outroAnimation: 'slideLeft',
+    bgColor: '#3A3A3A',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/macbook-typing.jpg',
+    showBase: false,
+    clipDuration: 6,
+    textOverlay: null,
+    musicId: 'f-8',
+    preview: {
+      gradient: 'linear-gradient(135deg, #2A2A2A 0%, #3D3D3D 50%, #555555 100%)',
+      accentColor: '#AAAAAA',
+    },
+  },
+  {
+    id: 'env-gradient-pop',
+    name: 'Gradient Pop',
+    description: 'Vibrant gradient with floating device',
+    category: 'Environment',
+    deviceType: 'iphone',
+    animation: 'envRotateSlow',
+    outroAnimation: 'zoomOut',
+    bgColor: '#CC44AA',
+    bgGradient: false,
+    bgImageUrl: '/backgrounds/gradient-pop.jpg',
+    showBase: false,
+    clipDuration: 6,
+    textOverlay: { text: 'Stand Out', fontSize: 52, color: '#FFFFFF', posY: -0.45, animation: 'slideFromBottom' },
+    musicId: 'f-6',
+    preview: {
+      gradient: 'linear-gradient(135deg, #FF40A0 0%, #CC44AA 40%, #6040E0 70%, #40C0FF 100%)',
+      accentColor: '#FF40A0',
+    },
+  },
 ]
 
 const DEVICE_LABELS = {
@@ -656,6 +846,25 @@ function MultiDevicePreviewSvg({ type }) {
 
 function StaticPreviewSvg({ template }) {
   if (template.preview.multiDevice) return <MultiDevicePreviewSvg type={template.preview.multiDevice} />
+
+  // Environment templates — show a landscape icon
+  if (template.bgImageUrl) return (
+    <svg viewBox="0 0 80 56" fill="none" className="template-sidebar-svg">
+      <rect x="2" y="2" width="76" height="52" rx="4" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+      {/* Mountain silhouette */}
+      <path d="M8 40 L22 20 L36 34 L46 24 L62 40Z" fill="currentColor" opacity="0.12" />
+      <path d="M2 40 L14 28 L24 36 L38 18 L52 32 L66 22 L78 34 L78 54 L2 54Z" fill="currentColor" opacity="0.08" />
+      {/* Device overlay */}
+      {template.deviceType === 'macbook' ? (
+        <>
+          <rect x="24" y="16" width="32" height="20" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.8" fill="currentColor" fillOpacity="0.15" />
+          <path d="M18 36h44l-2 4H20l-2-4z" stroke="currentColor" strokeWidth="1.2" opacity="0.6" fill="none" />
+        </>
+      ) : (
+        <rect x="32" y="12" width="16" height="28" rx="3" stroke="currentColor" strokeWidth="1.5" opacity="0.85" fill="currentColor" fillOpacity="0.15" />
+      )}
+    </svg>
+  )
   if (template.deviceType === 'macbook') return (
     <svg viewBox="0 0 80 56" fill="none" className="template-sidebar-svg">
       <rect x="12" y="4" width="56" height="36" rx="3" stroke="currentColor" strokeWidth="2" opacity="0.7" />
@@ -889,7 +1098,11 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
             >
               <div
                 className="template-sidebar-preview"
-                style={{ background: cardBg }}
+                style={template.bgImageUrl ? {
+                  backgroundImage: `url(${template.bgImageUrl})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                } : { background: cardBg }}
               >
                 <TemplateCardPreview
                   template={template}
@@ -908,8 +1121,17 @@ export default function TemplateGallery({ onSelectTemplate, activeTemplateId, on
                     Aa
                   </div>
                 )}
-                <div className="template-sidebar-badge" style={{ color: cardAccent }}>
-                  {template.preview.multiDevice ? (
+                <div className="template-sidebar-badge" style={{ color: template.bgImageUrl ? '#FFFFFF' : cardAccent, textShadow: template.bgImageUrl ? '0 1px 3px rgba(0,0,0,0.7)' : undefined }}>
+                  {template.bgImageUrl ? (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
+                      </svg>
+                      Env
+                    </>
+                  ) : template.preview.multiDevice ? (
                     <>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                         <rect x="2" y="4" width="8" height="14" rx="1.5" />

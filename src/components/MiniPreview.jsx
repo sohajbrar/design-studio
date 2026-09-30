@@ -96,9 +96,18 @@ function MiniLaptopOpenable({ position, rotation, scale: s = 1, lidPivotRef }) {
   )
 }
 
-function SceneBg({ bgColor }) {
+function SceneBg({ bgColor, bgImageUrl }) {
   const { scene } = useThree()
-  scene.background = new THREE.Color(bgColor)
+
+  useEffect(() => {
+    if (bgImageUrl) {
+      // Transparent canvas — CSS background image shows through
+      scene.background = null
+      return () => { scene.background = null }
+    }
+    scene.background = new THREE.Color(bgColor)
+  }, [bgColor, bgImageUrl, scene])
+
   return null
 }
 
@@ -223,6 +232,39 @@ function SingleDeviceAnim({ animation, deviceType, paused }) {
         g.position.y = sSin(t, 0.3, 0.06)
         break
       }
+      case 'envFloat':
+        g.rotation.y = sSin(t, 0.18, 0.12)
+        g.rotation.x = -0.08 + sSin(t, 0.12, 0.06)
+        g.position.y = sSin(t, 0.3, 0.07)
+        break
+      case 'envZoomIn': {
+        const p = easeOut(Math.min(1, (t - 2.5) / 3.0 + 0.5))
+        const s = 0.75 + 0.35 * p
+        g.scale.set(s, s, s)
+        g.rotation.x = -0.08 + sSin(t, 0.1, 0.03)
+        g.rotation.y = sSin(t, 0.15, 0.04)
+        break
+      }
+      case 'envZoomOut': {
+        const p = easeOut(Math.min(1, (t - 2.5) / 3.0 + 0.5))
+        const s = 1.4 - 0.4 * p
+        g.scale.set(s, s, s)
+        g.rotation.y = sSin(t, 0.15, 0.08)
+        g.rotation.x = -0.05 + sSin(t, 0.1, 0.03)
+        break
+      }
+      case 'envSlideIn': {
+        const p = easeOut(Math.min(1, t / 1.8))
+        g.position.x = 3.0 * (1 - p)
+        g.rotation.y = 0.25 * (1 - p) + sSin(t, 0.15, 0.06)
+        g.rotation.x = -0.06 + sSin(t, 0.1, 0.03)
+        break
+      }
+      case 'envRotateSlow':
+        g.rotation.y = t * 0.22
+        g.rotation.x = -0.06 + sSin(t, 0.15, 0.04)
+        g.position.y = sSin(t, 0.35, 0.07)
+        break
       default:
         g.rotation.y = sSin(t, 0.3, 0.3)
         g.position.y = sSin(t, 0.4, 0.08)
@@ -492,7 +534,7 @@ const MULTI = new Set([
   'flatScatter7',
 ])
 
-export default function MiniPreviewCanvas({ animation, bgColor, deviceType, paused = false }) {
+export default function MiniPreviewCanvas({ animation, bgColor, bgImageUrl, deviceType, paused = false }) {
   const glRef = useRef(null)
 
   const onCreated = useCallback(({ gl }) => { glRef.current = gl }, [])
@@ -508,14 +550,14 @@ export default function MiniPreviewCanvas({ animation, bgColor, deviceType, paus
   return (
     <Canvas
       camera={{ position: [0, 0, 2.8], fov: 45 }}
-      gl={{ antialias: true, alpha: false, powerPreference: 'low-power' }}
+      gl={{ antialias: true, alpha: !!bgImageUrl, powerPreference: 'low-power' }}
       dpr={1}
       frameloop="demand"
       style={{ width: '100%', height: '100%', borderRadius: 'inherit' }}
       onCreated={onCreated}
     >
       <FrameController paused={paused} />
-      <SceneBg bgColor={bgColor} />
+      <SceneBg bgColor={bgColor} bgImageUrl={bgImageUrl} />
       <ambientLight intensity={0.5} />
       <directionalLight position={[3, 4, 3]} intensity={1.2} />
       <directionalLight position={[-2, 2, -1]} intensity={0.4} />

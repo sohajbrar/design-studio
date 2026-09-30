@@ -222,6 +222,21 @@
   overflow: hidden;
 }
 
+/* Environment template photos get a subtle dark vignette so text/device is readable */
+.template-sidebar-preview[style*="url("] .template-mini-preview,
+.template-sidebar-preview[style*="url("] .template-sidebar-device {
+  position: relative;
+  z-index: 1;
+}
+.template-sidebar-preview[style*="url("]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
+  z-index: 0;
+  pointer-events: none;
+}
+
 .template-sidebar-device {
   display: flex;
   align-items: center;

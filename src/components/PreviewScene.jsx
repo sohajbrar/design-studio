@@ -65,12 +65,48 @@ function useTintedLights(bgColor) {
 }
 
 // ── Scene background ──────────────────────────────────────────
-function SceneBackground({ bgColor, bgGradient }) {
+function SceneBackground({ bgColor, bgGradient, bgImageUrl }) {
   const { scene } = useThree()
   const meshRef = useRef()
   const [gradientTex, setGradientTex] = useState(null)
 
+  // ── Image / video background ─────────────────────────────────
   useEffect(() => {
+    if (!bgImageUrl) return
+    const isVideo = bgImageUrl.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i)
+    let tex
+    if (isVideo) {
+      const video = document.createElement('video')
+      video.src = bgImageUrl
+      video.loop = true
+      video.muted = true
+      video.playsInline = true
+      video.autoplay = true
+      video.play().catch(() => {})
+      tex = new THREE.VideoTexture(video)
+      tex.colorSpace = THREE.SRGBColorSpace
+    } else {
+      const loader = new THREE.TextureLoader()
+      tex = loader.load(bgImageUrl)
+      tex.colorSpace = THREE.SRGBColorSpace
+    }
+    tex.minFilter = THREE.LinearFilter
+    tex.magFilter = THREE.LinearFilter
+    scene.background = null
+    setGradientTex(tex)
+    return () => {
+      tex.dispose()
+      setGradientTex(null)
+    }
+  }, [bgImageUrl, scene])
+
+  if (bgImageUrl) {
+    // Rendered via the mesh below (gradientTex state)
+    // fall through — the mesh picks up gradientTex
+  }
+
+  useEffect(() => {
+    if (bgImageUrl) return  // handled above
     if (bgGradient && typeof bgGradient === 'object' && bgGradient.blobs) {
       const W = 1024, H = 1024
       const canvas = document.createElement('canvas')
@@ -127,9 +163,13 @@ function SceneBackground({ bgColor, bgGradient }) {
 
   if (!gradientTex) return null
 
+  const isBgImage = !!bgImageUrl
   return (
     <mesh ref={meshRef} position={[0, 0, -50]} renderOrder={-1000}>
-      <planeGeometry args={[120, 120]} />
+      {isBgImage
+        ? <planeGeometry args={[180, 120]} />
+        : <planeGeometry args={[120, 120]} />
+      }
       <meshBasicMaterial map={gradientTex} toneMapped={false} depthWrite={false} />
     </mesh>
   )
@@ -589,6 +629,62 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         group.rotation.z = 0.12 * eased
         group.position.y = smoothSin(t, 0.22, 0.03)
         group.position.z = 0.3 * eased
+        break
+      }
+
+      // ── ENV FLOAT: subtle float perfect for environment backgrounds ──
+      case 'envFloat': {
+        group.rotation.y = smoothSin(t, 0.18, 0.12)
+        group.rotation.x = -0.08 + smoothSin(t, 0.12, 0.06)
+        group.position.y = smoothSin(t, 0.3, 0.07)
+        group.position.x = smoothSin(t, 0.2, 0.04)
+        const s = 1.0 + smoothSin(t, 0.2, 0.02)
+        group.scale.set(s, s, s)
+        break
+      }
+
+      // ── ENV ZOOM IN: slow gentle zoom into the device ──────────
+      case 'envZoomIn': {
+        const introT = Math.min(1, t / 3.0)
+        const eased = easeOutCubic(introT)
+        const s = 0.75 + 0.35 * eased + smoothSin(t, 0.18, 0.01)
+        group.scale.set(s, s, s)
+        group.rotation.y = 0.12 * (1 - eased) + smoothSin(t, 0.15, 0.04)
+        group.rotation.x = -0.08 + smoothSin(t, 0.1, 0.03)
+        group.position.y = smoothSin(t, 0.3, 0.06)
+        break
+      }
+
+      // ── ENV ZOOM OUT: start close, pull back to reveal scene ───
+      case 'envZoomOut': {
+        const introT = Math.min(1, t / 3.0)
+        const eased = easeOutCubic(introT)
+        const s = 1.4 - 0.4 * eased + smoothSin(t, 0.18, 0.01)
+        group.scale.set(s, s, s)
+        group.rotation.y = smoothSin(t, 0.15, 0.08)
+        group.rotation.x = -0.05 + smoothSin(t, 0.1, 0.03)
+        group.position.y = 0.1 * (1 - eased) + smoothSin(t, 0.3, 0.05)
+        break
+      }
+
+      // ── ENV SLIDE IN: device slides in from the right ──────────
+      case 'envSlideIn': {
+        const introT = Math.min(1, t / 1.8)
+        const eased = easeOutCubic(introT)
+        group.position.x = 3.0 * (1 - eased)
+        group.rotation.y = 0.25 * (1 - eased) + smoothSin(t, 0.15, 0.06)
+        group.rotation.x = -0.06 + smoothSin(t, 0.1, 0.03)
+        group.position.y = smoothSin(t, 0.28, 0.05)
+        break
+      }
+
+      // ── ENV ROTATE: slow continuous Y rotation for dramatic feel ─
+      case 'envRotateSlow': {
+        group.rotation.y = t * 0.22
+        group.rotation.x = -0.06 + smoothSin(t, 0.15, 0.04)
+        group.position.y = smoothSin(t, 0.35, 0.07)
+        const s = 1.0 + smoothSin(t, 0.2, 0.02)
+        group.scale.set(s, s, s)
         break
       }
 
@@ -2166,7 +2262,7 @@ function SplitDivider({ textSplit, onSplitChange, visible, textOnLeft, isVertica
 
 // ── Main export ───────────────────────────────────────────────
 export default function PreviewScene({
-  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, showBase, showDeviceShadow, isPlaying, canvasRef, glRendererRef, recordingDpr,
+  screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, bgImageUrl, showBase, showDeviceShadow, isPlaying, canvasRef, glRendererRef, recordingDpr,
   textOverlays, currentTime, clipAnimationTime, activeClipId, activeTextAnim, aspectRatio, screenFitMode, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
   outroLogo, totalDuration, multiDeviceCount, onTextClick, onTextDrag, onDeviceClick, onDrop,
 }) {
@@ -2296,7 +2392,7 @@ export default function PreviewScene({
           if (glRendererRef) glRendererRef.current = gl
         }}
       >
-        <SceneBackground bgColor={bgColor} bgGradient={bgGradient} />
+        <SceneBackground bgColor={bgColor} bgGradient={bgGradient} bgImageUrl={bgImageUrl} />
         <CameraAnimator animation={animation} isPlaying={isPlaying} multiDeviceCount={multiDeviceCount} clipDuration={clipDuration} clipAnimationTime={clipAnimationTime} />
 
         <ambientLight intensity={0.3} />

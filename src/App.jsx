@@ -44,6 +44,11 @@ const ANIMATION_PRESETS = [
   { id: 'carousel6', name: 'Carousel', multiPhone: true },
   { id: 'offsetCircleRotate', name: 'Offset Ring', multiPhone: true },
   { id: 'flatScatter7', name: 'Flat Grid', multiPhone: true },
+  { id: 'envFloat', name: 'Env Float', singleDevice: true },
+  { id: 'envZoomIn', name: 'Env Zoom In', singleDevice: true },
+  { id: 'envZoomOut', name: 'Env Zoom Out', singleDevice: true },
+  { id: 'envSlideIn', name: 'Env Slide In', singleDevice: true },
+  { id: 'envRotateSlow', name: 'Env Rotate', singleDevice: true },
 ]
 
 const OUTRO_PRESETS = [
@@ -532,6 +537,7 @@ function App() {
   const [animation, setAnimation] = useState('showcase')
   const [bgColor, setBgColor] = useState(() => loadSaved('bgColor', '#161717'))
   const [bgGradient, setBgGradient] = useState(() => loadSaved('bgGradient', false))
+  const [bgImageUrl, setBgImageUrl] = useState(null)
   const [showBase, setShowBase] = useState(() => loadSaved('showBase', false))
   const [showDeviceShadow, setShowDeviceShadow] = useState(() => loadSaved('showDeviceShadow', false))
   const [isPlaying, setIsPlaying] = useState(false)
@@ -1728,6 +1734,7 @@ function App() {
     setAnimation(template.animation)
     setBgColor(template.bgColor)
     setBgGradient(template.bgGradient)
+    setBgImageUrl(template.bgImageUrl || null)
     setShowBase(template.showBase)
     templateOutroRef.current = template.outroAnimation || 'none'
     templateClipDurRef.current = template.clipDuration || 3
@@ -3805,6 +3812,7 @@ function App() {
                 clipDuration={activeClipDuration}
                 bgColor={bgColor}
                 bgGradient={typeof bgGradient === 'string' ? (GRADIENT_PRESETS.find(g => g.id === bgGradient) || false) : bgGradient}
+                bgImageUrl={bgImageUrl}
                 showBase={showBase}
                 showDeviceShadow={showDeviceShadow}
                 isPlaying={isPlaying}
