@@ -632,6 +632,13 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
         break
       }
 
+      // ── ENV STATIC: completely still, natural slight tilt ──────
+      case 'envStatic': {
+        group.rotation.x = -0.06
+        group.rotation.y = 0.08
+        break
+      }
+
       // ── ENV FLOAT: subtle float perfect for environment backgrounds ──
       case 'envFloat': {
         group.rotation.y = smoothSin(t, 0.18, 0.12)

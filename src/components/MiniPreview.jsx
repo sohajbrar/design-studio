@@ -232,6 +232,10 @@ function SingleDeviceAnim({ animation, deviceType, paused }) {
         g.position.y = sSin(t, 0.3, 0.06)
         break
       }
+      case 'envStatic':
+        g.rotation.x = -0.06
+        g.rotation.y = 0.08
+        break
       case 'envFloat':
         g.rotation.y = sSin(t, 0.18, 0.12)
         g.rotation.x = -0.08 + sSin(t, 0.12, 0.06)
