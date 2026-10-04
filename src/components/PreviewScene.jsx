@@ -65,12 +65,44 @@ function useTintedLights(bgColor) {
 }
 
 // ── Scene background ──────────────────────────────────────────
+const BG_Z = -12  // background plane depth
+
 function SceneBackground({ bgColor, bgGradient, bgImageUrl }) {
-  const { scene } = useThree()
+  const { scene, camera, viewport, size } = useThree()
   const meshRef = useRef()
   const [gradientTex, setGradientTex] = useState(null)
+  const [imgNativeAspect, setImgNativeAspect] = useState(null)
 
-  // ── Image / video background ─────────────────────────────────
+  // ── Plane dimensions: exactly fill the visible viewport at BG_Z ──
+  const [planeW, planeH] = useMemo(() => {
+    const dist = camera.position.z - BG_Z           // distance from camera to plane
+    const scale = dist / camera.position.z           // how much larger than z=0 viewport
+    return [
+      viewport.width  * scale * 1.02,
+      viewport.height * scale * 1.02,
+    ]
+  }, [camera.position.z, viewport.width, viewport.height])
+
+  // ── Cover-fit: adjust texture repeat/offset to fill without distortion ──
+  useEffect(() => {
+    if (!gradientTex || !bgImageUrl || !imgNativeAspect) return
+    const canvasAspect = size.width / size.height
+    const img = imgNativeAspect
+    if (img > canvasAspect) {
+      // image wider than canvas — crop sides, fill height
+      const s = canvasAspect / img
+      gradientTex.repeat.set(s, 1)
+      gradientTex.offset.set((1 - s) / 2, 0)
+    } else {
+      // image taller than canvas — crop top/bottom, fill width
+      const s = img / canvasAspect
+      gradientTex.repeat.set(1, s)
+      gradientTex.offset.set(0, (1 - s) / 2)
+    }
+    gradientTex.needsUpdate = true
+  }, [gradientTex, bgImageUrl, imgNativeAspect, size.width, size.height])
+
+  // ── Image / video background ──────────────────────────────────
   useEffect(() => {
     if (!bgImageUrl) return
     const isVideo = bgImageUrl.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i)
@@ -85,28 +117,30 @@ function SceneBackground({ bgColor, bgGradient, bgImageUrl }) {
       video.play().catch(() => {})
       tex = new THREE.VideoTexture(video)
       tex.colorSpace = THREE.SRGBColorSpace
+      tex.minFilter = THREE.LinearFilter
+      tex.magFilter = THREE.LinearFilter
+      scene.background = null
+      setGradientTex(tex)
     } else {
       const loader = new THREE.TextureLoader()
-      tex = loader.load(bgImageUrl)
-      tex.colorSpace = THREE.SRGBColorSpace
+      loader.load(bgImageUrl, (loaded) => {
+        loaded.colorSpace = THREE.SRGBColorSpace
+        loaded.minFilter = THREE.LinearFilter
+        loaded.magFilter = THREE.LinearFilter
+        setImgNativeAspect(loaded.image.width / loaded.image.height)
+        scene.background = null
+        setGradientTex(loaded)
+      })
     }
-    tex.minFilter = THREE.LinearFilter
-    tex.magFilter = THREE.LinearFilter
-    scene.background = null
-    setGradientTex(tex)
     return () => {
-      tex.dispose()
       setGradientTex(null)
+      setImgNativeAspect(null)
     }
   }, [bgImageUrl, scene])
 
-  if (bgImageUrl) {
-    // Rendered via the mesh below (gradientTex state)
-    // fall through — the mesh picks up gradientTex
-  }
-
+  // ── Solid color / gradient background ────────────────────────
   useEffect(() => {
-    if (bgImageUrl) return  // handled above
+    if (bgImageUrl) return
     if (bgGradient && typeof bgGradient === 'object' && bgGradient.blobs) {
       const W = 1024, H = 1024
       const canvas = document.createElement('canvas')
@@ -163,13 +197,9 @@ function SceneBackground({ bgColor, bgGradient, bgImageUrl }) {
 
   if (!gradientTex) return null
 
-  const isBgImage = !!bgImageUrl
   return (
-    <mesh ref={meshRef} position={[0, 0, -50]} renderOrder={-1000}>
-      {isBgImage
-        ? <planeGeometry args={[180, 120]} />
-        : <planeGeometry args={[120, 120]} />
-      }
+    <mesh ref={meshRef} position={[0, 0, BG_Z]} renderOrder={-1000}>
+      <planeGeometry args={[planeW, planeH]} />
       <meshBasicMaterial map={gradientTex} toneMapped={false} depthWrite={false} />
     </mesh>
   )
