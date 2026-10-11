@@ -56,6 +56,10 @@ export default function Timeline({
   onRemoveVoiceover,
   selectedAudioTrack,
   setSelectedAudioTrack,
+  rawClips,
+  onAddRawClips,
+  onUpdateRawClip,
+  onRemoveRawClip,
 }) {
   const tracksRef = useRef(null)
   const scrollRef = useRef(null)
@@ -63,6 +67,8 @@ export default function Timeline({
   const [zoomPopover, setZoomPopover] = useState(null)
   const [fileDragOver, setFileDragOver] = useState(false)
   const [selectedZoomId, setSelectedZoomId] = useState(null)
+  const [selectedRawClipId, setSelectedRawClipId] = useState(null)
+  const [rawFileDragOver, setRawFileDragOver] = useState(false)
   const [pps, setPps] = useState(BASE_PPS)
   const [hoverGhost, setHoverGhost] = useState(null)
   const [timelineHeight, setTimelineHeight] = useState(260)
@@ -234,6 +240,38 @@ export default function Timeline({
         const updateFn = dragState.trackType === 'music' ? onUpdateMusic : onUpdateVoiceover
         if (updateFn) updateFn({ startTime: newStart, endTime: newStart + dur })
       }
+
+      // ── Raw clip drag handlers ──────────────────
+      if (dragState.type === 'raw-trim-left') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const newTrimStart = Math.max(0, dragState.startTrimStart + dTime)
+        const trimDelta = newTrimStart - dragState.startTrimStart
+        const newDuration = Math.max(MIN_CLIP_DURATION, dragState.startDuration - trimDelta)
+        const newStartTime = Math.max(0, dragState.startTime + trimDelta)
+        if (onUpdateRawClip) onUpdateRawClip(dragState.clipId, {
+          startTime: newStartTime,
+          duration: newDuration,
+          trimStart: newTrimStart,
+        })
+      }
+
+      if (dragState.type === 'raw-trim-right') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const newDuration = Math.max(MIN_CLIP_DURATION, dragState.startDuration + dTime)
+        if (onUpdateRawClip) onUpdateRawClip(dragState.clipId, {
+          duration: newDuration,
+          trimEnd: (dragState.startTrimEnd || dragState.startDuration) + dTime,
+        })
+      }
+
+      if (dragState.type === 'raw-move') {
+        const dx = e.clientX - dragState.startX
+        const dTime = dx / pps
+        const newStart = Math.max(0, dragState.origStart + dTime)
+        if (onUpdateRawClip) onUpdateRawClip(dragState.clipId, { startTime: newStart })
+      }
     }
 
     const handlePointerUp = () => {
@@ -258,6 +296,7 @@ export default function Timeline({
     onUpdateText,
     onUpdateMusic,
     onUpdateVoiceover,
+    onUpdateRawClip,
   ])
 
   useEffect(() => {
@@ -281,6 +320,10 @@ export default function Timeline({
           e.preventDefault()
           onRemoveZoomEffect(selectedZoomId)
           setSelectedZoomId(null)
+        } else if (selectedRawClipId) {
+          e.preventDefault()
+          if (onRemoveRawClip) onRemoveRawClip(selectedRawClipId)
+          setSelectedRawClipId(null)
         } else if (selectedClipId) {
           e.preventDefault()
           onRemoveClip(selectedClipId)
@@ -289,7 +332,7 @@ export default function Timeline({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedClipId, selectedZoomId, selectedTextId, selectedAudioTrack, onRemoveClip, onRemoveZoomEffect, onRemoveText, onRemoveMusic, onRemoveVoiceover, setSelectedTextId, setSelectedAudioTrack])
+  }, [selectedClipId, selectedZoomId, selectedTextId, selectedAudioTrack, selectedRawClipId, onRemoveClip, onRemoveZoomEffect, onRemoveText, onRemoveMusic, onRemoveVoiceover, onRemoveRawClip, setSelectedTextId, setSelectedAudioTrack])
 
   const handleSplit = useCallback(() => {
     if (selectedClipId) {
@@ -577,6 +620,18 @@ export default function Timeline({
               </svg>
             </button>
           )}
+          {selectedRawClipId && (
+            <button
+              className="transport-action-btn danger"
+              onClick={() => { if (onRemoveRawClip) onRemoveRawClip(selectedRawClipId); setSelectedRawClipId(null) }}
+              title="Remove raw clip"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -608,6 +663,135 @@ export default function Timeline({
           ref={tracksRef}
           style={{ width: trackWidth + 40 }}
         >
+          {/* ── Raw clips track ── */}
+          <div
+            className={`timeline-track raw-track${rawFileDragOver ? ' drag-over' : ''}`}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) {
+                const rect = e.currentTarget.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const time = Math.max(0, Math.min(totalDuration, xToTime(x)))
+                setCurrentTime(time)
+                setSelectedClipId(null)
+                setSelectedZoomId(null)
+                setSelectedTextId(null)
+                setSelectedAudioTrack(null)
+                setSelectedRawClipId(null)
+              }
+            }}
+            onDragEnter={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (e.dataTransfer.types.includes('Files')) setRawFileDragOver(true)
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (e.dataTransfer.types.includes('Files')) setRawFileDragOver(true)
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setRawFileDragOver(false)
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setRawFileDragOver(false)
+              const files = [...e.dataTransfer.files].filter(
+                (f) => f.type.startsWith('video/') || f.type.startsWith('image/')
+              )
+              if (files.length && onAddRawClips) {
+                const rect = e.currentTarget.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const atTime = Math.max(0, xToTime(x))
+                onAddRawClips(files, atTime)
+              }
+            }}
+          >
+            <span className="track-label">Raw</span>
+            {rawFileDragOver && (
+              <div className="raw-drop-hint">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                  <line x1="7" y1="2" x2="7" y2="22" />
+                  <line x1="17" y1="2" x2="17" y2="22" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <line x1="2" y1="7" x2="7" y2="7" />
+                  <line x1="2" y1="17" x2="7" y2="17" />
+                  <line x1="17" y1="17" x2="22" y2="17" />
+                  <line x1="17" y1="7" x2="22" y2="7" />
+                </svg>
+                Drop raw video here
+              </div>
+            )}
+            {(rawClips || []).map((clip) => {
+              const screen = screens.find((s) => s.id === clip.screenId)
+              const clipX = clip.startTime * pps
+              const clipW = Math.max(clip.duration * pps, 40)
+              const isSelected = clip.id === selectedRawClipId
+              return (
+                <div
+                  key={clip.id}
+                  className={`raw-clip-block${isSelected ? ' selected' : ''}`}
+                  style={{ left: clipX, width: clipW }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    setSelectedRawClipId(clip.id)
+                    setSelectedClipId(null)
+                    setSelectedZoomId(null)
+                    setSelectedTextId(null)
+                    setSelectedAudioTrack(null)
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const localX = e.clientX - rect.left
+                    if (localX <= TRIM_HANDLE_WIDTH) {
+                      setDragState({
+                        type: 'raw-trim-left',
+                        clipId: clip.id,
+                        startX: e.clientX,
+                        startTime: clip.startTime,
+                        startDuration: clip.duration,
+                        startTrimStart: clip.trimStart || 0,
+                      })
+                    } else if (localX >= rect.width - TRIM_HANDLE_WIDTH) {
+                      setDragState({
+                        type: 'raw-trim-right',
+                        clipId: clip.id,
+                        startX: e.clientX,
+                        startDuration: clip.duration,
+                        startTrimEnd: clip.trimEnd || clip.duration,
+                      })
+                    } else {
+                      setDragState({
+                        type: 'raw-move',
+                        clipId: clip.id,
+                        startX: e.clientX,
+                        origStart: clip.startTime,
+                      })
+                    }
+                  }}
+                >
+                  <div className="raw-trim-handle left" />
+                  <div className="raw-trim-handle right" />
+                  <div className="raw-clip-content">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                      <line x1="7" y1="2" x2="7" y2="22" />
+                      <line x1="17" y1="2" x2="17" y2="22" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <line x1="2" y1="7" x2="7" y2="7" />
+                      <line x1="2" y1="17" x2="7" y2="17" />
+                      <line x1="17" y1="17" x2="22" y2="17" />
+                      <line x1="17" y1="7" x2="22" y2="7" />
+                    </svg>
+                    <span className="raw-clip-label">{screen?.name || 'Raw Video'}</span>
+                    <span className="raw-clip-duration">{clip.duration.toFixed(1)}s</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
           {/* ── Media track ── */}
           <div
             className="timeline-track media-track"

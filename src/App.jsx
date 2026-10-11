@@ -578,6 +578,7 @@ function App() {
   const [selectedClipId, setSelectedClipId] = useState(null)
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false)
   const [zoomEffects, setZoomEffects] = useState([])
+  const [rawClips, setRawClips] = useState([])
   const [textOverlays, setTextOverlays] = useState([])
   const [selectedTextId, setSelectedTextId] = useState(null)
   const [textSplit, setTextSplit] = useState(0.5)
@@ -623,10 +624,11 @@ function App() {
   }, [bgColor, bgGradient, showBase, showDeviceShadow, deviceType, quality, exportFormat, aspectRatio, screenFitMode])
 
   // ── Derived values ───────────────────────────────
-  const totalDuration = useMemo(
-    () => timelineClips.reduce((sum, c) => sum + c.duration, 0),
-    [timelineClips]
-  )
+  const totalDuration = useMemo(() => {
+    const deviceEnd = timelineClips.reduce((sum, c) => sum + c.duration, 0)
+    const rawEnd = rawClips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0)
+    return Math.max(deviceEnd, rawEnd)
+  }, [timelineClips, rawClips])
 
   const activeClip = useMemo(() => {
     if (timelineClips.length === 0) return null
@@ -666,6 +668,15 @@ function App() {
     }
     return result
   }, [zoomEffects, currentTime])
+
+  const activeRawClip = useMemo(() =>
+    rawClips.find((c) => currentTime >= c.startTime && currentTime < c.startTime + c.duration) || null
+  , [rawClips, currentTime])
+
+  const activeRawScreen = useMemo(() => {
+    if (!activeRawClip) return null
+    return screens.find((s) => s.id === activeRawClip.screenId) || null
+  }, [activeRawClip, screens])
 
   const activeAnimation = useMemo(() => {
     if (activeClip && activeClip.animation) return activeClip.animation
@@ -765,8 +776,8 @@ function App() {
   const stateSnapRef = useRef(null)
 
   useEffect(() => {
-    stateSnapRef.current = { timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation }
-  }, [timelineClips, textOverlays, zoomEffects, bgColor, bgGradient, animation])
+    stateSnapRef.current = { timelineClips, textOverlays, zoomEffects, rawClips, bgColor, bgGradient, animation }
+  }, [timelineClips, textOverlays, zoomEffects, rawClips, bgColor, bgGradient, animation])
 
   const handleUndo = useCallback(() => {
     const stack = undoStackRef.current
@@ -776,6 +787,7 @@ function App() {
     setTimelineClips(snap.timelineClips)
     setTextOverlays(snap.textOverlays)
     setZoomEffects(snap.zoomEffects)
+    if (snap.rawClips) setRawClips(snap.rawClips)
     setBgColor(snap.bgColor)
     setBgGradient(snap.bgGradient)
     setAnimation(snap.animation)
@@ -788,6 +800,7 @@ function App() {
         timelineClips: JSON.parse(JSON.stringify(s.timelineClips)),
         textOverlays: JSON.parse(JSON.stringify(s.textOverlays)),
         zoomEffects: JSON.parse(JSON.stringify(s.zoomEffects)),
+        rawClips: JSON.parse(JSON.stringify(s.rawClips || [])),
         bgColor: s.bgColor,
         bgGradient: s.bgGradient,
         animation: s.animation,
@@ -1225,6 +1238,55 @@ function App() {
     track('clip_remove')
     setTimelineClips((prev) => recalcStartTimes(prev.filter((c) => c.id !== clipId)))
     setSelectedClipId((prev) => (prev === clipId ? null : prev))
+  }, [])
+
+  // ── Raw clip operations ────────────────────────
+  const handleAddRawClips = useCallback((files, atTime) => {
+    markChanged()
+    track('raw_clip_add', { count: files.length })
+    const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.webm', '.avi', '.mkv', '.m4v']
+    const newScreens = Array.from(files).map((file) => {
+      const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
+      const isVideo = file.type.startsWith('video/') || VIDEO_EXTENSIONS.includes(ext)
+      return {
+        id: crypto.randomUUID(),
+        file,
+        url: URL.createObjectURL(file),
+        name: file.name,
+        isVideo,
+        isGif: false,
+      }
+    })
+    setScreens((prev) => [...prev, ...newScreens])
+    const startAt = typeof atTime === 'number' && isFinite(atTime) ? atTime : totalDuration || 0
+    const newRaw = newScreens.map((screen, i) => ({
+      id: crypto.randomUUID(),
+      screenId: screen.id,
+      startTime: startAt + i * 3,
+      duration: 3,
+      trimStart: 0,
+      trimEnd: 3,
+    }))
+    setRawClips((prev) => [...prev, ...newRaw])
+    newScreens.forEach((screen, i) => {
+      if (screen.isVideo) {
+        getVideoDuration(screen.url).then((dur) => {
+          const clipId = newRaw[i].id
+          setRawClips((prev) => prev.map((c) =>
+            c.id === clipId ? { ...c, duration: dur, trimEnd: dur } : c
+          ))
+        })
+      }
+    })
+  }, [totalDuration])
+
+  const handleUpdateRawClip = useCallback((clipId, updates) => {
+    setRawClips((prev) => prev.map((c) => (c.id === clipId ? { ...c, ...updates } : c)))
+  }, [])
+
+  const handleRemoveRawClip = useCallback((clipId) => {
+    track('raw_clip_remove')
+    setRawClips((prev) => prev.filter((c) => c.id !== clipId))
   }, [])
 
   // ── Audio track operations ─────────────────────
@@ -2574,6 +2636,7 @@ function App() {
     setCurrentTime(0)
     setSelectedClipId(null)
     setZoomEffects([])
+    setRawClips([])
     setTextOverlays([])
     setSelectedTextId(null)
     setMusicTrack(null)
@@ -3854,6 +3917,8 @@ function App() {
                 onTextDrag={(id, pos) => handleUpdateText(id, pos)}
                 onDeviceClick={() => setSidebarTab('animations')}
                 onDrop={handleUpload}
+                rawClip={activeRawClip}
+                rawClipScreen={activeRawScreen}
               />
               {hasStarted && (
                 <Timeline
@@ -3892,6 +3957,10 @@ function App() {
                   onRemoveVoiceover={handleRemoveVoiceover}
                   selectedAudioTrack={selectedAudioTrack}
                   setSelectedAudioTrack={setSelectedAudioTrack}
+                  rawClips={rawClips}
+                  onAddRawClips={handleAddRawClips}
+                  onUpdateRawClip={handleUpdateRawClip}
+                  onRemoveRawClip={handleRemoveRawClip}
                 />
               )}
             </section>

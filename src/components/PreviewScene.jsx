@@ -2304,9 +2304,11 @@ export default function PreviewScene({
   screens, activeScreen, zoomLevel, videoSeekTime, timelinePlaying, deviceType, animation, outroAnimation, clipDuration, bgColor, bgGradient, bgImageUrl, showBase, showDeviceShadow, isPlaying, canvasRef, glRendererRef, recordingDpr,
   textOverlays, currentTime, clipAnimationTime, activeClipId, activeTextAnim, aspectRatio, screenFitMode, textSplit, onTextSplitChange, layoutFlipped, onFlipLayout, slotScreens,
   outroLogo, totalDuration, multiDeviceCount, onTextClick, onTextDrag, onDeviceClick, onDrop,
+  rawClip, rawClipScreen,
 }) {
   const tint = useTintedLights(bgColor)
   const containerRef = useRef(null)
+  const rawVideoRef = useRef(null)
   const [containerSize, setContainerSize] = useState({ w: 1, h: 1 })
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounterRef = useRef(0)
@@ -2317,6 +2319,21 @@ export default function PreviewScene({
     setResetKey(k => k + 1)
     setHasManualAdjust(false)
   }, [])
+
+  // ── Raw clip video sync ─────────────────────────────────────
+  useEffect(() => {
+    const vid = rawVideoRef.current
+    if (!vid || !rawClip) return
+    const target = Math.max(0, currentTime - rawClip.startTime + (rawClip.trimStart || 0))
+    if (Math.abs(vid.currentTime - target) > 0.15) vid.currentTime = target
+  }, [currentTime, rawClip])
+
+  useEffect(() => {
+    const vid = rawVideoRef.current
+    if (!vid || !rawClip) return
+    if (timelinePlaying) vid.play().catch(() => {})
+    else vid.pause()
+  }, [timelinePlaying, rawClip])
 
   useEffect(() => {
     const el = containerRef.current
@@ -2413,6 +2430,19 @@ export default function PreviewScene({
         </div>
       )}
       <div className={`preview-canvas-wrap${interactionMode === 'move' ? ' mode-move' : ''}`} style={canvasStyle}>
+      {/* Raw clip fullscreen overlay — replaces 3D scene during raw clips */}
+      {rawClip && rawClipScreen && (
+        <div className="raw-clip-overlay">
+          <video
+            ref={rawVideoRef}
+            key={rawClipScreen.url}
+            src={rawClipScreen.url}
+            className="raw-clip-video"
+            playsInline
+            muted={false}
+          />
+        </div>
+      )}
       <Canvas
         camera={{ position: [0, 0, 2.5], fov: 50 }}
         gl={{
