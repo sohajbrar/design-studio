@@ -841,9 +841,11 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
       }
     }
 
-    // Apply timeline zoom effect — scales the entire phone group smoothly
+    // Apply timeline zoom effect — scales the entire phone group smoothly.
+    // The lerp factor (0.05) adds a light trailing ease on top of the
+    // eased ramp already computed in activeZoomLevel (App.jsx).
     const targetZoom = zoomLevel || 1
-    currentZoomRef.current += (targetZoom - currentZoomRef.current) * 0.08
+    currentZoomRef.current += (targetZoom - currentZoomRef.current) * 0.05
     const zs = currentZoomRef.current
     group.scale.set(
       group.scale.x * zs,

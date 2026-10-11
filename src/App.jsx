@@ -642,13 +642,29 @@ function App() {
     return screens.find((s) => s.id === activeClip.screenId) || null
   }, [activeClip, screens])
 
+  // Seconds over which zoom eases in at the start and out at the end of each effect.
+  // Raising this makes the transition feel more cinematic / less abrupt.
+  const ZOOM_RAMP = 0.4
+
   const activeZoomLevel = useMemo(() => {
+    // Smooth ease-in-out sine: produces a gentle S-curve (0 → 1)
+    const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2
+
+    let result = 1
     for (const effect of zoomEffects) {
-      if (currentTime >= effect.startTime && currentTime <= effect.endTime) {
-        return effect.zoomLevel
-      }
+      if (currentTime < effect.startTime || currentTime > effect.endTime) continue
+
+      const effectDur = effect.endTime - effect.startTime
+      // Never let the ramp exceed half the effect duration so it always peaks
+      const ramp = Math.min(ZOOM_RAMP, effectDur / 2)
+
+      const tIn  = ramp > 0 ? Math.min(1, (currentTime - effect.startTime) / ramp) : 1
+      const tOut = ramp > 0 ? Math.min(1, (effect.endTime - currentTime)   / ramp) : 1
+      const blend = easeInOutSine(Math.min(tIn, tOut))
+
+      result = 1 + (effect.zoomLevel - 1) * blend
     }
-    return 1
+    return result
   }, [zoomEffects, currentTime])
 
   const activeAnimation = useMemo(() => {
