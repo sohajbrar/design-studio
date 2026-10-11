@@ -67,11 +67,18 @@ function useTintedLights(bgColor) {
 // ── Scene background ──────────────────────────────────────────
 const BG_Z = -12  // background plane depth
 
-function SceneBackground({ bgColor, bgGradient, bgImageUrl }) {
+function SceneBackground({ bgColor, bgGradient, bgImageUrl, hideBackground }) {
   const { scene, camera, viewport, size } = useThree()
   const meshRef = useRef()
   const [gradientTex, setGradientTex] = useState(null)
   const [imgNativeAspect, setImgNativeAspect] = useState(null)
+
+  // When a background video is showing behind the canvas, clear the 3D background
+  useEffect(() => {
+    if (hideBackground) { scene.background = null }
+  }, [hideBackground, scene])
+
+  if (hideBackground) return null
 
   // ── Plane dimensions: exactly fill the visible viewport at BG_Z ──
   const [planeW, planeH] = useMemo(() => {
@@ -2430,7 +2437,9 @@ export default function PreviewScene({
         </div>
       )}
       <div className={`preview-canvas-wrap${interactionMode === 'move' ? ' mode-move' : ''}`} style={canvasStyle}>
-      {/* Raw clip fullscreen overlay — replaces 3D scene during raw clips */}
+      {/* Background video — sits BEHIND the 3D canvas (z-index 0).
+          When both a raw clip and a device clip are active, the device
+          renders on top through the transparent WebGL canvas. */}
       {rawClip && rawClipScreen && (
         <div className="raw-clip-overlay">
           <video
@@ -2443,12 +2452,14 @@ export default function PreviewScene({
           />
         </div>
       )}
+      {/* Canvas wrapper — z-index 1, always in front of background video */}
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%' }}>
       <Canvas
         camera={{ position: [0, 0, 2.5], fov: 50 }}
         gl={{
           preserveDrawingBuffer: true,
           antialias: true,
-          alpha: false,
+          alpha: true,
           powerPreference: 'high-performance',
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.1,
@@ -2461,7 +2472,7 @@ export default function PreviewScene({
           if (glRendererRef) glRendererRef.current = gl
         }}
       >
-        <SceneBackground bgColor={bgColor} bgGradient={bgGradient} bgImageUrl={bgImageUrl} />
+        <SceneBackground bgColor={bgColor} bgGradient={bgGradient} bgImageUrl={bgImageUrl} hideBackground={!!(rawClip && rawClipScreen)} />
         <CameraAnimator animation={animation} isPlaying={isPlaying} multiDeviceCount={multiDeviceCount} clipDuration={clipDuration} clipAnimationTime={clipAnimationTime} />
 
         <ambientLight intensity={0.3} />
@@ -2544,6 +2555,7 @@ export default function PreviewScene({
           enableRotate={false}
         />
       </Canvas>
+      </div>{/* end canvas z-index wrapper */}
       <SplitDivider textSplit={textSplit} onSplitChange={onTextSplitChange} visible={showDivider} textOnLeft={textOnLeft} isVerticalLayout={isVerticalLayout} textOnTop={textOnTop} onFlip={onFlipLayout} />
       <div className="preview-interaction-toggle">
         <button

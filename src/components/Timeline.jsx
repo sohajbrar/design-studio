@@ -709,7 +709,7 @@ export default function Timeline({
               }
             }}
           >
-            <span className="track-label">Raw</span>
+            <span className="track-label">BG</span>
             {rawFileDragOver && (
               <div className="raw-drop-hint">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -722,7 +722,7 @@ export default function Timeline({
                   <line x1="17" y1="17" x2="22" y2="17" />
                   <line x1="17" y1="7" x2="22" y2="7" />
                 </svg>
-                Drop raw video here
+                Drop background video
               </div>
             )}
             {(rawClips || []).map((clip) => {
@@ -784,7 +784,7 @@ export default function Timeline({
                       <line x1="17" y1="17" x2="22" y2="17" />
                       <line x1="17" y1="7" x2="22" y2="7" />
                     </svg>
-                    <span className="raw-clip-label">{screen?.name || 'Raw Video'}</span>
+                    <span className="raw-clip-label">{screen?.name || 'Background Video'}</span>
                     <span className="raw-clip-duration">{clip.duration.toFixed(1)}s</span>
                   </div>
                 </div>
