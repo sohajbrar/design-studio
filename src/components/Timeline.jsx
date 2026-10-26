@@ -646,11 +646,12 @@ export default function Timeline({
                     setSelectedTextId(null)
                     setSelectedAudioTrack(null)
                     if (setSidebarTab) setSidebarTab('animations')
-                    // Jump playhead to this clip's start so the preview
-                    // immediately shows this clip's video.
-                    setCurrentTime(clip.startTime)
                     const rect = e.currentTarget.getBoundingClientRect()
                     const localX = e.clientX - rect.left
+                    // Jump playhead to the exact clicked position within the clip
+                    // so the preview shows the frame at that time (not just startTime).
+                    const clickedTime = clip.startTime + xToTime(Math.max(0, localX))
+                    setCurrentTime(Math.max(clip.startTime, Math.min(clip.startTime + clip.duration, clickedTime)))
 
                     if (localX <= TRIM_HANDLE_WIDTH) {
                       setDragState({

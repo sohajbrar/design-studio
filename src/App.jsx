@@ -639,7 +639,16 @@ function App() {
 
   const activeScreen = useMemo(() => {
     if (!activeClip) return screens[0] || null
-    return screens.find((s) => s.id === activeClip.screenId) || null
+    const found = screens.find((s) => s.id === activeClip.screenId)
+    if (!found) {
+      // DEBUG: log when a clip's screen can't be found — helps track the multi-video bug
+      console.warn(
+        '[VideoSwitch] activeScreen MISS — clipId:', activeClip.id,
+        '| screenId:', activeClip.screenId,
+        '| screens:', screens.map(s => `${s.id}=${s.name}`).join(' | ')
+      )
+    }
+    return found || null
   }, [activeClip, screens])
 
   // Seconds over which zoom eases in at the start and out at the end of each effect.

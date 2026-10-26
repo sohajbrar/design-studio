@@ -159,12 +159,16 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
       }
     }
 
+    // DEBUG log — helps trace which video URL is being loaded
+    console.log('[DeviceFrame] loading', screenUrl ? screenUrl.slice(-30) : 'null', 'clipKey:', clipKey)
+
     function commitTexture(tex, video) {
       if (cancelled) {
         tex.dispose()
         if (video) { video.pause(); video.src = '' }
         return
       }
+      console.log('[DeviceFrame] committed', video?.src?.slice(-30) || 'image')
       disposeOld()
       textureRef.current = tex
       if (video) videoRef.current = video
