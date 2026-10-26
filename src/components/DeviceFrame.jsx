@@ -108,7 +108,7 @@ function createRoundedRectShape(w, h, r) {
  * Uses a double-buffer strategy: the old texture stays visible until the new
  * one is fully loaded, eliminating any black-frame flash between clips.
  */
-function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif, screenFitMode = 'crop') {
+function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif, screenFitMode = 'crop', clipKey = null) {
   const textureRef = useRef(null)
   const loadedRef = useRef(false)
   const videoRef = useRef(null)
@@ -420,7 +420,9 @@ function useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif
     return () => {
       cancelled = true
     }
-  }, [screenFile, screenUrl, isVideo, isGif, screenAspect, screenFitMode])
+  // clipKey (= activeClipId) ensures a fresh load whenever the active clip
+  // changes, even if screenUrl happens to stay the same.
+  }, [screenFile, screenUrl, isVideo, isGif, screenAspect, screenFitMode, clipKey])
 
   return { textureRef, loadedRef, videoRef, gifRef }
 }
@@ -568,7 +570,7 @@ function MacBookGLB({
     const video = videoRef.current
     if (video && isVideo && loadedRef.current) {
       if (timelinePlaying) {
-        if (video.paused) { video.currentTime = videoSeekTime || 0; video.play().catch(() => {}); lastSeekRef.current = -1 }
+        if (video.paused && !video.ended) { video.currentTime = videoSeekTime || 0; video.play().catch(() => {}); lastSeekRef.current = -1 }
       } else {
         if (!video.paused) video.pause()
         const seekTo = videoSeekTime || 0
@@ -615,6 +617,9 @@ export default function DeviceFrame({
   lidAngleRef,
   showShadow = false,
   screenFitMode = 'crop',
+  // clipKey = activeClipId — forces the video effect to re-run on every
+  // clip transition so the correct video is always loaded.
+  clipKey = null,
 }) {
   const config = DEVICE_CONFIGS[type]
   const screenW = config.width - config.screenInset * 2
@@ -627,7 +632,17 @@ export default function DeviceFrame({
   const stuckTimeRef = useRef(0)
   const stuckSinceRef = useRef(0)
   const screenAspect = screenW / screenH
-  const { textureRef, loadedRef, videoRef, gifRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif, screenFitMode)
+  const { textureRef, loadedRef, videoRef, gifRef } = useScreenTextureRef(screenFile, screenUrl, isVideo, screenAspect, isGif, screenFitMode, clipKey)
+
+  // Reset per-video playback flags whenever the clip or source changes so
+  // stale "ended"/"play-failed" state can never block the new video.
+  useEffect(() => {
+    lastSeekRef.current = -1
+    videoEndedFiredRef.current = false
+    playFailedRef.current = false
+    stuckTimeRef.current = 0
+    stuckSinceRef.current = 0
+  }, [screenUrl, screenFile, clipKey])
 
   // Rounded body geometry
   const bodyGeo = useMemo(() => {
@@ -748,7 +763,7 @@ export default function DeviceFrame({
             videoEndedFiredRef.current = true
             onVideoEnded()
           }
-        } else if (video.paused && !playFailedRef.current) {
+        } else if (video.paused && !video.ended && !playFailedRef.current) {
           video.currentTime = videoSeekTime || 0
           video.play().then(() => { playFailedRef.current = false }).catch(() => {
             playFailedRef.current = true

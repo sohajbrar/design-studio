@@ -646,6 +646,9 @@ export default function Timeline({
                     setSelectedTextId(null)
                     setSelectedAudioTrack(null)
                     if (setSidebarTab) setSidebarTab('animations')
+                    // Jump playhead to this clip's start so the preview
+                    // immediately shows this clip's video.
+                    setCurrentTime(clip.startTime)
                     const rect = e.currentTarget.getBoundingClientRect()
                     const localX = e.clientX - rect.left
 

@@ -921,6 +921,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             isGif={firstScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
+            clipKey={activeClipId}
             scale={0.35}
             showShadow={showDeviceShadow}
             screenFitMode={screenFitMode}
@@ -937,6 +938,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             isGif={secondScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
+            clipKey={activeClipId}
             scale={0.35}
             showShadow={showDeviceShadow}
             screenFitMode={screenFitMode}
@@ -953,6 +955,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             isGif={firstScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
+            clipKey={activeClipId}
             scale={0.35}
             showShadow={showDeviceShadow}
             screenFitMode={screenFitMode}
@@ -969,6 +972,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             isGif={firstScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
+            clipKey={activeClipId}
             scale={0.38}
             lidAngleRef={lidAngleRef}
             showShadow={showDeviceShadow}
@@ -986,6 +990,7 @@ function AnimatedDevices({ screens, activeScreen, zoomLevel, videoSeekTime, time
             isGif={firstScreen?.isGif || false}
             videoSeekTime={videoSeekTime}
             timelinePlaying={timelinePlaying}
+            clipKey={activeClipId}
             scale={0.35}
             showShadow={showDeviceShadow}
             screenFitMode={screenFitMode}
